@@ -131,6 +131,8 @@ if grep -qE '^COMPOSE_PROJECT_NAME=' .env; then
 else
   printf '\nCOMPOSE_PROJECT_NAME=shifti\n' >> .env
 fi
+# Important : un `source .env` antérieur laisserait l'ancienne valeur en priorite sur le fichier
+export COMPOSE_PROJECT_NAME=shifti
 
 log "docker compose up -d --build"
 docker compose build app
