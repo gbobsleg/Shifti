@@ -29,39 +29,49 @@ jobs:
             docker volume ls || true
 
             echo "=== Conteneurs legacy ==="
-            docker ps -aq --filter name=planning_new | while read -r id; do
+            while IFS= read -r id; do
               [[ -n "$id" ]] || continue
               docker rm -f "$id" || true
-            done
+            done < <(docker ps -aq --filter name=planning_new || true)
 
             echo "=== Images planning_new* ==="
-            docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep -E '^planning_new' | while read -r ref id; do
+            while IFS= read -r line; do
+              [[ -n "$line" ]] || continue
+              ref="$(echo "$line" | awk '{print $1}')"
+              id="$(echo "$line" | awk '{print $2}')"
               echo "rm $ref ($id)"
               docker image rm -f "$ref" 2>/dev/null || docker image rm -f "$id" || true
-            done
-            # au cas où tag dangling
-            docker images -q --filter reference='planning_new-app*' | while read -r id; do
+            done < <(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep -E '^planning_new' || true)
+
+            while IFS= read -r id; do
               [[ -n "$id" ]] || continue
               docker image rm -f "$id" || true
-            done
+            done < <(docker images -q --filter reference='planning_new-app*' || true)
 
             echo "=== Réseaux planning* (sauf shifti) ==="
-            docker network ls --format '{{.Name}}' | grep -E 'planning' | grep -v shifti | while read -r n; do
+            while IFS= read -r n; do
+              [[ -n "$n" ]] || continue
               echo "rm network $n"
               docker network rm "$n" 2>/dev/null || true
-            done
+            done < <(docker network ls --format '{{.Name}}' | grep -E 'planning' | grep -v shifti || true)
 
             echo "=== Volumes planning_new* ==="
-            docker volume ls -q | grep -E '^planning_new' | while read -r v; do
+            while IFS= read -r v; do
+              [[ -n "$v" ]] || continue
               echo "rm volume $v"
               docker volume rm "$v" 2>/dev/null || true
-            done
+            done < <(docker volume ls -q | grep -E '^planning_new' || true)
 
             echo "=== Après ==="
             docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
             docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}'
             docker network ls
             docker volume ls
+            leftover="$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E 'planning_new' || true)"
+            if [[ -n "$leftover" ]]; then
+              echo "ERREUR: images legacy restantes: $leftover"
+              exit 1
+            fi
             echo "SMOKE:"
             curl -s -o /dev/null -w '%{http_code}\n' --max-time 15 http://127.0.0.1:8080/ || true
             echo "OK prune"
