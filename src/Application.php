@@ -170,6 +170,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
                 \App\Resource\ExcelUploadsResource::class => \App\Policy\ExcelUploadsPolicy::class,
                 \App\Resource\PlanningEventMappingsResource::class => \App\Policy\PlanningEventMappingsPolicy::class,
                 \App\Resource\PlanningGenerationJobsResource::class => \App\Policy\PlanningGenerationJobsPolicy::class,
+                \App\Resource\BackgroundJobsResource::class => \App\Policy\BackgroundJobsPolicy::class,
             ]),
         ]);
 

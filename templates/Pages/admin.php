@@ -193,6 +193,20 @@ $servicesHealth = $servicesHealth ?? [];
         </h4>
         <div class="row">
             <div class="col-md-3 mb-4">
+                <div class="card admin-card border-dark h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-list-task text-dark card-icon"></i>
+                        <h5 class="card-title">Jobs</h5>
+                        <p class="text-muted small">File Optuna / prévisions / plannings</p>
+                        <?= $this->Html->link(
+                            '<i class="bi bi-arrow-right-circle mr-2"></i> Accéder',
+                            ['controller' => 'BackgroundJobs', 'action' => 'index'],
+                            ['class' => 'btn btn-dark', 'escape' => false]
+                        ) ?>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
                 <div class="card admin-card border-primary h-100">
                     <div class="card-body text-center">
                         <i class="bi bi-people-fill text-primary card-icon"></i>
