@@ -1,0 +1,52 @@
+name: Verify live path
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: verify-live
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Vérifier nginx + clone actif
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            set -euo pipefail
+            NEW="${{ secrets.VPS_APP_PATH }}"
+            echo "=== VPS_APP_PATH ==="
+            echo "$NEW"
+            echo "=== clone shifti ==="
+            if [[ -d "$NEW" ]]; then
+              cd "$NEW"
+              echo "pwd=$(pwd)"
+              echo "remote=$(git remote get-url origin 2>/dev/null || echo none)"
+              echo "commit=$(git rev-parse --short HEAD) $(git log -1 --pretty=%s)"
+              echo "compose:"
+              docker compose ps
+              echo "APP_NAME from .env:"
+              grep -E '^APP_NAME=' .env || echo "(unset)"
+              echo "COMPOSE_PROJECT_NAME:"
+              grep -E '^COMPOSE_PROJECT_NAME=' .env || echo "(unset)"
+            else
+              echo "NEW ABSENT"
+            fi
+            echo "=== old clone ==="
+            ls -ld "$HOME/Planning_new_old" 2>/dev/null || echo "Planning_new_old absent"
+            ls -ld "$HOME/Planning_new" 2>/dev/null || echo "Planning_new absent (attendu)"
+            echo "=== nginx / proxy hints ==="
+            for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*; do
+              [[ -f "$f" ]] || continue
+              echo "--- $f ---"
+              grep -nE 'proxy_pass|8080|root |server_name|listen' "$f" 2>/dev/null || true
+            done
+            echo "=== local smoke ==="
+            curl -sI --max-time 10 http://127.0.0.1:8080/ | head -n 15 || true
