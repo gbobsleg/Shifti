@@ -18,10 +18,8 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change_me_planning}
       TZ: Europe/Paris
     volumes:
-      # Persistance des données
+      # Persistance des données (volume Docker). Schéma géré par les migrations CakePHP.
       - db_data:/var/lib/mysql
-      # Initialisation automatique au premier démarrage uniquement
-      - ./database_backup.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     ports:
       # Réservé à la machine hôte : accès via tunnel SSH uniquement, jamais exposé publiquement
       - "127.0.0.1:3306:3306"
