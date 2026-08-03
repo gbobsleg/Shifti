@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\ProphetOptunaConfig;
+
 /**
  * WfmSettings Controller
  *
@@ -59,8 +61,11 @@ class WfmSettingsController extends AppController
     {
         // Charger également les offres liées pour l'affichage (pauses / repas)
         $wfmSetting = $this->WfmSettings->get($id, contain: ['PauseOffers', 'LunchOffers']);
+        $prophetDefaults = $this->getProphetDefaultsForSystem($wfmSetting);
+        $optunaSettings = $this->getOptunaSettingsForSystem($wfmSetting);
+        $optunaCronEstimate = (new \App\Service\ProphetOptunaCronService())->estimateCronWave($optunaSettings);
         $this->set('slotMinutes', \App\Service\ScheduleProblemBuilderService::SLOT_MINUTES);
-        $this->set(compact('wfmSetting'));
+        $this->set(compact('wfmSetting', 'prophetDefaults', 'optunaSettings', 'optunaCronEstimate'));
     }
 
     /**
@@ -75,6 +80,11 @@ class WfmSettingsController extends AppController
             $data = $this->request->getData();
             $prophetDefaults = $this->buildProphetDefaultsFromRequest($data['prophet_defaults'] ?? []);
             $data['prophet_defaults_json'] = $prophetDefaults ? json_encode($prophetDefaults) : null;
+            $data['optuna_settings_json'] = $this->buildOptunaSettingsFromRequest(
+                $data['optuna_settings'] ?? [],
+                null
+            );
+            unset($data['optuna_settings'], $data['prophet_defaults']);
             $wfmSetting = $this->WfmSettings->patchEntity($wfmSetting, $data);
             if ($this->WfmSettings->save($wfmSetting)) {
                 $this->Flash->success('Le profil WFM a été enregistré.');
@@ -91,6 +101,8 @@ class WfmSettingsController extends AppController
         ])->all();
         
         $prophetDefaults = $this->getProphetDefaultsForSystem($wfmSetting);
+        $optunaSettings = $this->getOptunaSettingsForSystem($wfmSetting);
+        $optunaCronEstimate = (new \App\Service\ProphetOptunaCronService())->estimateCronWave($optunaSettings);
 
         // Bornes globales des données historiques (pour limiter les dates globales)
         $HistoricalData = $this->fetchTable('HistoricalData');
@@ -129,7 +141,15 @@ class WfmSettingsController extends AppController
         }
 
         $this->set('slotMinutes', \App\Service\ScheduleProblemBuilderService::SLOT_MINUTES);
-        $this->set(compact('wfmSetting', 'offers', 'prophetDefaults', 'historyMinDate', 'historyMaxDate'));
+        $this->set(compact(
+            'wfmSetting',
+            'offers',
+            'prophetDefaults',
+            'optunaSettings',
+            'optunaCronEstimate',
+            'historyMinDate',
+            'historyMaxDate'
+        ));
     }
 
     /**
@@ -146,6 +166,11 @@ class WfmSettingsController extends AppController
             $data = $this->request->getData();
             $prophetDefaults = $this->buildProphetDefaultsFromRequest($data['prophet_defaults'] ?? []);
             $data['prophet_defaults_json'] = $prophetDefaults ? json_encode($prophetDefaults) : null;
+            $data['optuna_settings_json'] = $this->buildOptunaSettingsFromRequest(
+                $data['optuna_settings'] ?? [],
+                $wfmSetting->optuna_settings_json ?? null
+            );
+            unset($data['optuna_settings'], $data['prophet_defaults']);
             $wfmSetting = $this->WfmSettings->patchEntity($wfmSetting, $data);
             if ($this->WfmSettings->save($wfmSetting)) {
                 $this->Flash->success('Le profil WFM a été enregistré.');
@@ -162,6 +187,8 @@ class WfmSettingsController extends AppController
         ])->all();
         
         $prophetDefaults = $this->getProphetDefaultsForSystem($wfmSetting);
+        $optunaSettings = $this->getOptunaSettingsForSystem($wfmSetting);
+        $optunaCronEstimate = (new \App\Service\ProphetOptunaCronService())->estimateCronWave($optunaSettings);
 
         // Bornes globales des données historiques (pour limiter les dates globales)
         $HistoricalData = $this->fetchTable('HistoricalData');
@@ -200,7 +227,15 @@ class WfmSettingsController extends AppController
         }
 
         $this->set('slotMinutes', \App\Service\ScheduleProblemBuilderService::SLOT_MINUTES);
-        $this->set(compact('wfmSetting', 'offers', 'prophetDefaults', 'historyMinDate', 'historyMaxDate'));
+        $this->set(compact(
+            'wfmSetting',
+            'offers',
+            'prophetDefaults',
+            'optunaSettings',
+            'optunaCronEstimate',
+            'historyMinDate',
+            'historyMaxDate'
+        ));
     }
 
     /**
@@ -337,5 +372,113 @@ class WfmSettingsController extends AppController
         }
 
         return $defaults;
+    }
+
+    /**
+     * Construit la config Optuna depuis le formulaire WFM (bornes + garde-fous V1).
+     *
+     * @param array<string, mixed> $data
+     * @param mixed $existingRaw Pour préserver last_cron_enqueue_date
+     * @return array<string, mixed>
+     */
+    private function buildOptunaSettingsFromRequest(array $data, mixed $existingRaw = null): array
+    {
+        $base = ProphetOptunaConfig::DEFAULTS;
+        $existing = ProphetOptunaConfig::fromStorage($existingRaw);
+
+        $float = static function ($value, float $default): float {
+            if ($value === null || $value === '') {
+                return $default;
+            }
+
+            return (float)$value;
+        };
+        $int = static function ($value, int $default): int {
+            if ($value === null || $value === '') {
+                return $default;
+            }
+
+            return (int)$value;
+        };
+
+        $horizon = $int($data['test_horizon_days'] ?? null, (int)$base['test_horizon_days']);
+        $horizon = max(7, min(60, $horizon));
+
+        $trials = $int($data['n_trials'] ?? null, (int)$base['n_trials']);
+        $trials = max(10, min(200, $trials));
+
+        $period = $int($data['cron_period_days'] ?? null, (int)$base['cron_period_days']);
+        $period = max(1, min(90, $period));
+
+        $minHistory = $int($data['min_history_days'] ?? null, (int)$base['min_history_days']);
+        $minHistory = max(30, min(3650, $minHistory));
+
+        $improve = $float(
+            $data['auto_apply_min_mae_improvement_pct'] ?? null,
+            (float)$base['auto_apply_min_mae_improvement_pct']
+        );
+        $improve = max(0.0, min(100.0, $improve));
+
+        $cronHour = $int($data['cron_hour'] ?? null, (int)$base['cron_hour']);
+        $cronHour = max(0, min(23, $cronHour));
+        $cronMinute = $int($data['cron_minute'] ?? null, (int)$base['cron_minute']);
+        $cronMinute = max(0, min(59, $cronMinute));
+        $workdayStart = $int($data['cron_workday_start_hour'] ?? null, (int)$base['cron_workday_start_hour']);
+        $workdayStart = max(0, min(23, $workdayStart));
+
+        $weekdaysRaw = $data['cron_weekdays'] ?? ($existing['cron_weekdays'] ?? [7]);
+        if (!is_array($weekdaysRaw)) {
+            $weekdaysRaw = [$weekdaysRaw];
+        }
+
+        return ProphetOptunaConfig::merge([
+            'cron_enabled' => !empty($data['cron_enabled']),
+            'cron_period_days' => $period,
+            'cron_weekdays' => $weekdaysRaw,
+            'cron_hour' => $cronHour,
+            'cron_minute' => $cronMinute,
+            'cron_workday_start_hour' => $workdayStart,
+            'last_cron_enqueue_date' => $existing['last_cron_enqueue_date'] ?? null,
+            'test_horizon_days' => $horizon,
+            'n_cutoffs' => 3,
+            'n_trials' => $trials,
+            'min_history_days' => $minHistory,
+            'auto_apply' => !empty($data['auto_apply']),
+            'auto_apply_min_mae_improvement_pct' => $improve,
+            'changepoint_prior_scale_min' => $float(
+                $data['changepoint_prior_scale_min'] ?? null,
+                (float)$base['changepoint_prior_scale_min']
+            ),
+            'changepoint_prior_scale_max' => $float(
+                $data['changepoint_prior_scale_max'] ?? null,
+                (float)$base['changepoint_prior_scale_max']
+            ),
+            'seasonality_prior_scale_min' => $float(
+                $data['seasonality_prior_scale_min'] ?? null,
+                (float)$base['seasonality_prior_scale_min']
+            ),
+            'seasonality_prior_scale_max' => $float(
+                $data['seasonality_prior_scale_max'] ?? null,
+                (float)$base['seasonality_prior_scale_max']
+            ),
+            'n_changepoints_min' => $int($data['n_changepoints_min'] ?? null, (int)$base['n_changepoints_min']),
+            'n_changepoints_max' => $int($data['n_changepoints_max'] ?? null, (int)$base['n_changepoints_max']),
+            'monthly_fourier_order_min' => $int(
+                $data['monthly_fourier_order_min'] ?? null,
+                (int)$base['monthly_fourier_order_min']
+            ),
+            'monthly_fourier_order_max' => $int(
+                $data['monthly_fourier_order_max'] ?? null,
+                (int)$base['monthly_fourier_order_max']
+            ),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function getOptunaSettingsForSystem(\App\Model\Entity\WfmSetting $setting): array
+    {
+        return ProphetOptunaConfig::fromStorage($setting->optuna_settings_json ?? null);
     }
 }

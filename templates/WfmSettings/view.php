@@ -390,6 +390,61 @@ if (is_string($rawProphet) && $rawProphet !== '') {
             </div>
         </div>
 
+        <?php
+        $optunaSettings = $optunaSettings ?? \App\Service\ProphetOptunaConfig::DEFAULTS;
+        ?>
+        <div class="card border-warning mb-4">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0"><i class="bi bi-cpu"></i> Tuning Optuna (moteur global)</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    <?= \App\Service\ProphetOptunaConfig::fixedRulesHelpHtml() ?>
+                    Bornes = uniquement les 4 params tunables. Fuseau cron : Europe/Paris.
+                </p>
+                <?php if (!empty($optunaCronEstimate)): ?>
+                    <p class="small mb-2">
+                        Estimation vague :
+                        <?= (int)$optunaCronEstimate['enabled_offers'] ?> offre(s) ×
+                        <?= (int)$optunaCronEstimate['n_trials'] ?> trials ≈
+                        <strong><?= h($optunaCronEstimate['total_human']) ?></strong>
+                        <?php if (!empty($optunaCronEstimate['overflow_risk'])): ?>
+                            <span class="badge badge-warning">risque débordement journée</span>
+                        <?php endif; ?>
+                    </p>
+                <?php endif; ?>
+                <div class="row small">
+                    <div class="col-md-6">
+                        <ul class="list-unstyled mb-0">
+                            <li><strong>Horizon test:</strong> <?= (int)$optunaSettings['test_horizon_days'] ?> j</li>
+                            <li><strong>Trials:</strong> <?= (int)$optunaSettings['n_trials'] ?></li>
+                            <li><strong>Cutoffs:</strong> <?= (int)$optunaSettings['n_cutoffs'] ?> (fixe V1)</li>
+                            <li><strong>Historique min:</strong> <?= (int)$optunaSettings['min_history_days'] ?> j</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="list-unstyled mb-0">
+                            <li><strong>Cron:</strong> <?= !empty($optunaSettings['cron_enabled']) ? 'ON' : 'OFF' ?>
+                                —
+                                <?php
+                                $wd = \App\Service\ProphetOptunaConfig::normalizeWeekdays($optunaSettings['cron_weekdays'] ?? [7]);
+                                $labels = [];
+                                foreach ($wd as $d) {
+                                    $labels[] = \App\Service\ProphetOptunaConfig::WEEKDAY_LABELS[$d] ?? (string)$d;
+                                }
+                                echo h(implode(', ', $labels));
+                                ?>
+                                à <?= sprintf('%02d:%02d', (int)$optunaSettings['cron_hour'], (int)$optunaSettings['cron_minute']) ?>
+                                (périodicité <?= (int)$optunaSettings['cron_period_days'] ?> j/offre)
+                            </li>
+                            <li><strong>Auto-apply:</strong> <?= !empty($optunaSettings['auto_apply']) ? 'ON' : 'OFF' ?>
+                                (seuil <?= h((string)$optunaSettings['auto_apply_min_mae_improvement_pct']) ?> %)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <?php // --- Boutons d'action --- ?>
         <div class="mt-3">
             <?= $this->Html->link(

@@ -594,6 +594,262 @@
             </div>
         </div>
 
+        <?php // --- Paramètres Optuna (moteur de tuning) --- ?>
+        <?php $optunaSettings = $optunaSettings ?? \App\Service\ProphetOptunaConfig::DEFAULTS; ?>
+        <div class="card border-warning mb-4">
+            <div class="card-header bg-warning">
+                <i class="bi bi-cpu"></i> Tuning Optuna (moteur global)
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    Configuration du worker de tuning Prophet. Les offres activées peuvent être
+                    tunées manuellement ou via le <strong>ticker cron</strong>
+                    (<code>bin/cake prophet_tuning_scheduler_ticker</code>).
+                    Fuseau : <strong>Europe/Paris</strong>.
+                </p>
+                <div class="alert alert-info py-2 small mb-3">
+                    <?= \App\Service\ProphetOptunaConfig::fixedRulesHelpHtml() ?>
+                    Les bornes ci-dessous concernent uniquement les 4 paramètres tunables
+                    (priors, n_changepoints, fourier mensuel).
+                </div>
+                <?php
+                $optunaCronEstimate = $optunaCronEstimate ?? null;
+                $cronWeekdays = \App\Service\ProphetOptunaConfig::normalizeWeekdays($optunaSettings['cron_weekdays'] ?? [7]);
+                ?>
+                <?php if ($optunaCronEstimate): ?>
+                    <div class="alert <?= !empty($optunaCronEstimate['overflow_risk']) ? 'alert-warning' : 'alert-secondary' ?> py-2 small mb-3"
+                         id="optuna-cron-estimate"
+                         data-enabled-offers="<?= (int)$optunaCronEstimate['enabled_offers'] ?>"
+                         data-sec-per-trial="<?= h((string)$optunaCronEstimate['seconds_per_trial']) ?>"
+                         data-workday-start="<?= (int)$optunaCronEstimate['workday_start_hour'] ?>">
+                        <strong>Estimation d’une vague cron :</strong>
+                        <span data-est-summary>
+                            <?= (int)$optunaCronEstimate['enabled_offers'] ?> offre(s) ×
+                            <?= (int)$optunaCronEstimate['n_trials'] ?> trials ≈
+                            <strong><?= h($optunaCronEstimate['total_human']) ?></strong>
+                            (fin estimée ~ <?= h($optunaCronEstimate['estimated_end']) ?> Europe/Paris)
+                        </span>
+                        <br>
+                        <span class="text-muted">
+                            Base temps/trial :
+                            <?php if (($optunaCronEstimate['seconds_per_trial_source'] ?? '') === 'history'): ?>
+                                historique (<?= (int)$optunaCronEstimate['sample_count'] ?> jobs) —
+                            <?php else: ?>
+                                heuristique (pas encore assez d’historique) —
+                            <?php endif; ?>
+                            ~<?= h((string)$optunaCronEstimate['seconds_per_trial']) ?> s / trial.
+                            Ordre de grandeur uniquement.
+                        </span>
+                        <span data-est-overflow style="<?= !empty($optunaCronEstimate['overflow_risk']) ? '' : 'display:none' ?>">
+                            <br><strong>Attention :</strong> fin estimée susceptible de chevaucher une journée ouvrée
+                            (à partir de <?= (int)$optunaCronEstimate['workday_start_hour'] ?>h).
+                        </span>
+                    </div>
+                <?php endif; ?>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-primary"><i class="bi bi-sliders"></i> Backtest &amp; budget</h6>
+                        <div class="form-group bg-light p-3 border rounded mb-3">
+                            <label class="font-weight-bold">Horizon de test (jours)</label>
+                            <?= $this->Form->control('optuna_settings.test_horizon_days', [
+                                'type' => 'number',
+                                'min' => 7,
+                                'max' => 60,
+                                'value' => $optunaSettings['test_horizon_days'] ?? 14,
+                                'label' => false,
+                                'class' => 'form-control form-control-sm',
+                                'style' => 'max-width: 120px;',
+                            ]) ?>
+                            <small class="form-text text-muted">7–60. Défaut 14. Cutoffs walk-forward : 3 (fixe V1).</small>
+                        </div>
+                        <div class="form-group bg-light p-3 border rounded mb-3">
+                            <label class="font-weight-bold">Nombre d’essais Optuna (n_trials)</label>
+                            <?= $this->Form->control('optuna_settings.n_trials', [
+                                'type' => 'number',
+                                'min' => 10,
+                                'max' => 200,
+                                'value' => $optunaSettings['n_trials'] ?? 50,
+                                'label' => false,
+                                'class' => 'form-control form-control-sm',
+                                'style' => 'max-width: 120px;',
+                                'id' => 'optuna_settings_n_trials',
+                            ]) ?>
+                        </div>
+                        <div class="form-group bg-light p-3 border rounded mb-3">
+                            <label class="font-weight-bold">Historique minimum (jours)</label>
+                            <?= $this->Form->control('optuna_settings.min_history_days', [
+                                'type' => 'number',
+                                'min' => 30,
+                                'max' => 3650,
+                                'value' => $optunaSettings['min_history_days'] ?? 90,
+                                'label' => false,
+                                'class' => 'form-control form-control-sm',
+                                'style' => 'max-width: 120px;',
+                            ]) ?>
+                        </div>
+                        <div class="form-group bg-light p-3 border rounded mb-3">
+                            <div class="form-check mb-2">
+                                <?= $this->Form->checkbox('optuna_settings.cron_enabled', [
+                                    'checked' => !empty($optunaSettings['cron_enabled']),
+                                    'class' => 'form-check-input',
+                                    'id' => 'optuna_settings_cron_enabled',
+                                ]) ?>
+                                <label class="form-check-label" for="optuna_settings_cron_enabled">
+                                    <strong>Activer le cron de tuning</strong>
+                                </label>
+                            </div>
+                            <label class="small font-weight-bold d-block">Jours autorisés</label>
+                            <div class="mb-2">
+                                <?php foreach (\App\Service\ProphetOptunaConfig::WEEKDAY_LABELS as $dow => $label): ?>
+                                    <div class="form-check form-check-inline">
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               name="optuna_settings[cron_weekdays][]"
+                                               id="optuna_wd_<?= (int)$dow ?>"
+                                               value="<?= (int)$dow ?>"
+                                               <?= in_array((int)$dow, $cronWeekdays, true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="optuna_wd_<?= (int)$dow ?>"><?= h($label) ?></label>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-end mb-2">
+                                <div class="mr-3 mb-2">
+                                    <label class="small font-weight-bold">Heure (Paris)</label>
+                                    <?= $this->Form->control('optuna_settings.cron_hour', [
+                                        'type' => 'number', 'min' => 0, 'max' => 23,
+                                        'value' => $optunaSettings['cron_hour'] ?? 2,
+                                        'label' => false, 'class' => 'form-control form-control-sm',
+                                        'style' => 'max-width: 80px;', 'id' => 'optuna_settings_cron_hour',
+                                    ]) ?>
+                                </div>
+                                <div class="mr-3 mb-2">
+                                    <label class="small font-weight-bold">Minute</label>
+                                    <?= $this->Form->control('optuna_settings.cron_minute', [
+                                        'type' => 'number', 'min' => 0, 'max' => 59,
+                                        'value' => $optunaSettings['cron_minute'] ?? 0,
+                                        'label' => false, 'class' => 'form-control form-control-sm',
+                                        'style' => 'max-width: 80px;', 'id' => 'optuna_settings_cron_minute',
+                                    ]) ?>
+                                </div>
+                                <div class="mr-3 mb-2">
+                                    <label class="small font-weight-bold">Périodicité / offre (j)</label>
+                                    <?= $this->Form->control('optuna_settings.cron_period_days', [
+                                        'type' => 'number', 'min' => 1, 'max' => 90,
+                                        'value' => $optunaSettings['cron_period_days'] ?? 7,
+                                        'label' => false, 'class' => 'form-control form-control-sm',
+                                        'style' => 'max-width: 80px;',
+                                    ]) ?>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="small font-weight-bold">Alerte ouvrée dès (h)</label>
+                                    <?= $this->Form->control('optuna_settings.cron_workday_start_hour', [
+                                        'type' => 'number', 'min' => 0, 'max' => 23,
+                                        'value' => $optunaSettings['cron_workday_start_hour'] ?? 8,
+                                        'label' => false, 'class' => 'form-control form-control-sm',
+                                        'style' => 'max-width: 80px;', 'id' => 'optuna_settings_cron_workday_start_hour',
+                                    ]) ?>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">
+                                Ex. Dimanche 02:00, périodicité 7. Le ticker doit tourner en permanence.
+                            </small>
+                        </div>
+                        <div class="form-group bg-light p-3 border rounded">
+                            <div class="form-check mb-2">
+                                <?= $this->Form->checkbox('optuna_settings.auto_apply', [
+                                    'checked' => !empty($optunaSettings['auto_apply']),
+                                    'class' => 'form-check-input',
+                                    'id' => 'optuna_settings_auto_apply',
+                                ]) ?>
+                                <label class="form-check-label" for="optuna_settings_auto_apply">
+                                    <strong>Auto-écriture du profil si amélioration</strong>
+                                </label>
+                            </div>
+                            <label class="small font-weight-bold">Seuil d’amélioration MAE minimale (%)</label>
+                            <?= $this->Form->control('optuna_settings.auto_apply_min_mae_improvement_pct', [
+                                'type' => 'number',
+                                'step' => 'any',
+                                'min' => 0,
+                                'max' => 100,
+                                'value' => $optunaSettings['auto_apply_min_mae_improvement_pct'] ?? 5,
+                                'label' => false,
+                                'class' => 'form-control form-control-sm',
+                                'style' => 'max-width: 120px;',
+                            ]) ?>
+                            <small class="form-text text-muted">Défaut OFF. Seuil défaut 5 %.</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-primary"><i class="bi bi-bounding-box"></i> Bornes de recherche</h6>
+                        <div class="form-group bg-light p-3 border rounded mb-3">
+                            <label class="font-weight-bold">changepoint_prior_scale (min / max)</label>
+                            <div class="d-flex align-items-center">
+                                <?= $this->Form->control('optuna_settings.changepoint_prior_scale_min', [
+                                    'type' => 'number', 'step' => 'any', 'min' => 0.001, 'max' => 0.5,
+                                    'value' => $optunaSettings['changepoint_prior_scale_min'] ?? 0.001,
+                                    'label' => false, 'class' => 'form-control form-control-sm mr-2', 'style' => 'max-width: 110px;',
+                                ]) ?>
+                                <span class="mx-1">→</span>
+                                <?= $this->Form->control('optuna_settings.changepoint_prior_scale_max', [
+                                    'type' => 'number', 'step' => 'any', 'min' => 0.001, 'max' => 0.5,
+                                    'value' => $optunaSettings['changepoint_prior_scale_max'] ?? 0.5,
+                                    'label' => false, 'class' => 'form-control form-control-sm ml-2', 'style' => 'max-width: 110px;',
+                                ]) ?>
+                            </div>
+                        </div>
+                        <div class="form-group bg-light p-3 border rounded mb-3">
+                            <label class="font-weight-bold">seasonality_prior_scale (min / max)</label>
+                            <div class="d-flex align-items-center">
+                                <?= $this->Form->control('optuna_settings.seasonality_prior_scale_min', [
+                                    'type' => 'number', 'step' => 'any', 'min' => 0.01, 'max' => 100,
+                                    'value' => $optunaSettings['seasonality_prior_scale_min'] ?? 0.01,
+                                    'label' => false, 'class' => 'form-control form-control-sm mr-2', 'style' => 'max-width: 110px;',
+                                ]) ?>
+                                <span class="mx-1">→</span>
+                                <?= $this->Form->control('optuna_settings.seasonality_prior_scale_max', [
+                                    'type' => 'number', 'step' => 'any', 'min' => 0.01, 'max' => 100,
+                                    'value' => $optunaSettings['seasonality_prior_scale_max'] ?? 100,
+                                    'label' => false, 'class' => 'form-control form-control-sm ml-2', 'style' => 'max-width: 110px;',
+                                ]) ?>
+                            </div>
+                        </div>
+                        <div class="form-group bg-light p-3 border rounded mb-3">
+                            <label class="font-weight-bold">n_changepoints (min / max)</label>
+                            <div class="d-flex align-items-center">
+                                <?= $this->Form->control('optuna_settings.n_changepoints_min', [
+                                    'type' => 'number', 'min' => 1, 'max' => 100,
+                                    'value' => $optunaSettings['n_changepoints_min'] ?? 10,
+                                    'label' => false, 'class' => 'form-control form-control-sm mr-2', 'style' => 'max-width: 110px;',
+                                ]) ?>
+                                <span class="mx-1">→</span>
+                                <?= $this->Form->control('optuna_settings.n_changepoints_max', [
+                                    'type' => 'number', 'min' => 1, 'max' => 100,
+                                    'value' => $optunaSettings['n_changepoints_max'] ?? 50,
+                                    'label' => false, 'class' => 'form-control form-control-sm ml-2', 'style' => 'max-width: 110px;',
+                                ]) ?>
+                            </div>
+                        </div>
+                        <div class="form-group bg-light p-3 border rounded">
+                            <label class="font-weight-bold">monthly_fourier_order (min / max)</label>
+                            <div class="d-flex align-items-center">
+                                <?= $this->Form->control('optuna_settings.monthly_fourier_order_min', [
+                                    'type' => 'number', 'min' => 1, 'max' => 15,
+                                    'value' => $optunaSettings['monthly_fourier_order_min'] ?? 3,
+                                    'label' => false, 'class' => 'form-control form-control-sm mr-2', 'style' => 'max-width: 110px;',
+                                ]) ?>
+                                <span class="mx-1">→</span>
+                                <?= $this->Form->control('optuna_settings.monthly_fourier_order_max', [
+                                    'type' => 'number', 'min' => 1, 'max' => 15,
+                                    'value' => $optunaSettings['monthly_fourier_order_max'] ?? 10,
+                                    'label' => false, 'class' => 'form-control form-control-sm ml-2', 'style' => 'max-width: 110px;',
+                                ]) ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <?php // --- Boutons d'action --- ?>
         <div class="mt-3">
             <?= $this->Form->button('<i class="bi bi-save mr-2"></i> Enregistrer', [
@@ -610,3 +866,85 @@
         <?= $this->Form->end() ?>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var box = document.getElementById('optuna-cron-estimate');
+    var trialsInput = document.getElementById('optuna_settings_n_trials');
+    var hourInput = document.getElementById('optuna_settings_cron_hour');
+    var minuteInput = document.getElementById('optuna_settings_cron_minute');
+    var workdayInput = document.getElementById('optuna_settings_cron_workday_start_hour');
+    if (!box || !trialsInput) {
+        return;
+    }
+
+    function pad(n) {
+        return (n < 10 ? '0' : '') + n;
+    }
+
+    function formatHuman(totalSec) {
+        if (totalSec < 60) {
+            return totalSec + ' s';
+        }
+        var m = Math.floor(totalSec / 60);
+        if (m < 60) {
+            return m + ' min';
+        }
+        var h = Math.floor(m / 60);
+        var rm = m % 60;
+        return h + ' h' + (rm ? ' ' + rm + ' min' : '');
+    }
+
+    function refreshEstimate() {
+        var enabled = parseInt(box.getAttribute('data-enabled-offers') || '0', 10);
+        var secPer = parseFloat(box.getAttribute('data-sec-per-trial') || '180');
+        var trials = parseInt(trialsInput.value || '50', 10);
+        var hour = parseInt((hourInput && hourInput.value) || '2', 10);
+        var minute = parseInt((minuteInput && minuteInput.value) || '0', 10);
+        var workday = parseInt((workdayInput && workdayInput.value) || box.getAttribute('data-workday-start') || '8', 10);
+        if (isNaN(trials) || trials < 1) {
+            trials = 1;
+        }
+        var totalSec = Math.round(enabled * trials * secPer);
+        var start = new Date();
+        start.setHours(hour, minute, 0, 0);
+        if (start.getTime() < Date.now()) {
+            start.setDate(start.getDate() + 1);
+        }
+        var end = new Date(start.getTime() + totalSec * 1000);
+        var endDow = end.getDay(); // 0=Dim … 6=Sam
+        var endHour = end.getHours();
+        var isWeekday = endDow >= 1 && endDow <= 5;
+        var overflow = isWeekday && endHour >= workday;
+
+        var summary = box.querySelector('[data-est-summary]');
+        if (summary) {
+            summary.innerHTML =
+                enabled + ' offre(s) × ' + trials + ' trials ≈ <strong>' + formatHuman(totalSec) + '</strong>' +
+                ' (fin estimée ~ ' +
+                end.getFullYear() + '-' + pad(end.getMonth() + 1) + '-' + pad(end.getDate()) +
+                ' ' + pad(end.getHours()) + ':' + pad(end.getMinutes()) +
+                ' Europe/Paris)';
+        }
+        var ov = box.querySelector('[data-est-overflow]');
+        if (ov) {
+            ov.style.display = overflow ? '' : 'none';
+        }
+        box.classList.toggle('alert-warning', overflow);
+        box.classList.toggle('alert-secondary', !overflow);
+    }
+
+    ['change', 'input'].forEach(function (ev) {
+        trialsInput.addEventListener(ev, refreshEstimate);
+        if (hourInput) {
+            hourInput.addEventListener(ev, refreshEstimate);
+        }
+        if (minuteInput) {
+            minuteInput.addEventListener(ev, refreshEstimate);
+        }
+        if (workdayInput) {
+            workdayInput.addEventListener(ev, refreshEstimate);
+        }
+    });
+});
+</script>

@@ -25,8 +25,10 @@ use Cake\ORM\Entity;
  * @property \Cake\I18n\Time $pm_pause_start_time
  * @property \Cake\I18n\Time $pm_pause_end_time
  * @property int $min_block_minutes
-     * @property int $max_block_minutes
-     * @property array|null $prophet_defaults_json
+ * @property int $max_block_minutes
+ * @property array|null $prophet_defaults_json
+ * @property array|null $optuna_settings_json
+ * @property array|null $worked_days_json
  * @property bool|null $strict_work_hours
  * @property bool $enable_am_pm_breaks
  * @property bool $enforce_remote_work_incompatibilities
@@ -65,6 +67,7 @@ class WfmSetting extends Entity
         'enable_am_pm_breaks' => true,
         'forbid_midday_singletons' => true,
         'prophet_defaults_json' => true,
+        'optuna_settings_json' => true,
         'pause_offer_id' => true,
         'lunch_offer_id' => true,
         'pause_offer' => true,

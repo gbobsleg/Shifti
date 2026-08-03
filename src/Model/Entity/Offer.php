@@ -24,10 +24,17 @@ use DateTimeInterface;
  * @property bool $equity_enabled
  * @property bool $is_remote_work_compatible
  * @property array|null $prophet_default_settings_json
+ * @property bool $prophet_tuning_enabled
+ * @property array|null $prophet_tuning_draft_json
+ * @property array|null $prophet_tuning_draft_scores_json
+ * @property array|null $prophet_tuning_previous_json
+ * @property \Cake\I18n\FrozenTime|null $prophet_tuning_last_run_at
+ * @property int|null $prophet_tuning_last_job_id
  * @property \Cake\I18n\FrozenTime|null $created
  * @property \Cake\I18n\FrozenTime|null $modified
  *
  * @property \App\Model\Entity\Range[] $ranges
+ * @property \App\Model\Entity\ProphetTuningJob[] $prophet_tuning_jobs
  */
 class Offer extends Entity
 {
@@ -53,11 +60,18 @@ class Offer extends Entity
         'equity_enabled' => true,
         'is_remote_work_compatible' => true,
         'prophet_default_settings_json' => true,
+        'prophet_tuning_enabled' => true,
+        'prophet_tuning_draft_json' => true,
+        'prophet_tuning_draft_scores_json' => true,
+        'prophet_tuning_previous_json' => true,
+        'prophet_tuning_last_run_at' => true,
+        'prophet_tuning_last_job_id' => true,
         'created' => true,
         'modified' => true,
         'ranges' => true,
-		'skills' => true,
-		'users' => true
+        'skills' => true,
+        'users' => true,
+        'prophet_tuning_jobs' => true,
     ];
 
     protected function _setStartDate($value): ?FrozenTime

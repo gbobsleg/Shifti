@@ -14,6 +14,7 @@ use Cake\Validation\Validator;
  * Offers Model
  *
  * @property \App\Model\Table\RangesTable&\Cake\ORM\Association\HasMany $Ranges
+ * @property \App\Model\Table\ProphetTuningJobsTable&\Cake\ORM\Association\HasMany $ProphetTuningJobs
  *
  * @method \App\Model\Entity\Offer newEmptyEntity()
  * @method \App\Model\Entity\Offer newEntity(array $data, array $options = [])
@@ -49,21 +50,32 @@ class OffersTable extends Table
 
         $this->addBehavior('Timestamp');
 
+        $this->getSchema()->setColumnType('prophet_default_settings_json', 'json');
+        $this->getSchema()->setColumnType('prophet_tuning_draft_json', 'json');
+        $this->getSchema()->setColumnType('prophet_tuning_draft_scores_json', 'json');
+        $this->getSchema()->setColumnType('prophet_tuning_previous_json', 'json');
+
         $this->hasMany('Ranges', [
             'foreignKey' => 'offer_id',
         ]);
-		
-		// Relation pour la table de jointure SKILLS
-		$this->hasMany('Skills', [
-			'foreignKey' => 'offer_id',
-		]);
-		
-		// Relation "Many-to-Many" (Une offre a plusieurs utilisateurs via la table skills)
-		$this->belongsToMany('Users', [
-			'foreignKey' => 'offer_id',
-			'targetForeignKey' => 'user_id',
-			'joinTable' => 'skills', // Nom de la table de jointure
-    ]);
+
+        // Relation pour la table de jointure SKILLS
+        $this->hasMany('Skills', [
+            'foreignKey' => 'offer_id',
+        ]);
+
+        // Relation "Many-to-Many" (Une offre a plusieurs utilisateurs via la table skills)
+        $this->belongsToMany('Users', [
+            'foreignKey' => 'offer_id',
+            'targetForeignKey' => 'user_id',
+            'joinTable' => 'skills', // Nom de la table de jointure
+        ]);
+
+        $this->hasMany('ProphetTuningJobs', [
+            'foreignKey' => 'offer_id',
+            'dependent' => true,
+            'cascadeCallbacks' => true,
+        ]);
     }
 
     /**
@@ -133,6 +145,18 @@ class OffersTable extends Table
             ->boolean('is_remote_work_compatible')
             ->requirePresence('is_remote_work_compatible', 'create')
             ->notEmptyString('is_remote_work_compatible');
+
+        $validator
+            ->boolean('prophet_tuning_enabled')
+            ->allowEmptyString('prophet_tuning_enabled');
+
+        $validator
+            ->dateTime('prophet_tuning_last_run_at')
+            ->allowEmptyDateTime('prophet_tuning_last_run_at');
+
+        $validator
+            ->integer('prophet_tuning_last_job_id')
+            ->allowEmptyString('prophet_tuning_last_job_id');
 
         return $validator;
     }

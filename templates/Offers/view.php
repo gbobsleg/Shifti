@@ -282,6 +282,143 @@ $formatDateFr = function (?string $date): ?string {
             </div>
         <?php endif; ?>
 
+        <?php if (!empty($offer->is_forecastable) && !empty($prophetTuning)): ?>
+            <?php
+            $csrfToken = (string)$this->request->getAttribute('csrfToken');
+            $jobStatus = $prophetTuning['job']['status'] ?? 'none';
+            $trialsDone = (int)($prophetTuning['job']['progress_trials_done'] ?? 0);
+            $trialsTotal = (int)($prophetTuning['job']['progress_trials_total'] ?? 0);
+            $progressPct = $trialsTotal > 0 ? min(100, (int)round($trialsDone / $trialsTotal * 100)) : 0;
+            $draftScores = $prophetTuning['draft_scores'] ?? null;
+            $baselineScores = $draftScores['baseline'] ?? ($prophetTuning['job']['baseline_scores'] ?? null);
+            $proposedScores = $draftScores['proposed'] ?? ($prophetTuning['job']['best_scores'] ?? null);
+            $seasonalityAdapt = $draftScores['seasonality_adaptation'] ?? null;
+            $fmtScore = function ($s) {
+                if (!$s) {
+                    return '—';
+                }
+                $mae = isset($s['mae_volume']) ? number_format((float)$s['mae_volume'], 2, '.', '') : '—';
+                $mape = isset($s['mape_volume']) ? number_format((float)$s['mape_volume'], 2, '.', '') : '—';
+
+                return "MAE {$mae} · MAPE {$mape}%";
+            };
+            $fmtSeasonalityAdapt = function ($a) {
+                if (!is_array($a) || empty($a['notes']) || !is_array($a['notes'])) {
+                    return '';
+                }
+
+                return implode(' · ', array_map('strval', $a['notes']));
+            };
+            ?>
+            <div class="card border-warning mb-4">
+                <div class="card-header bg-warning d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-cpu"></i> Tuning Optuna</span>
+                    <?= $this->Html->link(
+                        'Configurer / activer',
+                        ['action' => 'edit', $offer->id],
+                        ['class' => 'btn btn-sm btn-outline-dark']
+                    ) ?>
+                </div>
+                <div class="card-body"
+                     id="prophet-tuning-root"
+                     data-csrf-token="<?= h($csrfToken) ?>"
+                     data-url-status="<?= h($prophetTuning['urls']['status']) ?>"
+                     data-url-start="<?= h($prophetTuning['urls']['start']) ?>"
+                     data-url-apply="<?= h($prophetTuning['urls']['apply']) ?>"
+                     data-url-reject="<?= h($prophetTuning['urls']['reject']) ?>"
+                     data-url-rollback="<?= h($prophetTuning['urls']['rollback']) ?>">
+
+                    <p class="small text-muted mb-3">
+                        Suivi live du tuning. Activation cron et params Prophet :
+                        <?= $this->Html->link('page Modifier', ['action' => 'edit', $offer->id]) ?>.
+                        <br>
+                        Cron tuning :
+                        <?php if (!empty($offer->prophet_tuning_enabled)): ?>
+                            <span class="badge badge-success">activé</span>
+                        <?php else: ?>
+                            <span class="badge badge-secondary">désactivé</span>
+                        <?php endif; ?>
+                    </p>
+                    <div class="alert alert-info py-2 small mb-3">
+                        <?= \App\Service\ProphetOptunaConfig::fixedRulesHelpHtml() ?>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="small text-muted">Statut job</div>
+                            <div class="font-weight-bold" data-pt-status><?= h($jobStatus) ?></div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="small text-muted">Baseline (actuel)</div>
+                            <div data-pt-baseline><?= h($fmtScore($baselineScores)) ?></div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="small text-muted">Proposé</div>
+                            <div data-pt-proposed><?= h($fmtScore($proposedScores)) ?></div>
+                            <div class="small text-muted" data-pt-improvement>
+                                <?php if (isset($draftScores['mae_improvement_pct'])): ?>
+                                    <?= h(number_format((float)$draftScores['mae_improvement_pct'], 1)) ?> % MAE
+                                <?php else: ?>
+                                    —
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <?php $seasonalityAdaptText = $fmtSeasonalityAdapt($seasonalityAdapt); ?>
+                    <div class="alert alert-secondary py-2 small mb-3"
+                         data-pt-seasonality-adapt
+                         style="<?= $seasonalityAdaptText !== '' ? '' : 'display:none' ?>">
+                        <strong>Saisonnalités adaptées à l’historique :</strong>
+                        <span data-pt-seasonality-adapt-text><?= h($seasonalityAdaptText) ?></span>
+                    </div>
+
+                    <div class="mb-3" data-pt-progress-wrap style="<?= in_array($jobStatus, ['queued', 'running', 'completed', 'failed'], true) ? '' : 'display:none' ?>">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>Progression</span>
+                            <span data-pt-progress-label><?= (int)$trialsDone ?> / <?= (int)$trialsTotal ?> essais</span>
+                        </div>
+                        <div class="progress" style="height: 18px;">
+                            <div class="progress-bar progress-bar-striped <?= $jobStatus === 'running' ? 'progress-bar-animated' : '' ?>"
+                                 role="progressbar"
+                                 data-pt-progress-bar
+                                 style="width: <?= (int)$progressPct ?>%;"
+                                 aria-valuenow="<?= (int)$progressPct ?>"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100"></div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-danger py-2 small" data-pt-error style="<?= !empty($prophetTuning['job']['error_message']) ? '' : 'display:none' ?>">
+                        <?= h($prophetTuning['job']['error_message'] ?? '') ?>
+                    </div>
+
+                    <div class="mb-2">
+                        <button type="button" class="btn btn-warning btn-sm mr-2" data-pt-start>
+                            <i class="bi bi-play-fill"></i> Lancer un tuning
+                        </button>
+                        <span class="small" data-pt-message></span>
+                    </div>
+
+                    <div class="mb-2" data-pt-draft-actions style="<?= !empty($prophetTuning['has_draft']) ? '' : 'display:none' ?>">
+                        <button type="button" class="btn btn-success btn-sm mr-2" data-pt-apply>
+                            <i class="bi bi-check2"></i> Appliquer le brouillon
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-pt-reject>
+                            <i class="bi bi-x"></i> Rejeter
+                        </button>
+                    </div>
+
+                    <div data-pt-rollback-wrap style="<?= !empty($prophetTuning['has_previous']) ? '' : 'display:none' ?>">
+                        <button type="button" class="btn btn-outline-danger btn-sm" data-pt-rollback>
+                            <i class="bi bi-arrow-counterclockwise"></i> Rollback profil précédent
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <?php $this->Html->script('prophet-tuning', ['block' => true]); ?>
+        <?php endif; ?>
+
         <?php // --- Boutons d'action --- ?>
         <div class="mt-4">
             <?= $this->Html->link(
