@@ -45,8 +45,41 @@ if docker ps --format '{{.Names}}' | grep -qx planning_db; then
   dump_db planning_db | gzip -c > "$BACKUP"
 elif docker ps --format '{{.Names}}' | grep -qx shifti_db; then
   dump_db shifti_db | gzip -c > "$BACKUP"
+elif docker volume inspect "$OLD_DB_VOL" >/dev/null 2>&1; then
+  log "Aucun db running — démarrage temporaire sur $OLD_DB_VOL"
+  docker rm -f shifti_tmp_db_backup 2>/dev/null || true
+  docker run -d --name shifti_tmp_db_backup \
+    -v "$OLD_DB_VOL:/var/lib/mysql" \
+    -e "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD" \
+    mariadb:11.4 >/dev/null
+  for i in $(seq 1 60); do
+    if docker exec shifti_tmp_db_backup healthcheck.sh --connect --innodb_initialized >/dev/null 2>&1 \
+      || docker exec shifti_tmp_db_backup mariadb-admin ping -uroot -p"$MYSQL_ROOT_PASSWORD" --silent >/dev/null 2>&1; then
+      break
+    fi
+    [[ "$i" -eq 60 ]] && { docker logs shifti_tmp_db_backup || true; docker rm -f shifti_tmp_db_backup || true; die "Timeout db temporaire"; }
+    sleep 2
+  done
+  dump_db shifti_tmp_db_backup | gzip -c > "$BACKUP"
+  docker rm -f shifti_tmp_db_backup >/dev/null
+elif docker volume inspect "$NEW_DB_VOL" >/dev/null 2>&1; then
+  log "Aucun db running — démarrage temporaire sur $NEW_DB_VOL"
+  docker rm -f shifti_tmp_db_backup 2>/dev/null || true
+  docker run -d --name shifti_tmp_db_backup \
+    -v "$NEW_DB_VOL:/var/lib/mysql" \
+    -e "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD" \
+    mariadb:11.4 >/dev/null
+  for i in $(seq 1 60); do
+    if docker exec shifti_tmp_db_backup mariadb-admin ping -uroot -p"$MYSQL_ROOT_PASSWORD" --silent >/dev/null 2>&1; then
+      break
+    fi
+    [[ "$i" -eq 60 ]] && { docker rm -f shifti_tmp_db_backup || true; die "Timeout db temporaire"; }
+    sleep 2
+  done
+  dump_db shifti_tmp_db_backup | gzip -c > "$BACKUP"
+  docker rm -f shifti_tmp_db_backup >/dev/null
 else
-  die "Aucun conteneur db running (planning_db|shifti_db) pour backup"
+  die "Aucun conteneur db ni volume BDD pour backup"
 fi
 [[ -s "$BACKUP" ]] || die "Backup vide"
 log "Backup OK ($(du -h "$BACKUP" | awk '{print $1}'))"
