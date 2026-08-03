@@ -1,0 +1,123 @@
+name: Migrate VPS
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: migrate-vps
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Reset clone + garder BDD
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Migrer Planning_new → shifti
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 50m
+          script: |
+            set -euo pipefail
+
+            OLD="$HOME/Planning_new"
+            OLD_BAK="$HOME/Planning_new_old"
+            NEW="${{ secrets.VPS_APP_PATH }}"
+
+            echo "OLD=$OLD"
+            echo "OLD_BAK=$OLD_BAK"
+            echo "NEW=$NEW"
+
+            [[ -d "$OLD" ]] || { echo "ERREUR: $OLD introuvable"; exit 1; }
+            [[ ! -e "$OLD_BAK" ]] || { echo "ERREUR: $OLD_BAK existe déjà — abort"; exit 1; }
+            [[ ! -e "$NEW" ]] || { echo "ERREUR: $NEW existe déjà — abort"; exit 1; }
+            [[ -f "$OLD/.env" ]] || { echo "ERREUR: $OLD/.env introuvable"; exit 1; }
+
+            mkdir -p "$HOME/backups"
+            cd "$OLD"
+
+            set -a
+            # shellcheck disable=SC1091
+            source .env
+            set +a
+
+            DB_NAME="${MYSQL_DATABASE:-cake_planning}"
+            [[ -n "${MYSQL_ROOT_PASSWORD:-}" ]] || { echo "ERREUR: MYSQL_ROOT_PASSWORD vide"; exit 1; }
+
+            BACKUP="$HOME/backups/pre_migrate_${DB_NAME}_$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+            echo "=== Backup BDD ==="
+            docker compose exec -T db \
+              mariadb-dump -uroot -p"$MYSQL_ROOT_PASSWORD" \
+              --single-transaction --routines --triggers \
+              "$DB_NAME" | gzip -c > "$BACKUP"
+            [[ -s "$BACKUP" ]] || { echo "ERREUR: backup vide"; exit 1; }
+            echo "Backup OK: $BACKUP ($(du -h "$BACKUP" | awk '{print $1}'))"
+
+            echo "=== docker compose down (volumes conservés) ==="
+            docker compose down
+
+            echo "=== Rename clone ==="
+            mv "$OLD" "$OLD_BAK"
+
+            echo "=== Clone repo public ==="
+            git clone --branch main --depth 1 https://github.com/gbobsleg/Shifti.git "$NEW"
+
+            echo "=== Copie .env + COMPOSE_PROJECT_NAME ==="
+            cp "$OLD_BAK/.env" "$NEW/.env"
+            if ! grep -qE '^COMPOSE_PROJECT_NAME=' "$NEW/.env"; then
+              printf '\nCOMPOSE_PROJECT_NAME=planning_new\n' >> "$NEW/.env"
+              echo "COMPOSE_PROJECT_NAME=planning_new ajouté"
+            else
+              echo "COMPOSE_PROJECT_NAME déjà présent"
+            fi
+
+            cd "$NEW"
+            echo "=== Build + up ==="
+            docker compose build app
+            docker compose up -d
+
+            echo "=== Attente healthy planning_app ==="
+            for i in $(seq 1 90); do
+              status="$(docker inspect -f '{{.State.Health.Status}}' planning_app 2>/dev/null || echo starting)"
+              if [[ "$status" == "healthy" ]]; then
+                echo "app healthy ($i)"
+                break
+              fi
+              if [[ "$i" -eq 90 ]]; then
+                echo "ERREUR: timeout health (status=$status)"
+                docker compose ps || true
+                docker compose logs --tail=80 app || true
+                exit 1
+              fi
+              sleep 2
+            done
+
+            echo "=== Migrations + cache ==="
+            docker compose exec -T app php bin/cake.php migrations migrate
+            docker compose exec -T app php bin/cake.php cache clear_all
+
+            # Recharger .env du nouveau clone
+            set -a
+            # shellcheck disable=SC1091
+            source .env
+            set +a
+            PORT="${APP_HTTP_PORT:-8080}"
+            SMOKE_URL="http://127.0.0.1:${PORT}/"
+            echo "=== Smoke $SMOKE_URL ==="
+            HTTP_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$SMOKE_URL" || true)"
+            case "$HTTP_CODE" in
+              200|301|302|303|307|308) echo "Smoke OK (HTTP $HTTP_CODE)" ;;
+              *) echo "ERREUR: Smoke KO (HTTP ${HTTP_CODE:-none})"; exit 1 ;;
+            esac
+
+            echo "=== Volumes (contrôle BDD) ==="
+            docker volume ls | grep -E 'planning_new|NAME' || true
+            docker compose ps
+
+            echo "MIGRATION OK — commit=$(git rev-parse --short HEAD)"
+            echo "Ancien clone: $OLD_BAK"
+            echo "Nouveau clone: $NEW"
+            echo "Backup: $BACKUP"
