@@ -60,9 +60,10 @@ docker compose -p planning_new down --remove-orphans 2>/dev/null || true
 # Projet courant (dossier / COMPOSE_PROJECT_NAME)
 docker compose down --remove-orphans 2>/dev/null || true
 # Adminer orphelin éventuel
-docker ps -a --format '{{.Names}}' | grep -E 'planning_new-adminer|shifti-adminer' | while read -r c; do
+while IFS= read -r c; do
+  [[ -n "$c" ]] || continue
   docker rm -f "$c" 2>/dev/null || true
-done
+done < <(docker ps -a --format '{{.Names}}' | grep -E 'planning_new-adminer|shifti-adminer' || true)
 
 copy_volume() {
   local from="$1" to="$2"
