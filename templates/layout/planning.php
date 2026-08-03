@@ -70,7 +70,18 @@ if (!$this->fetch('tb_body_end')) {
 if (Configure::check('App.author')) {
     $this->prepend('meta', $this->Html->meta('author', null, ['name' => 'author', 'content' => Configure::read('App.author')]));
 }
-$this->prepend('meta', $this->Html->meta('favicon.ico', '/favicon.ico', ['type' => 'icon']));
+$this->prepend('meta', $this->Html->meta('icon', '/favicon.ico'));
+$this->prepend('meta', $this->Html->meta([
+    'link' => '/favicon-32.png',
+    'rel' => 'icon',
+    'type' => 'image/png',
+    'sizes' => '32x32',
+]));
+$this->prepend('meta', $this->Html->meta([
+    'link' => '/favicon.svg',
+    'rel' => 'icon',
+    'type' => 'image/svg+xml',
+]));
 
 /**
  * Load Bootstrap 4 from CDN (for navbar compatibility)

@@ -20,7 +20,9 @@
     <?= $this->Html->charset() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title><?= h($this->fetch('title') ?: 'Erreur') ?></title>
-    <?= $this->Html->meta('icon') ?>
+    <?= $this->Html->meta(['link' => '/favicon.svg', 'rel' => 'icon', 'type' => 'image/svg+xml']) ?>
+    <?= $this->Html->meta(['link' => '/favicon-32.png', 'rel' => 'icon', 'type' => 'image/png', 'sizes' => '32x32']) ?>
+    <?= $this->Html->meta('icon', '/favicon.ico') ?>
     <?= $this->Html->css('bootstrap.spacelab.min') ?>
     <?= $this->Html->css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css') ?>
     <?= $this->Html->css('cake') ?>
