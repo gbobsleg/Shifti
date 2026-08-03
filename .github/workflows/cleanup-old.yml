@@ -28,8 +28,11 @@ jobs:
               ls -la "$HOME" || true
               exit 0
             fi
-            echo "Suppression de $OLD_BAK ..."
+            echo "Suppression de $OLD_BAK (contenus root via Docker)..."
+            # Les logs créés par le conteneur app sont root:root → rm user impossible
+            docker run --rm -v "$OLD_BAK:/wipe" alpine:3.20 \
+              sh -c 'rm -rf /wipe/..?* /wipe/.[!.]* /wipe/* 2>/dev/null || true'
             rm -rf -- "$OLD_BAK"
-            [[ ! -e "$OLD_BAK" ]] || { echo "ERREUR: suppression incomplete"; exit 1; }
+            [[ ! -e "$OLD_BAK" ]] || { echo "ERREUR: suppression incomplete"; ls -la "$OLD_BAK" || true; exit 1; }
             echo "OK supprimé"
             ls -la "$HOME"
