@@ -91,13 +91,13 @@ fi
 
 log "Attente sante conteneur app..."
 for i in $(seq 1 60); do
-  status="$(docker inspect -f '{{.State.Health.Status}}' planning_app 2>/dev/null || echo starting)"
+  status="$(docker inspect -f '{{.State.Health.Status}}' shifti_app 2>/dev/null || echo starting)"
   if [[ "$status" == "healthy" ]]; then
     log "app healthy"
     break
   fi
   if [[ "$i" -eq 60 ]]; then
-    die "Timeout: planning_app pas healthy (status=$status)"
+    die "Timeout: shifti_app pas healthy (status=$status)"
   fi
   sleep 2
 done

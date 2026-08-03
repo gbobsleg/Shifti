@@ -1,0 +1,30 @@
+name: Rename Docker to Shifti
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: rename-docker
+  cancel-in-progress: false
+
+jobs:
+  rename:
+    name: Volumes + conteneurs shifti_*
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Exécuter rename_docker_to_shifti.sh
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 50m
+          script: |
+            set -euo pipefail
+            APP_PATH="${{ secrets.VPS_APP_PATH }}"
+            cd "$APP_PATH"
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            bash deploy/rename_docker_to_shifti.sh

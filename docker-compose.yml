@@ -1,5 +1,5 @@
 # =============================================================================
-# Stack production — Planning CakePHP 5 + MariaDB
+# Stack production — Shifti (CakePHP 5 + MariaDB)
 # Usage :
 #   cp .env.docker.example .env
 #   # Éditer SECURITY_SALT, mots de passe, etc.
@@ -9,7 +9,7 @@
 services:
   db:
     image: mariadb:11.4
-    container_name: planning_db
+    container_name: shifti_db
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me_root}
@@ -30,13 +30,13 @@ services:
       retries: 12
       start_period: 30s
     networks:
-      - planning_net
+      - shifti_net
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: planning_app
+    container_name: shifti_app
     restart: unless-stopped
     depends_on:
       db:
@@ -61,7 +61,7 @@ services:
       - ./logs:/var/www/html/logs
       - app_tmp:/var/www/html/tmp
     networks:
-      - planning_net
+      - shifti_net
 
   adminer:
       image: adminer
@@ -70,14 +70,17 @@ services:
         # Réservé à la machine hôte : accès via tunnel SSH uniquement, jamais exposé publiquement
         - "127.0.0.1:8888:8080"
       networks:
-        - planning_net
+        - shifti_net
 
 networks:
-  planning_net:
+  shifti_net:
+    name: shifti_net
     driver: bridge
 
 volumes:
   db_data:
+    name: shifti_db_data
     driver: local
   app_tmp:
+    name: shifti_app_tmp
     driver: local
