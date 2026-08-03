@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 echo ============================================================
-echo WFM Planning - Arret de tous les services locaux
+echo Shifti - Arret de tous les services locaux
 echo ============================================================
 echo.
 echo Recherche et arret des services...
@@ -59,7 +59,7 @@ echo SERVICES ARRETES !
 echo ============================================================
 echo.
 echo OR-Tools, Prophet et les workers CakePHP ont ete arretes.
-echo Vous pouvez les relancer avec start_all_services.bat
+echo Vous pouvez les relancer avec scripts\dev\start_all_services.bat
 echo.
 
 pause

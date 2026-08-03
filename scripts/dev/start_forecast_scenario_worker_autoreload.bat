@@ -5,6 +5,12 @@ REM Mode "auto-reload" (dev):
 REM - Relance le worker forecast en --once en boucle pour recharger le code PHP
 REM - Permet d'éviter de redémarrer manuellement après une modification
 
+call "%~dp0_env_php.bat"
+if errorlevel 1 (
+    pause
+    exit /b 1
+)
+
 cd /d "%~dp0..\.."
 
 echo [ForecastWorker] Mode auto-reload (boucle --once). Ctrl+C pour arreter.

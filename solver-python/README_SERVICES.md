@@ -30,7 +30,11 @@ Sous Docker, les deux services sont gérés par Supervisord dans le conteneur `a
 
 ## Scripts Windows
 
-Voir aussi `start_*.bat` / `stop_all_services.bat` dans ce dossier, et les workers CakePHP dans `../scripts/dev/`.
+Tous les lanceurs sont dans `../scripts/dev/` :
+
+- `start_all_services.bat` / `stop_all_services.bat` — orchestrateur (Python + workers CakePHP)
+- `start_solver_service.bat` / `start_forecast_service.bat` — services Python seuls
+- `start_*_worker*.bat` — workers CakePHP
 
 ## Variables d’environnement (Prophet)
 

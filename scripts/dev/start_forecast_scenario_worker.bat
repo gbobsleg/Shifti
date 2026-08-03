@@ -4,6 +4,12 @@ setlocal
 REM Lance le worker de scénarios de prévision (file async)
 REM À exécuter depuis Windows (Wamp/CLI).
 
+call "%~dp0_env_php.bat"
+if errorlevel 1 (
+    pause
+    exit /b 1
+)
+
 cd /d "%~dp0..\.."
 
 echo [ForecastWorker] Demarrage...

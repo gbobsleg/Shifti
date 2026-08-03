@@ -28,8 +28,7 @@ docker compose exec app bin/cake migrations migrate
 
 1. `composer install`
 2. Copier `config/app_local.example.php` → `config/app_local.php` et configurer la BDD
-3. Lancer les services Python (`solver-python/`, voir `solver-python/README_SERVICES.md`)
-4. Workers Windows (optionnel) : `scripts/dev/*.bat`
+3. Lancer les services locaux : `scripts/dev/start_all_services.bat` (voir aussi `solver-python/README_SERVICES.md`)
 
 ## Déploiement production
 
@@ -44,7 +43,7 @@ Configurer les secrets Actions (`VPS_HOST`, `VPS_USER`, `VPS_APP_PATH`, `VPS_SSH
 | `solver-python/` | APIs FastAPI (activités fixes, couverture, rotation, Prophet) |
 | `docker/`, `Dockerfile` | Image et runtime production |
 | `deploy/` | Script de déploiement VPS |
-| `scripts/dev/` | Helpers Windows (workers) |
+| `scripts/dev/` | Lanceurs Windows (services Python + workers) |
 | `tests/` | PHPUnit |
 
 ## Licence
