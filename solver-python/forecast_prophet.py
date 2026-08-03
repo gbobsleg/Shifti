@@ -10,9 +10,15 @@ from typing import Optional, List, Dict
 from datetime import datetime, timedelta
 import os
 import pandas as pd
-import mysql.connector
 from prophet import Prophet
 import json
+
+from prophet_common import (
+    get_db_connection,
+    get_worked_days_from_db,
+    load_historical_data,
+    train_prophet_model,
+)
 
 app = FastAPI(title="Prophet Forecast Service", version="1.0.0")
 
@@ -20,14 +26,7 @@ app = FastAPI(title="Prophet Forecast Service", version="1.0.0")
 # ================================
 # Configuration BDD
 # ================================
-# Variables d'environnement (Docker) avec repli local WAMP.
-
-DB_CONFIG = {
-    'host': os.environ.get('DB_HOST', 'localhost'),
-    'user': os.environ.get('DB_USER', 'root'),
-    'password': os.environ.get('DB_PASSWORD', ''),
-    'database': os.environ.get('DB_NAME', 'cake_planning'),
-}
+# DB_CONFIG / get_db_connection : prophet_common (réexport implicite via import)
 
 
 # ================================
@@ -109,236 +108,8 @@ class ForecastResponse(BaseModel):
 
 
 # ================================
-# Cache pour worked_days
+# Fonctions Helper (load/train → prophet_common)
 # ================================
-
-_worked_days_cache = {
-    'value': None,
-    'timestamp': None,
-    'ttl_seconds': 300  # Cache valide 5 minutes
-}
-
-
-# ================================
-# Fonctions Helper
-# ================================
-
-def get_db_connection():
-    """Crée une connexion à la BDD"""
-    return mysql.connector.connect(**DB_CONFIG)
-
-
-def get_worked_days_from_db() -> List[int]:
-    """
-    Récupère les jours travaillés depuis wfm_settings.worked_days_json
-    Utilise un cache de 5 minutes pour éviter les requêtes répétées.
-    
-    Returns:
-        Liste d'entiers (1=Lundi à 7=Dimanche)
-        Défaut: [1, 2, 3, 4, 5] si non configuré
-    """
-    global _worked_days_cache
-    
-    # Vérifier le cache
-    now = datetime.now()
-    if (_worked_days_cache['value'] is not None and 
-        _worked_days_cache['timestamp'] is not None and
-        (now - _worked_days_cache['timestamp']).total_seconds() < _worked_days_cache['ttl_seconds']):
-        return _worked_days_cache['value']
-    
-    # Charger depuis la BDD
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT worked_days_json FROM wfm_settings LIMIT 1")
-        row = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        worked_days = [1, 2, 3, 4, 5]  # Défaut lundi-vendredi
-        
-        if row and row[0]:
-            raw_value = row[0]
-            # Gérer le cas où c'est déjà une liste ou une chaîne JSON
-            if isinstance(raw_value, str):
-                parsed = json.loads(raw_value)
-            elif isinstance(raw_value, (list, tuple)):
-                parsed = list(raw_value)
-            else:
-                parsed = None
-            
-            if parsed and isinstance(parsed, list):
-                worked_days = [int(d) for d in parsed]
-        
-        # Mettre en cache
-        _worked_days_cache['value'] = worked_days
-        _worked_days_cache['timestamp'] = now
-        
-        print(f"[Prophet] Jours travaillés chargés depuis BDD: {worked_days}")
-        return worked_days
-        
-    except Exception as e:
-        print(f"[Prophet] ⚠️ Erreur lecture worked_days_json: {e} - utilisation défaut [1-5]")
-        return [1, 2, 3, 4, 5]
-
-
-def load_historical_data(offer_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None, worked_days: Optional[List[int]] = None) -> pd.DataFrame:
-    """
-    Charge les données historiques depuis la BDD (intervalles 15 minutes)
-    
-    Args:
-        offer_id: ID de l'offre
-        start_date: Date de début (YYYY-MM-DD), optionnelle
-        end_date: Date de fin (YYYY-MM-DD), optionnelle
-        worked_days: Liste des jours travaillés (1=Lundi à 7=Dimanche), si None charge depuis wfm_settings
-    
-    Returns:
-        DataFrame avec colonnes: ds (datetime), y (volume), dmt (avg_handle_time)
-    """
-    # Charger les jours travaillés si non fournis
-    if worked_days is None:
-        worked_days = get_worked_days_from_db()
-    
-    conn = get_db_connection()
-    
-    query = """
-        SELECT 
-            datetime_interval as ds,
-            call_volume as y,
-            avg_handle_time_seconds as dmt
-        FROM historical_data
-        WHERE offer_id = %s
-    """
-    params = [offer_id]
-    
-    # Filtrer par date de début si fournie
-    if start_date:
-        query += " AND datetime_interval >= %s"
-        params.append(start_date + " 00:00:00")
-    
-    # Filtrer par date de fin si fournie
-    if end_date:
-        query += " AND datetime_interval <= %s"
-        params.append(end_date + " 23:59:59")
-    
-    # Filtrer selon les jours travaillés
-    # MySQL WEEKDAY: 0=Lundi, 1=Mardi, ..., 6=Dimanche
-    # worked_days: 1=Lundi, 2=Mardi, ..., 7=Dimanche
-    # Conversion: worked_days[i] - 1 pour obtenir le format MySQL
-    if len(worked_days) < 7:  # Si pas tous les jours sont travaillés
-        mysql_worked_days = [d - 1 for d in worked_days]  # Convertir 1-7 en 0-6
-        query += f" AND WEEKDAY(datetime_interval) IN ({','.join(map(str, mysql_worked_days))})"
-    
-    query += " ORDER BY datetime_interval"
-    
-    df = pd.read_sql(query, conn, params=params)
-    conn.close()
-    
-    if df.empty:
-        raise ValueError(f"Aucune donnée historique trouvée pour offer_id={offer_id}")
-    
-    df['ds'] = pd.to_datetime(df['ds'])
-    
-    # Diagnostics
-    total_points = len(df)
-    zero_points = (df['y'] == 0).sum()
-    non_zero_points = total_points - zero_points
-    pct_zero = (zero_points / total_points * 100) if total_points > 0 else 0
-    
-    # Afficher la plage utilisée
-    period_info = "tout l'historique"
-    if start_date or end_date:
-        period_info = f"plage {start_date or 'début'} → {end_date or 'fin'}"
-    
-    # Formatter les jours travaillés pour l'affichage
-    day_names = {1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Jeu', 5: 'Ven', 6: 'Sam', 7: 'Dim'}
-    worked_days_str = ','.join([day_names.get(d, str(d)) for d in sorted(worked_days)])
-    
-    print(f"[Prophet] {total_points} points 15min chargés ({period_info}, jours: {worked_days_str})")
-    print(f"[Prophet] Période réelle: {df['ds'].min()} → {df['ds'].max()}")
-    print(f"[Prophet] Distribution: {non_zero_points} points > 0 ({100-pct_zero:.1f}%), {zero_points} points = 0 ({pct_zero:.1f}%)")
-    print(f"[Prophet] Volume 15min: min={df['y'].min()}, max={df['y'].max()}, médiane={df['y'].median():.1f}")
-    
-    if pct_zero > 50:
-        print(f"[Prophet] ⚠️ ATTENTION : {pct_zero:.1f}% de zéros - prévisions risquent d'être imprécises")
-    
-    return df
-
-
-def train_prophet_model(df: pd.DataFrame, settings: ProphetSettings) -> tuple[Prophet, pd.DataFrame]:
-    """
-    Entraîne un modèle Prophet avec les paramètres utilisateur
-    
-    Args:
-        df: DataFrame avec colonnes 'ds' et 'y' (intervalles 15 minutes)
-        settings: Paramètres Prophet configurés par l'utilisateur
-    
-    Returns:
-        Tuple (modèle entraîné, données utilisées)
-    """
-    df_to_use = df.copy()
-    
-    print(f"[Prophet] Entraînement: {len(df_to_use)} points de 15min")
-    print(f"[Prophet] Stats: min={df_to_use['y'].min()}, max={df_to_use['y'].max()}, moyenne={df_to_use['y'].mean():.2f}")
-    
-    # Configuration Prophet selon les paramètres utilisateur (RESPECT STRICT)
-    print(f"[Prophet] Paramètres: seasonality_mode={settings.seasonality_mode}, growth={settings.growth}")
-    print(f"[Prophet] Changepoints: n={settings.n_changepoints}, prior_scale={settings.changepoint_prior_scale}")
-    print(f"[Prophet] Seasonality prior scale: {settings.seasonality_prior_scale}")
-    
-    # Mode linear uniquement (logistic retiré car instable)
-    # Créer le modèle Prophet avec les paramètres EXACTS de l'utilisateur
-    model = Prophet(
-        seasonality_mode=settings.seasonality_mode,
-        yearly_seasonality=settings.yearly_seasonality,
-        weekly_seasonality=settings.weekly_seasonality,
-        daily_seasonality=settings.daily_seasonality,
-        changepoint_prior_scale=settings.changepoint_prior_scale,
-        seasonality_prior_scale=settings.seasonality_prior_scale,
-        growth=settings.growth,
-        n_changepoints=settings.n_changepoints,
-        changepoint_range=settings.changepoint_range,
-        interval_width=0.80
-    )
-    
-    # Désactiver l'output verbeux de Prophet pour éviter les blocages
-    import logging
-    logging.getLogger('prophet').setLevel(logging.WARNING)
-    logging.getLogger('cmdstanpy').setLevel(logging.WARNING)
-    
-    # Ajouter les jours fériés français si demandé
-    if settings.use_french_holidays:
-        model.add_country_holidays(country_name='FR')
-        print(f"[Prophet] Jours fériés français ajoutés")
-    
-    # Ajouter la saisonnalité mensuelle si demandée
-    if settings.monthly_seasonality:
-        model.add_seasonality(
-            name='monthly',
-            period=30.5,  # Nombre moyen de jours dans un mois
-            fourier_order=settings.monthly_fourier_order,  # Complexité configurable
-            prior_scale=settings.seasonality_prior_scale
-        )
-        print(f"[Prophet] Saisonnalité mensuelle ajoutée (period=30.5, fourier_order={settings.monthly_fourier_order})")
-    
-    # Entraîner le modèle
-    # Désactiver complètement les logs cmdstan pour éviter les freeze
-    import sys
-    import os
-    
-    # Rediriger stderr temporairement pour cmdstan
-    old_stderr = sys.stderr
-    sys.stderr = open(os.devnull, 'w')
-    
-    try:
-        model.fit(df_to_use)
-    finally:
-        sys.stderr.close()
-        sys.stderr = old_stderr
-    
-    print(f"[Prophet] ✓ Modèle entraîné avec succès")
-    
-    return model, df_to_use
 
 
 def is_working_day(date: datetime, worked_days: Optional[List[int]] = None) -> bool:

@@ -48,6 +48,31 @@ class OffersPolicy
         $rid = $this->roleId($identity);
         return $rid === 1; // Admin uniquement
     }
+
+    public function canTuneStart(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->roleId($identity) === 1;
+    }
+
+    public function canTuneStatus(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->roleId($identity) === 1;
+    }
+
+    public function canTuneApply(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->roleId($identity) === 1;
+    }
+
+    public function canTuneReject(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->roleId($identity) === 1;
+    }
+
+    public function canTuneRollback(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->roleId($identity) === 1;
+    }
 }
 
 

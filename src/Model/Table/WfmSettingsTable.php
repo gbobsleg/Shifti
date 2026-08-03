@@ -44,6 +44,10 @@ class WfmSettingsTable extends Table
         $this->setDisplayField('name');
         $this->setPrimaryKey('id');
 
+        $this->getSchema()->setColumnType('prophet_defaults_json', 'json');
+        $this->getSchema()->setColumnType('optuna_settings_json', 'json');
+        $this->getSchema()->setColumnType('worked_days_json', 'json');
+
         $this->belongsTo('PauseOffers', [
             'className' => 'Offers',
             'foreignKey' => 'pause_offer_id',
