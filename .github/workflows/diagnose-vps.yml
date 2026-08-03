@@ -1,0 +1,54 @@
+name: Diagnose VPS
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: diagnose-vps
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    name: Diagnostic pré-migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Inspecter Planning_new + volumes
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+            HOME_DIR="$HOME"
+            OLD="$HOME_DIR/Planning_new"
+            echo "=== paths ==="
+            ls -la "$HOME_DIR"
+            echo "=== compose project / containers ==="
+            if [[ -d "$OLD" ]]; then
+              cd "$OLD"
+              echo "pwd=$(pwd)"
+              docker compose ps || true
+              echo "--- .env keys (names only) ---"
+              if [[ -f .env ]]; then
+                grep -E '^[A-Z_]+=' .env | cut -d= -f1 | sort
+              else
+                echo "NO .env"
+              fi
+              echo "--- COMPOSE_PROJECT_NAME ---"
+              grep -E '^COMPOSE_PROJECT_NAME=' .env 2>/dev/null || echo "(unset — défaut = nom du dossier)"
+            else
+              echo "Planning_new ABSENT"
+            fi
+            echo "=== docker volumes ==="
+            docker volume ls
+            echo "=== volume inspect (db*) ==="
+            docker volume ls -q | grep -i db || true
+            for v in $(docker volume ls -q | grep -iE 'db|planning|shifti' || true); do
+              echo "--- $v ---"
+              docker volume inspect "$v" --format 'name={{.Name}} labels={{json .Labels}} mountpoint={{.Mountpoint}}'
+            done
+            echo "=== disk ==="
+            df -h "$HOME_DIR" | tail -1
