@@ -1,0 +1,55 @@
+{
+  "name": "shifti/app",
+  "description": "Shifti — planning et prévision de charge (CakePHP 5.x)",
+  "type": "project",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.1",
+    "cakephp/authentication": "^3.0",
+    "cakephp/authorization": "^3.0",
+    "cakephp/cakephp": "^5.1",
+    "cakephp/migrations": "^4.0",
+    "cakephp/plugin-installer": "^2.0",
+    "dereuromark/cakephp-ajax": "^3.0",
+    "friendsofcake/bootstrap-ui": "^5.0",
+    "league/csv": "^9.27",
+    "mobiledetect/mobiledetectlib": "^2.8"
+  },
+  "require-dev": {
+    "cakephp/bake": "^3.0",
+    "cakephp/cakephp-codesniffer": "^5.0",
+    "cakephp/debug_kit": "^5.0",
+    "phpunit/phpunit": "^10.0",
+    "slevomat/coding-standard": "8.23"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "App\\Test\\": "tests/",
+      "Cake\\Test\\": "vendor/cakephp/cakephp/tests/"
+    }
+  },
+  "scripts": {
+    "post-install-cmd": "App\\Console\\Installer::postInstall",
+    "post-create-project-cmd": "App\\Console\\Installer::postInstall",
+    "check": [
+      "@test",
+      "@cs-check"
+    ],
+    "cs-check": "phpcs --colors -p src/ tests/",
+    "cs-fix": "phpcbf --colors -p src/ tests/",
+    "test": "phpunit --colors=always"
+  },
+  "prefer-stable": true,
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "cakephp/plugin-installer": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  }
+}

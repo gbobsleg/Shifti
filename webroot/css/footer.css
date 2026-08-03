@@ -1,0 +1,35 @@
+/* Styles pour le footer en bas de page */
+.app-footer {
+    min-height: 2.5rem;
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: auto;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+    /* Utilise les classes Bootstrap navbar-dark bg-primary pour le dégradé */
+}
+
+.app-footer-content {
+    width: 100%;
+    text-align: center;
+    font-size: 0.875rem;
+}
+
+/* Configuration pour mettre le footer en bas de page */
+html {
+    height: 100%;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+/* Le contenu principal (tous les éléments sauf footer et flash-container) prend l'espace disponible */
+body > *:not(footer):not(.flash-container) {
+    flex: 1;
+}
+

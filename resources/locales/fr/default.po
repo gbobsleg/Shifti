@@ -1,0 +1,29 @@
+#: templates/Sites/index.php:14 templates/Sites/view.php:19 templates/Users/index.php:NN etc.
+msgid "New Site"
+msgstr "Nouveau Site"
+
+#: templates/Sites/index.php:20 templates/Sites/add.php:12 etc.
+msgid "List Regions"
+msgstr "Liste des Régions"
+
+#: templates/Sites/index.php:26 templates/Sites/add.php:15 etc.
+msgid "New Region"
+msgstr "Nouvelle Région"
+
+#: templates/Sites/index.php:32 templates/Sites/add.php:18 etc.
+msgid "List Users"
+msgstr "Liste des Utilisateurs"
+
+#: templates/Sites/index.php:38 templates/Sites/add.php:21 etc.
+msgid "New User"
+msgstr "Nouvel Utilisateur"
+
+# Ajoute aussi celles potentiellement utilisées dans add.php, edit.php, view.php
+msgid "List Sites"
+msgstr "Liste des Sites"
+
+msgid "Edit Site"
+msgstr "Modifier Site"
+
+msgid "Delete Site"
+msgstr "Supprimer Site"

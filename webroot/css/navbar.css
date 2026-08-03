@@ -1,0 +1,55 @@
+/* Styles pour le logo de la navbar */
+.navbar {
+    min-height: 3.5rem;
+    padding-top: 0;
+    padding-bottom: 0;
+    display: flex;
+    align-items: center;
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.navbar-logo {
+    height: 1.75rem;
+    width: auto;
+    display: block;
+    margin-right: .5rem;
+}
+
+.navbar-nav {
+    display: flex;
+    align-items: center;
+}
+
+.navbar-nav .nav-link {
+    display: flex;
+    align-items: center;
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 1;
+    height: auto;
+}
+.navbar-logo .cls-2 {
+    fill: #ffffff;
+}
+
+/* Styles pour le logo de la page de login */
+.login-logo {
+    max-width: 300px;
+    height: auto;
+    margin: 0 auto 2rem auto;
+    display: block;
+    animation: fadeInUp 0.5s ease;
+}
+.login-logo-container {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+.login-logo .cls-2 {
+    fill: #000000;
+}
+

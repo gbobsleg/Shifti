@@ -1,0 +1,4 @@
+/* Menu Actions déplacé dans body : z-index pour passer au-dessus du contenu */
+body > .actions-dropdown-menu {
+    z-index: 1050;
+}

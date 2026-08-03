@@ -1,0 +1,32 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Déployer via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 40m
+          script: |
+            set -euo pipefail
+            APP_PATH="${{ secrets.VPS_APP_PATH }}"
+            cd "$APP_PATH"
+            # Bootstrap : récupérer le script s'il vient d'être ajouté sur main
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            SKIP_GIT=1 bash deploy/production.sh
+            echo "Deployed commit: $(git rev-parse HEAD)"

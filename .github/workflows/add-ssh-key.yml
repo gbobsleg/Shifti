@@ -1,0 +1,41 @@
+name: Add SSH public key on VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_key:
+        description: "Ligne complète de la clé publique SSH à ajouter"
+        required: true
+        type: string
+
+concurrency:
+  group: add-ssh-key
+  cancel-in-progress: false
+
+jobs:
+  add-key:
+    name: Append authorized_keys
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ajouter la clé publique sur le VPS
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            set -euo pipefail
+            KEY='${{ inputs.public_key }}'
+            mkdir -p ~/.ssh
+            chmod 700 ~/.ssh
+            touch ~/.ssh/authorized_keys
+            chmod 600 ~/.ssh/authorized_keys
+            if grep -Fqx "$KEY" ~/.ssh/authorized_keys; then
+              echo "Clé déjà présente — rien à faire"
+            else
+              printf '%s\n' "$KEY" >> ~/.ssh/authorized_keys
+              echo "Clé ajoutée"
+            fi
+            echo "Nombre de clés: $(grep -c . ~/.ssh/authorized_keys || true)"

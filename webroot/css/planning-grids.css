@@ -1,0 +1,621 @@
+/* ==========================================================================
+   Styles pour la page Planning Grids (Grids/index)
+   ========================================================================== */
+
+/* --- Layout Général de la Page Planning --- */
+
+/*
+ * Contrat layout (hors embed) :
+ * - .grids-page-shell = cadre unique (max 1800px, gouttière 40px)
+ * - barre filtres / alertes / Tri-légende / bord droit grille = bords du shell
+ * - grille inset à gauche (légende 200px + gap)
+ * - éléments fixed : left/right en % (pas vw) pour coller au shell malgré scrollbar
+ * - padding horizontal container-fluid annulé pour un seul référentiel
+ * - pas d’overflow-x: clip sur le shell (mangeait la bordure droite des tables)
+ */
+main > .container-fluid:has(> .grids-page-shell) {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.grids-page-shell {
+    --grids-shell-max: 1800px;
+    --grids-shell-gutter: 40px;
+    box-sizing: border-box;
+    width: calc(100% - (var(--grids-shell-gutter) * 2));
+    max-width: var(--grids-shell-max);
+    margin: 0 auto;
+}
+
+/* Contenu principal : aligné sur le shell ; scroll horizontal si table trop large */
+.grids-page-shell .main-content-wrapper {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    /* Un seul scrollport ; bordure droite gérée en inset sur la dernière colonne */
+    overflow-x: auto;
+    /* Légende 200px collée au bord gauche du shell + petit écart */
+    margin-left: 215px;
+    padding-right: 0;
+}
+
+/*
+ * Ne pas remettre overflow-x ici : double clip avec le wrapper
+ * + border-collapse = bordure droite mangée (même avec padding).
+ * Trait droit forcé en inset (peint dans la cellule, jamais clipé).
+ */
+.grids-page-shell .grids {
+    box-sizing: border-box;
+    overflow-x: visible;
+    padding-right: 0;
+    margin-right: 0;
+}
+
+.grids-page-shell .grids .table-bordered > thead > tr > th:last-child,
+.grids-page-shell .grids .table-bordered > tbody > tr > td:last-child,
+.grids-page-shell .grids .table-bordered > tbody > tr > th:last-child {
+    box-shadow: inset -1px 0 0 #dee2e6;
+}
+
+/* Empêche le margin négatif Bootstrap (.row) de clipper les bordures latérales de la table */
+.grids-page-shell .main-content-wrapper > .row {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Alertes : plus de margin négatif qui décale par rapport à la barre filtres */
+.grids-page-shell .grids-alerts-bar-sticky {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Barre de recherche fixe — alignée sur le shell (pas full-bleed viewport) */
+.grids-search-bar-sticky {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    border-radius: 0;
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+}
+
+.grids-page-shell .grids-search-bar-sticky {
+    /* 50% = largeur layout (clientWidth), contrairement à 50vw qui inclut la scrollbar */
+    left: max(var(--grids-shell-gutter), calc(50% - (var(--grids-shell-max) / 2)));
+    right: max(var(--grids-shell-gutter), calc(50% - (var(--grids-shell-max) / 2)));
+    width: auto;
+}
+
+/* Cartes fixes (légende / tri) : même bord gauche que barre filtres / alertes */
+.grids-page-shell .offers,
+.grids-page-shell .grids-sort-card,
+.grids-page-shell .grids-site-toggle-card,
+.grids-page-shell .offers-legend-card {
+    left: max(var(--grids-shell-gutter), calc(50% - (var(--grids-shell-max) / 2)));
+}
+
+/* Bouton Enregistrer : même bord droit que la barre filtres */
+.grids-page-shell .grids-save-btn-floating {
+    right: max(var(--grids-shell-gutter), calc(50% - (var(--grids-shell-max) / 2)));
+}
+
+/* Spacer pour compenser la hauteur de la barre de recherche fixe */
+.grids-search-spacer {
+    height: 70px;
+}
+
+/* Section alertes */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.grids-alerts-bar-sticky {
+    position: relative;
+    margin-top: 50px;
+    margin-left: -15px;
+    margin-right: -15px;
+}
+
+.grids-alerts-bar-sticky > .card {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+}
+
+.grids-alerts-bar-sticky .card-header:hover {
+    opacity: 0.9;
+}
+
+/* Contenu des alertes en overlay - s'affiche par-dessus tout */
+#alertsCollapseContainer {
+    position: absolute;
+    width: 100%;
+    left: 0;
+    top: 100%;
+    z-index: 1020;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+#alertsCollapseContainer .card {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-top: 2px solid #ffc107;
+}
+
+#alertsCollapseContainer .card-body {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* --- Section Graphiques --- */
+.grids-chart-container {
+    height: 200px;
+    max-height: 200px;
+    margin-bottom: 0;
+    overflow: hidden;
+}
+
+.grids-chart-day-section {
+    padding-left: 0;
+}
+
+.grids-chart-day-section .card-body {
+    padding-bottom: 0 !important;
+}
+
+.grids-chart-day-section .card-body > .grids-chart-container:last-child {
+    margin-bottom: 0 !important;
+}
+
+/* Header cliquable pour collapse */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.cursor-pointer:hover {
+    background-color: #e9ecef !important;
+}
+
+/* --- Bouton flottant "Enregistrer le planning" --- */
+.grids-save-btn-floating {
+    position: fixed !important;
+    bottom: 30px !important;
+    right: 30px !important;
+    left: auto !important;
+    top: auto !important;
+    z-index: 1030 !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    display: flex !important;
+    flex-direction: row !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.grids-save-btn-floating:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.grids-save-btn-text {
+    pointer-events: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    padding: 0 20px;
+}
+
+/* Version responsive : icône seule sur mobile */
+@media (max-width: 992px) {
+    .grids-save-btn-floating {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        padding: 0;
+    }
+    
+    .grids-save-btn-text {
+        font-size: 1.5rem;
+        padding: 0;
+    }
+    
+    .grids-save-btn-text > span {
+        display: none;
+    }
+    
+    .grids-save-btn-text .bi-floppy-fill {
+        margin-right: 0;
+    }
+}
+
+/* Zone des alertes (sous la recherche) */
+.alerts-row {
+    margin-top: 0;
+}
+
+/* Style des cartes d'alerte individuelles */
+.alert-card {
+    width: 18rem; /* Largeur fixe (remplace le style inline) */
+    /* Tu peux ajouter d'autres styles spécifiques aux cartes ici si besoin */
+}
+
+/* Conteneur principal de la grille (droite de la sidebar des offres) */
+.grids {
+    margin-left: 0;
+    padding-left: 0; /* Le padding est maintenant sur le wrapper */
+    padding-right: 0; /* Le padding est maintenant sur le wrapper */
+    overflow-x: auto;
+}
+
+/* Sidebar fixe pour les Offres (à gauche) - ANCIENNE VERSION */
+.offers {
+    width: 200px;
+    position: fixed;
+    left: 15px;
+    top: 150px;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    padding: 10px;
+    z-index: 50;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Card de tri du planning */
+.grids-sort-card {
+    width: 200px;
+    position: fixed;
+    left: 15px;
+    top: 187px;
+    z-index: 50;
+}
+
+/* Card toggle colonne Site */
+.grids-site-toggle-card {
+    width: 200px;
+    position: fixed;
+    left: 15px;
+    top: 280px;
+    z-index: 50;
+}
+
+/* Légende des offres - NOUVELLE VERSION modernisée */
+.offers-legend-card {
+    width: 200px;
+    position: fixed;
+    left: 15px;
+    top: 340px;
+    max-height: calc(100vh - 360px);
+    overflow-y: auto;
+    z-index: 50;
+}
+
+.offers-legend-card .card-header {
+    padding: 8px 12px;
+}
+
+.offers-legend-card .card-body {
+    padding: 8px 12px;
+    min-height: auto;
+    overflow: visible;
+}
+
+.offer-legend-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.offer-legend-item:hover {
+    background-color: rgba(0, 123, 255, 0.08);
+    transform: translateX(3px);
+}
+
+.offer-color-box {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    margin-right: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+.offer-name {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #333;
+    text-align: left;
+    line-height: 1.2;
+}
+
+/* Correction : annuler le style offerColor dans la légende */
+.offers-legend-card .offerColor {
+    color: #333 !important;
+    background-color: transparent !important;
+    border: none !important;
+    padding: 6px 8px !important;
+    margin: 0 0 4px 0 !important;
+    min-height: auto !important;
+    height: auto !important;
+}
+
+.offers-legend-card .offerColor:hover {
+    background-color: rgba(0, 123, 255, 0.08) !important;
+    color: #333 !important;
+}
+
+/* --- NOUVEAU : En-tête de la sidebar des offres --- */
+.offers-header {
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 5px;
+}
+
+/* Style des boutons/labels d'offres dans la sidebar - ANCIENNE VERSION */
+.offerColor {
+    margin: 0.5em 0;
+    min-height: 30px;
+    height: auto;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    cursor: pointer;
+    font-weight: bold;
+    color: white !important;
+    text-align: left;
+    border-radius: 4px;
+    line-height: 1.4;
+    transition: transform 0.1s ease-in-out;
+}
+.offerColor:active {
+    transform: scale(0.95);
+}
+/* Style pour l'offre sélectionnée (ajouté via JS dans dragselect.js) */
+.offerColor.selected-offer {
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.5);
+    outline: none;
+}
+
+/* Style pour l'offre sélectionnée - NOUVELLE VERSION */
+.offer-legend-item.selected-offer {
+    background-color: rgba(0, 123, 255, 0.15);
+    border: 2px solid #007bff;
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+/* --- NOUVEAU : Wrapper pour le contenu principal --- */
+.main-content-wrapper {
+    /* Décale TOUT le contenu à droite de la sidebar fixe */
+    /* Calcul: largeur .offers (200px) + marge gauche .offers (15px) + espace désiré (ex: 15px) */
+    margin-left: 250px; /* Ajuste cette valeur si nécessaire */
+    padding-top: 0; /* Espace sous la barre de recherche/bouton alertes */
+    padding-right: 30px; /* Marge droite globale */
+}
+
+/* --- Styles Spécifiques à la Grille du Planning --- */
+
+/* Style général de la table (hérite de .table-bordered de Bootstrap) */
+.table-bordered { /* Cible plus spécifiquement pour éviter conflits */
+    border-collapse: collapse; /* Assure que les bordures fusionnent */
+    width: 100%;
+    font-size: 0.85rem; /* Taille de police légèrement réduite */
+    margin-bottom: 1rem; /* Marge en bas de chaque table */
+}
+
+/* Cellules d'en-tête et de données */
+.table-bordered th,
+.table-bordered td {
+    border: 1px solid #dee2e6;
+    padding: 0.25rem; /* Padding réduit */
+    text-align: center;
+    vertical-align: middle; /* Centre verticalement */
+}
+
+/* En-tête principal (Titre du jour) */
+.th_title { /* Renommé depuis table.quarter th.th_title */
+    background-color: #318f9b; /* Utilise la couleur turquoise (à adapter) */
+    color: white;
+    font-weight: bold;
+    padding: 0.75rem;
+    font-size: 1.2em; /* Taille ajustée */
+    line-height: normal;
+}
+
+/* En-tête des heures */
+.th_col1 { /* Renommé depuis table.quarter th.th_col1 */
+    background-color: #e9ecef;
+    font-weight: bold;
+    min-width: 88px; /* 4 * 22px (largeur cellule minute) */
+    border-right: 1px solid #9d9fa1; /* Garde la bordure droite forte */
+}
+
+/* En-tête des minutes */
+.th_col2 { /* Renommé depuis table.quarter th.th_col2 */
+    background-color: #f8f9fa;
+    font-size: 0.75rem;
+    width: 22px; /* Largeur fixe */
+    min-width: 22px;
+    border-right: 1px solid #9d9fa1; /* Garde la bordure droite */
+}
+/* Supprimer la bordure du dernier en-tête minute */
+.table-bordered thead tr:last-child th:last-child {
+    border-right: 1px solid #dee2e6; /* Remet la bordure par défaut de Bootstrap */
+}
+
+
+/* En-tête des utilisateurs (colonne de gauche) */
+.th_row { /* Renommé depuis table.quarter th.th_row */
+    background-color: #f8f9fa;
+    text-align: left;
+    white-space: nowrap; /* Empêche le retour à la ligne */
+    font-weight: 600;
+    min-width: 170px; /* Largeur minimum */
+    padding-left: 5px;
+    position: sticky; /* Colonne fixe au défilement */
+    left: 0;
+    z-index: 10; /* Au-dessus des cellules de données */
+    border-right: 1px solid #9d9fa1 !important; /* Bordure droite forte */
+}
+
+/* Cellules de créneaux horaires (15 min) */
+.td_quarter { /* Renommé depuis table.quarter td.td_quarter */
+    width: 22px; /* Largeur fixe */
+    min-width: 22px;
+    height: 30px;
+    cursor: pointer;
+    transition: opacity 0.15s ease-in-out; /* Transition plus rapide */
+    padding: 0 !important; /* Annule le padding pour un remplissage complet */
+    font-size: 0.9em; /* Hérite de table.quarter td */
+    line-height: 22px; /* Hérite de table.quarter td */
+}
+.td_quarter:hover {
+    opacity: 0.75; /* Opacité légèrement moins forte */
+}
+/* Bordure droite toutes les heures (sur la 4ème cellule de chaque heure) */
+/* Vue multi-utilisateurs : 2 colonnes th (Site + Agent) avant les créneaux */
+/* Structure : th Site (pos 1) + th Agent (pos 2) + td créneaux (pos 3, 4, 5, 6, 7, 8, 9, 10...) */
+/* Bordure sur positions 6, 10, 14, 18... (2 th + 4 créneaux, 2 th + 8 créneaux, etc.) */
+.table-bordered:not(.grid-single-user) td.td_quarter:nth-child(4n+6) { /* nth-child commence à 1, +6 car 2 colonnes th_row (Site+Agent) + 4 créneaux */
+    border-right: 1px solid #9d9fa1;
+}
+/* Vue single user : 1 colonne th (Date) avant les créneaux */
+/* Structure : th Date (pos 1) + td créneaux (pos 2, 3, 4, 5, 6, 7, 8, 9, 10...) */
+/* Utilise nth-of-type pour ignorer le th et ne compter que les td */
+/* Bordure sur le 4ème, 8ème, 12ème td... (tous les 4 créneaux) */
+.grid-single-user td.td_quarter:nth-of-type(4n) {
+    border-right: 1px solid #9d9fa1;
+}
+
+/* Ligne entière d'un utilisateur */
+.tr_quarter { /* Renommé depuis table.quarter tr.tr_quarter */
+    height: 30px;
+}
+
+/* Cacher le select (si toujours utilisé ?) */
+.td_quarter select#offer-select {
+    display: none;
+}
+
+/* Bouton Enregistrer sticky */
+#submitRanges {
+    margin-bottom: 1rem;
+    position: sticky;
+    top: 115px; /* Ajuster pour être sous la barre de recherche */
+    z-index: 90; /* Au-dessus de la grille mais sous la recherche */
+}
+
+/* Couleurs spécifiques pour Télétravail (th_row) */
+.th_row.bg-info.text-white { /* Règle spécifique pour th_row */
+    background-color: #17a2b8 !important; /* Couleur Télétravail */
+}
+
+/* Amélioration Tooltip */
+[data-toggle="tooltip"] {
+    cursor: help; /* Indique qu'il y a une info au survol */
+}
+
+/* --- Réduction de la police pour écrans < 2000px --- */
+@media (max-width: 1999px) {
+    /* Réduction de la police de la table principale */
+    .table-bordered {
+        font-size: 0.75rem; /* Réduit de 0.85rem à 0.75rem */
+    }
+
+    /* Réduction de la police des cellules de créneaux */
+    .td_quarter {
+        font-size: 0.8em; /* Réduit de 0.9em à 0.8em */
+    }
+
+    /* Réduction de la police des en-têtes de minutes */
+    .th_col2 {
+        font-size: 0.7rem; /* Réduit de 0.75rem à 0.7rem */
+    }
+
+    /* Réduction de la police du titre du jour */
+    .th_title {
+        font-size: 1.1em; /* Réduit de 1.2em à 1.1em */
+    }
+
+    /* Réduction de la police de la colonne utilisateur */
+    .th_row {
+        font-size: 0.75rem !important; /* Réduit de la taille par défaut à 0.75rem */
+    }
+
+    /* Masquage automatique de la colonne Site sur écrans < 2000px */
+    .site-column {
+        display: none !important;
+    }
+    
+    /* Permettre l'affichage si l'utilisateur a forcé l'affichage */
+    .show-site-column .site-column {
+        display: table-cell !important;
+    }
+}
+
+/* Masquage optionnel de la colonne Site (toggle manuel) */
+.hide-site-column .site-column {
+    display: none !important;
+}
+
+/* Affichage forcé de la colonne Site (quand l'utilisateur clique sur "Afficher") */
+.show-site-column .site-column {
+    display: table-cell !important;
+}
+
+/* --- Ajustements Responsive --- */
+@media (max-width: 768px) {
+    .th_row {
+        min-width: 120px; /* Réduit largeur colonne user sur petits écrans */
+        font-size: 0.75rem;
+    }
+
+    .table-bordered {
+        font-size: 0.75rem; /* Réduit taille police générale */
+    }
+
+    .th_col1 { min-width: 60px; } /* Réduit largeur colonne heure */
+    .th_col2, .td_quarter { width: 18px; min-width: 18px; } /* Réduit largeur colonne minute/créneau */
+    .th_title { font-size: 1em; } /* Réduit taille titre */
+}
+
+
+/* Zones d'indisponibilité (basées sur user_availabilities) */
+.td_unavailable {
+    cursor: not-allowed !important;
+    opacity: 0.6;
+}
+
+.td_unavailable:hover {
+    box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+    opacity: 0.7;
+}
+
+/* Overlay pour avertissement si on tente de sélectionner */
+.td_unavailable.force-selected {
+    border: 2px dashed #ff9800 !important;
+    background: repeating-linear-gradient(
+        45deg,
+        #fff3cd,
+        #fff3cd 10px,
+        #ffeaa7 10px,
+        #ffeaa7 20px
+    ) !important;
+}
+
+/* --- Keyframes (Inchangés, mais pourraient être inutiles si non utilisés par JS) --- */
+@-webkit-keyframes fadeOut { /* ... */ }
+@-moz-keyframes fadeOut { /* ... */ }
+@keyframes fadeOut { /* ... */ }

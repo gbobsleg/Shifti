@@ -1,0 +1,77 @@
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 25px !important;
+}
+
+.sortable:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.sortable::after {
+    content: '⇅';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.3;
+    font-size: 0.9em;
+}
+
+.sortable.sort-asc::after {
+    content: '↑';
+    opacity: 1;
+    color: #007bff;
+}
+
+.sortable.sort-desc::after {
+    content: '↓';
+    opacity: 1;
+    color: #007bff;
+}
+
+/* Colonnes */
+.col-checkbox {
+    width: 40px;
+}
+
+.col-date {
+    min-width: 140px;
+}
+
+/* Filtres */
+.filter-select {
+    width: auto;
+}
+
+#filter-validation {
+    min-width: 150px;
+}
+
+#filter-demand-status {
+    min-width: 170px;
+}
+
+/* Badge offre (couleurs dynamiques en inline) */
+.offer-badge {
+    font-size: 0.7rem;
+    padding: 0.5em 0.75em;
+}
+
+/* Empêcher le retour à la ligne sur Offre + Statut */
+#preview-table th:nth-child(3),
+#preview-table td:nth-child(3),
+#preview-table th:nth-child(5),
+#preview-table td:nth-child(5) {
+    white-space: nowrap;
+    width: auto;
+}
+
+
+
+
+
+
+
+

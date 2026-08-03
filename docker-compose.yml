@@ -1,0 +1,85 @@
+# =============================================================================
+# Stack production — Planning CakePHP 5 + MariaDB
+# Usage :
+#   cp .env.docker.example .env
+#   # Éditer SECURITY_SALT, mots de passe, etc.
+#   docker compose up -d --build
+# =============================================================================
+
+services:
+  db:
+    image: mariadb:11.4
+    container_name: planning_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cake_planning}
+      MYSQL_USER: ${MYSQL_USER:-planning}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change_me_planning}
+      TZ: Europe/Paris
+    volumes:
+      # Persistance des données
+      - db_data:/var/lib/mysql
+      # Initialisation automatique au premier démarrage uniquement
+      - ./database_backup.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      # Réservé à la machine hôte : accès via tunnel SSH uniquement, jamais exposé publiquement
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - planning_net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planning_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_USER: ${MYSQL_USER:-planning}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-change_me_planning}
+      DB_NAME: ${MYSQL_DATABASE:-cake_planning}
+      DATABASE_URL: "mysql://${MYSQL_USER:-planning}:${MYSQL_PASSWORD:-change_me_planning}@db:3306/${MYSQL_DATABASE:-cake_planning}?encoding=utf8mb4&timezone=UTC&cacheMetadata=true&quoteIdentifiers=false&persistent=false"
+      DEBUG: ${DEBUG:-false}
+      APP_NAME: ${APP_NAME:-Shifti}
+      APP_DEFAULT_LOCALE: ${APP_DEFAULT_LOCALE:-fr_FR}
+      APP_DEFAULT_TIMEZONE: ${APP_DEFAULT_TIMEZONE:-Europe/Paris}
+      SECURITY_SALT: ${SECURITY_SALT:-change_me_salt_openssl_rand_hex_32}
+    ports:
+      # Réservé à la machine hôte : le nginx système (port 80, avec authentification) fait le relais public
+      - "127.0.0.1:${APP_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./logs:/var/www/html/logs
+      - app_tmp:/var/www/html/tmp
+    networks:
+      - planning_net
+
+  adminer:
+      image: adminer
+      restart: always
+      ports:
+        # Réservé à la machine hôte : accès via tunnel SSH uniquement, jamais exposé publiquement
+        - "127.0.0.1:8888:8080"
+      networks:
+        - planning_net
+
+networks:
+  planning_net:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+  app_tmp:
+    driver: local

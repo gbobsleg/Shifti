@@ -1,0 +1,440 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * CakePHP(tm) : Rapid Development Framework (https://cakephp.org)
+ * Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ *
+ * Licensed under The MIT License
+ * For full copyright and license information, please see the LICENSE.txt
+ * Redistributions of files must retain the above copyright notice.
+ *
+ * @copyright     Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ * @link          https://cakephp.org CakePHP(tm) Project
+ * @since         0.10.8
+ * @license       https://opensource.org/licenses/mit-license.php MIT License
+ */
+
+/*
+ * Configure paths required to find CakePHP + general filepath constants
+ */
+require __DIR__ . DIRECTORY_SEPARATOR . 'paths.php';
+
+/*
+ * Bootstrap CakePHP.
+ *
+ * Does the various bits of setup that CakePHP needs to do.
+ * This includes:
+ *
+ * - Registering the CakePHP autoloader.
+ * - Setting the default application paths.
+ */
+require CORE_PATH . 'config' . DS . 'bootstrap.php';
+
+/*
+ * Load I18n functions from CakePHP if available
+ * These functions are required for translations in templates
+ */
+if (file_exists(CORE_PATH . 'I18n' . DS . 'functions.php')) {
+    require CORE_PATH . 'I18n' . DS . 'functions.php';
+}
+
+/*
+ * Define I18n functions as fallbacks if they don't exist
+ * These are normally provided by CakePHP's I18n/functions.php
+ */
+if (!function_exists('__')) {
+    function __(string $singular, mixed ...$args): string
+    {
+        if (empty($args)) {
+            return $singular;
+        }
+        return vsprintf($singular, $args);
+    }
+}
+
+if (!function_exists('__d')) {
+    function __d(string $domain, string $msg, mixed ...$args): string
+    {
+        if (empty($args)) {
+            return $msg;
+        }
+        return vsprintf($msg, $args);
+    }
+}
+
+if (!function_exists('__n')) {
+    function __n(string $singular, string $plural, int $count, mixed ...$args): string
+    {
+        $msg = $count === 1 ? $singular : $plural;
+        if (empty($args)) {
+            return $msg;
+        }
+        return vsprintf($msg, $args);
+    }
+}
+
+if (!function_exists('__x')) {
+    function __x(string $context, string $singular, mixed ...$args): string
+    {
+        if (empty($args)) {
+            return $singular;
+        }
+        return vsprintf($singular, $args);
+    }
+}
+
+if (!function_exists('h')) {
+    /**
+     * Convenience method for htmlspecialchars.
+     *
+     * @param mixed $text Text to wrap through htmlspecialchars. Also works with arrays, and objects.
+     * @param bool $double Encode existing html entities.
+     * @param string|null $charset Character set to use when escaping.
+     * @return mixed Wrapped text.
+     */
+    function h(mixed $text, bool $double = true, ?string $charset = null): mixed
+    {
+        if (is_string($text)) {
+            return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, $charset ?? 'UTF-8', $double);
+        }
+
+        if (is_array($text)) {
+            $texts = [];
+            foreach ($text as $k => $t) {
+                $texts[$k] = h($t, $double, $charset);
+            }
+            return $texts;
+        }
+
+        if (is_object($text)) {
+            if (method_exists($text, '__toString')) {
+                return htmlspecialchars($text->__toString(), ENT_QUOTES | ENT_SUBSTITUTE, $charset ?? 'UTF-8', $double);
+            }
+        }
+
+        return $text;
+    }
+}
+
+if (!function_exists('debug')) {
+    /**
+     * Prints out debug information about given variable.
+     *
+     * @param mixed $var Variable to show debug information for.
+     * @param bool|null $showHtml If set to true, the method prints using HTML, otherwise plain text.
+     * @param bool $showFrom If set to true, the line number and file where the method was called will be printed.
+     * @return void
+     */
+    function debug(mixed $var, ?bool $showHtml = null, bool $showFrom = true): void
+    {
+        if ($showHtml === null) {
+            $showHtml = PHP_SAPI !== 'cli';
+        }
+
+        if ($showFrom) {
+            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
+            $file = $trace[0]['file'] ?? 'unknown';
+            $line = $trace[0]['line'] ?? 0;
+            echo $showHtml ? "<strong>$file</strong> (line <strong>$line</strong>)\n" : "$file (line $line)\n";
+        }
+
+        if ($showHtml) {
+            echo '<pre class="cake-debug">';
+        }
+
+        print_r($var);
+
+        if ($showHtml) {
+            echo '</pre>';
+        }
+
+        echo "\n";
+    }
+}
+
+if (!function_exists('dd')) {
+    /**
+     * Prints out debug information about given variable and dies.
+     *
+     * @param mixed ...$vars Variables to show debug information for.
+     * @return void
+     */
+    function dd(mixed ...$vars): void
+    {
+        foreach ($vars as $var) {
+            debug($var);
+        }
+        exit(1);
+    }
+}
+
+if (!function_exists('pr')) {
+    /**
+     * print_r convenience function.
+     *
+     * @param mixed $var Variable to print out.
+     * @return void
+     */
+    function pr(mixed $var): void
+    {
+        if (PHP_SAPI !== 'cli') {
+            echo '<pre>';
+        }
+        print_r($var);
+        if (PHP_SAPI !== 'cli') {
+            echo '</pre>';
+        }
+    }
+}
+
+/*
+ * Define env() function if it doesn't exist
+ */
+if (!function_exists('env')) {
+    /**
+     * Gets an environment variable from available sources, and provides emulation
+     * for unsupported or inconsistent environment variables (i.e. DOCUMENT_ROOT on
+     * IIS, or SCRIPT_NAME in CGI mode). Also exposes some additional custom
+     * environment information.
+     *
+     * @param string $key Environment variable name.
+     * @param string|bool|null $default Specify a default value in case the environment variable is not defined.
+     * @return string|bool|null Environment variable setting.
+     */
+    function env(string $key, string|bool|null $default = null): string|bool|null
+    {
+        if ($key === 'HTTPS') {
+            if (isset($_SERVER['HTTPS'])) {
+                return !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+            }
+
+            return str_starts_with((string)env('SCRIPT_URI'), 'https://');
+        }
+
+        if ($key === 'SCRIPT_NAME' && env('CGI_MODE') && isset($_ENV['SCRIPT_URL'])) {
+            $key = 'SCRIPT_URL';
+        }
+
+        $val = null;
+        if (isset($_SERVER[$key])) {
+            $val = $_SERVER[$key];
+        } elseif (isset($_ENV[$key])) {
+            $val = $_ENV[$key];
+        } elseif (getenv($key) !== false) {
+            $val = getenv($key);
+        }
+
+        if ($val === null) {
+            return $default;
+        }
+
+        if (in_array($val, ['true', 'false', 'null'], true)) {
+            return match ($val) {
+                'true' => true,
+                'false' => false,
+                default => null,
+            };
+        }
+
+        return $val;
+    }
+}
+
+use Cake\Cache\Cache;
+use Cake\Core\Configure;
+use Cake\Core\Configure\Engine\PhpConfig;
+use Cake\Database\TypeFactory;
+use Cake\Database\Type\StringType;
+use Cake\Datasource\ConnectionManager;
+use Cake\Error\ErrorTrap;
+use Cake\Error\ExceptionTrap;
+use Cake\Http\ServerRequest;
+use Cake\Log\Log;
+use Cake\Mailer\Mailer;
+use Cake\Mailer\TransportFactory;
+use Cake\Routing\Router;
+use Cake\Utility\Security;
+
+/*
+ * Load environment variables from .env file
+ *
+ * The purpose of the .env file is to emulate the presence of the environment
+ * variables like they would be present in production.
+ *
+ * If you use .env files, be careful to not commit them to source control to avoid
+ * security risks.
+ */
+if (file_exists(CONFIG . '.env')) {
+    $lines = file(CONFIG . '.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        // Skip comments
+        if (strpos(trim($line), '#') === 0) {
+            continue;
+        }
+
+        // Parse KEY=VALUE format
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+
+            // Remove quotes if present
+            $value = trim($value, '"\'');
+
+            // Set environment variable
+            if (!array_key_exists($key, $_SERVER) && !array_key_exists($key, $_ENV)) {
+                putenv("$key=$value");
+                $_ENV[$key] = $value;
+                $_SERVER[$key] = $value;
+            }
+        }
+    }
+}
+
+/*
+ * Read configuration file and inject configuration into various
+ * CakePHP classes.
+ *
+ * By default there is only one configuration file. It is often a good
+ * idea to create multiple configuration files, and separate the configuration
+ * that changes from configuration that does not. This makes deployment simpler.
+ */
+try {
+    Configure::config('default', new PhpConfig());
+    Configure::load('app', 'default', false);
+} catch (\Exception $e) {
+    exit($e->getMessage() . "\n");
+}
+
+/*
+ * Load an environment local configuration file to provide overrides to your configuration.
+ * Notice: For security reasons app_local.php **should not** be included in your git repo.
+ */
+if (file_exists(CONFIG . 'app_local.php')) {
+    Configure::load('app_local', 'default');
+}
+
+/*
+ * When debug = true the metadata cache should only last
+ * for a short time.
+ */
+if (Configure::read('debug')) {
+    Configure::write('Cache._cake_model_.duration', '+2 minutes');
+    Configure::write('Cache._cake_core_.duration', '+2 minutes');
+    // disable router cache during development
+    Configure::write('Cache._cake_routes_.duration', '+2 seconds');
+}
+
+/*
+ * Set the default server timezone. Using UTC makes time calculations / conversions easier.
+ * Check http://php.net/manual/en/timezones.php for list of valid timezone strings.
+ */
+date_default_timezone_set(Configure::read('App.defaultTimezone'));
+
+/*
+ * Configure the mbstring extension to use the correct encoding.
+ */
+mb_internal_encoding(Configure::read('App.encoding'));
+
+/*
+ * Set the default locale. This controls how dates, number and currency is
+ * formatted and sets the default language to use for translations.
+ */
+ini_set('intl.default_locale', Configure::read('App.defaultLocale'));
+
+/*
+ * Register application error and exception handlers.
+ */
+(new ErrorTrap(Configure::read('Error')))->register();
+(new ExceptionTrap(Configure::read('Error')))->register();
+
+/*
+ * Include the CLI bootstrap overrides.
+ */
+$isCli = PHP_SAPI === 'cli';
+if ($isCli) {
+    require CONFIG . 'bootstrap_cli.php';
+}
+
+/*
+ * Set the full base URL.
+ * This URL is used as the base of all absolute links.
+ */
+$fullBaseUrl = Configure::read('App.fullBaseUrl');
+if (!$fullBaseUrl) {
+    $s = null;
+    if (env('HTTPS')) {
+        $s = 's';
+    }
+
+    $httpHost = env('HTTP_HOST');
+    if (isset($httpHost)) {
+        $fullBaseUrl = 'http' . $s . '://' . $httpHost;
+    }
+    unset($httpHost, $s);
+}
+if ($fullBaseUrl) {
+    Router::fullBaseUrl($fullBaseUrl);
+}
+unset($fullBaseUrl);
+
+Cache::setConfig(Configure::consume('Cache'));
+ConnectionManager::setConfig(Configure::consume('Datasources'));
+TransportFactory::setConfig(Configure::consume('EmailTransport'));
+Mailer::setConfig(Configure::consume('Email'));
+Log::setConfig(Configure::consume('Log'));
+Security::setSalt(Configure::consume('Security.salt'));
+
+/*
+ * Setup detectors for mobile and tablet.
+ */
+ServerRequest::addDetector('mobile', function ($request) {
+    $detector = new \Detection\MobileDetect();
+
+    return $detector->isMobile();
+});
+ServerRequest::addDetector('tablet', function ($request) {
+    $detector = new \Detection\MobileDetect();
+
+    return $detector->isTablet();
+});
+
+/*
+ * You can set whether the ORM uses immutable or mutable Time types.
+ * The default changed in 4.0 to immutable types. You can uncomment
+ * below to switch back to mutable types.
+ *
+ * You can enable default locale format parsing by adding calls
+ * to `useLocaleParser()`. This enables the automatic conversion of
+ * locale specific date formats. For details see
+ * @link https://book.cakephp.org/4/en/core-libraries/internationalization-and-localization.html#parsing-localized-datetime-data
+ */
+// \Cake\Database\TypeFactory::build('time')
+//    ->useMutable();
+// \Cake\Database\TypeFactory::build('date')
+//    ->useMutable();
+// \Cake\Database\TypeFactory::build('datetime')
+//    ->useMutable();
+// \Cake\Database\TypeFactory::build('timestamp')
+//    ->useMutable();
+// \Cake\Database\TypeFactory::build('datetimefractional')
+//    ->useMutable();
+// \Cake\Database\TypeFactory::build('timestampfractional')
+//    ->useMutable();
+// \Cake\Database\TypeFactory::build('datetimetimezone')
+//    ->useMutable();
+// \Cake\Database\TypeFactory::build('timestamptimezone')
+//    ->useMutable();
+
+// There is no time-specific type in Cake
+TypeFactory::map('time', StringType::class);
+
+/*
+ * Custom Inflector rules, can be set to correctly pluralize or singularize
+ * table, model, controller names or whatever other string is passed to the
+ * inflection functions.
+ */
+//Inflector::rules('plural', ['/^(inflect)or$/i' => '\1ables']);
+//Inflector::rules('irregular', ['red' => 'redlings']);
+//Inflector::rules('uninflected', ['dontinflectme']);

@@ -1,0 +1,75 @@
+# CakePHP
+/config/app_local.php
+/config/.env
+/.env
+/.env.*
+!/.env.docker.example
+!/config/.env.example
+/logs/*
+/tmp/*
+/vendor/*
+/webroot/tmp/
+
+# Dumps / secrets / artefacts
+/database_backup.sql
+/database_schema.sql
+*.sql.gz
+composer.phar
+*.bak
+*.old
+*.xls
+*.xlsx
+
+# Tooling local
+.bolt/
+.cursor/
+.cursorrules
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.code-workspace
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+.directory
+
+# Logs / caches PHP
+logs
+*.log
+.phpunit.cache
+.phpunit.result.cache
+.php-cs-fixer.cache
+tests.sqlite
+coverage/
+
+# Node (non utilisé)
+node_modules/
+/node_modules/*
+npm-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+/solver-python/.venv/
+/solver-python/venv/
+/solver-python/.env
+
+# Deploy backups
+/backups/
+
+# Misc
+dummy
+dummy2
+*~
+*.swp
+*.swo
+*.local
