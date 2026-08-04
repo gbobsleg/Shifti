@@ -86,13 +86,26 @@ class CreatePlanningGenerationJobs extends BaseMigration
                 'null' => true,
                 'default' => null,
             ])
+            ->addColumn('started_at', 'datetime', [
+                'null' => true,
+                'default' => null,
+            ])
+            ->addColumn('finished_at', 'datetime', [
+                'null' => true,
+                'default' => null,
+            ])
             ->addColumn('modified', 'datetime', [
                 'null' => true,
                 'default' => null,
             ])
+            ->addColumn('debug_rotation_only', 'boolean', [
+                'default' => false,
+                'null' => false,
+            ])
             ->addIndex(['status'], ['name' => 'IDX_PGJ_STATUS'])
             ->addIndex(['user_id'], ['name' => 'IDX_PGJ_USER'])
             ->addIndex(['created'], ['name' => 'IDX_PGJ_CREATED'])
+            ->addIndex(['debug_rotation_only'], ['name' => 'IDX_PGJ_DEBUG_ROTATION_ONLY'])
             ->addForeignKey('user_id', 'users', 'id', [
                 'delete' => 'CASCADE',
                 'update' => 'CASCADE',

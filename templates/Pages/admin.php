@@ -335,6 +335,22 @@ $servicesHealth = $servicesHealth ?? [];
                 </div>
             </div>
             <div class="col-md-2 mb-4">
+                <div class="card admin-card border-info h-100">
+                    <div class="card-body text-center d-flex flex-column">
+                        <i class="bi bi-diagram-3-fill text-info" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
+                        <h5 class="card-title">Groupes d'offres</h5>
+                        <p class="text-muted small">Profils mixtes (passe 2)</p>
+                        <div class="mt-auto">
+                            <?= $this->Html->link(
+                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
+                                ['controller' => 'OfferGroups', 'action' => 'index'],
+                                ['class' => 'btn btn-info btn-sm', 'escape' => false]
+                            ) ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2 mb-4">
                 <div class="card admin-card border-secondary h-100">
                     <div class="card-body text-center d-flex flex-column">
                         <i class="bi bi-clock-history text-secondary" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>

@@ -15,6 +15,8 @@ use Cake\Validation\Validator;
  *
  * @property \App\Model\Table\RangesTable&\Cake\ORM\Association\HasMany $Ranges
  * @property \App\Model\Table\ProphetTuningJobsTable&\Cake\ORM\Association\HasMany $ProphetTuningJobs
+ * @property \App\Model\Table\OfferGroupsTable&\Cake\ORM\Association\HasOne $OfferGroupAsMixed
+ * @property \App\Model\Table\OfferGroupMembersTable&\Cake\ORM\Association\HasOne $OfferGroupMember
  *
  * @method \App\Model\Entity\Offer newEmptyEntity()
  * @method \App\Model\Entity\Offer newEntity(array $data, array $options = [])
@@ -75,6 +77,20 @@ class OffersTable extends Table
             'foreignKey' => 'offer_id',
             'dependent' => true,
             'cascadeCallbacks' => true,
+        ]);
+
+        // Groupe d'offres : cette offre est le profil mixte
+        $this->hasOne('OfferGroupAsMixed', [
+            'className' => 'OfferGroups',
+            'foreignKey' => 'mixed_offer_id',
+            'propertyName' => 'offer_group_as_mixed',
+        ]);
+
+        // Groupe d'offres : cette offre est un membre
+        $this->hasOne('OfferGroupMember', [
+            'className' => 'OfferGroupMembers',
+            'foreignKey' => 'offer_id',
+            'propertyName' => 'offer_group_member',
         ]);
     }
 

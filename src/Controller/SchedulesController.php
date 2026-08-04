@@ -116,12 +116,27 @@ class SchedulesController extends AppController
             $generatedVirtualOffers = $build['generated_virtual_offers'];
             $diagnostics = $build['diagnostics'];
             $equityScores = $build['fixed_equity_scores'] ?? [];
+            // Groupes d'offres (étape 4 via ScheduleProblemBuilderService) :
+            // need_curve déjà splité (members/group) + mixte forcé à 0 ;
+            // agents déjà élargis aux compétences mixtes (OfferGroupsNeedService).
+            // Pas de mutation equity_state_json sur ce chemin 1-jour (contrairement au lot).
+            $offerGroupsPayload = $build['offer_groups'] ?? [];
 
             // Format des needs pour le solver
             $needsForJson = $needCurve;
             $offersNames = array_keys($needsForJson);
             $priorityOffers = [];
             $equityOffers = [];
+
+            if (!empty($offerGroupsPayload)) {
+                $this->log(
+                    'Offer groups actifs: ' . implode(', ', array_map(
+                        static fn(array $g): string => (string)($g['name'] ?? ''),
+                        $offerGroupsPayload
+                    )),
+                    'debug'
+                );
+            }
 
             // Log diagnostics synthétiques (alignement: UI + logs)
             if (!empty($diagnostics['warnings'])) {
@@ -1635,6 +1650,11 @@ class SchedulesController extends AppController
                             $wfmProblemPasse2['equity_offers'] = array_values($forecastableEquityOffers);
                             $wfmProblemPasse2['weight_equity'] = 60;
                         }
+                    }
+
+                    // Alignement lot (ScheduleDayGenerationService) : payload groupes d'offres
+                    if (!empty($offerGroupsPayload)) {
+                        $wfmProblemPasse2['offer_groups'] = array_values($offerGroupsPayload);
                     }
                     
                     $solverUrlPasse2 = rtrim((string)Configure::read('PythonSolver.url', 'http://127.0.0.1:8000'), '/');

@@ -7,6 +7,11 @@ class AddDebugRotationOnlyToPlanningGenerationJobs extends BaseMigration
 {
     public function change(): void
     {
+        // Sur une BDD neuve, cette migration est antérieure à CreatePlanningGenerationJobs.
+        if (!$this->hasTable('planning_generation_jobs')) {
+            return;
+        }
+
         $table = $this->table('planning_generation_jobs');
         
         if (!$table->hasColumn('debug_rotation_only')) {

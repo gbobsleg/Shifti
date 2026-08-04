@@ -9,6 +9,7 @@ use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
 use Cake\ORM\Locator\LocatorAwareTrait;
 use App\Service\Equity\JobPeriodEquityScoresProvider;
+use App\Service\OfferGroups\EquityBucketsMigrator;
 use App\Service\Rotation\RotationTargetCalculatorService;
 
 /**
@@ -107,6 +108,46 @@ class ScheduleDayGenerationService
         );
 
         $needCurve = $build['need_curve'];
+        $offerGroupsPayload = $build['offer_groups'] ?? [];
+        $offerEquityBuckets = $build['offer_equity_buckets'] ?? [];
+        $offerGroupsMeta = $build['offer_groups_meta'] ?? [];
+
+        // Migration equity buckets (idempotente) — avant Passe 2, persistée immédiatement
+        $equityStateForMigrate = [
+            'activities' => $equityStateActivities,
+            'forecastables' => $equityStateForecastables,
+            'cumulative_targets' => $cumulativeTargets,
+        ];
+        if (isset($equityState[EquityBucketsMigrator::VERSION_KEY])) {
+            $equityStateForMigrate[EquityBucketsMigrator::VERSION_KEY] =
+                $equityState[EquityBucketsMigrator::VERSION_KEY];
+        }
+        $equityMigration = (new EquityBucketsMigrator())->migrateState(
+            $equityStateForMigrate,
+            $offerGroupsMeta,
+        );
+        $equityState = $equityMigration['state'];
+        $equityStateActivities = is_array($equityState['activities'] ?? null)
+            ? $equityState['activities']
+            : $equityStateActivities;
+        $equityStateForecastables = is_array($equityState['forecastables'] ?? null)
+            ? $equityState['forecastables']
+            : [];
+        $cumulativeTargets = is_array($equityState['cumulative_targets'] ?? null)
+            ? $equityState['cumulative_targets']
+            : $cumulativeTargets;
+        $equityBucketsVersion = (int)($equityState[EquityBucketsMigrator::VERSION_KEY] ?? EquityBucketsMigrator::VERSION);
+
+        if (!empty($equityMigration['migrated'])) {
+            $job->equity_state_json = json_encode([
+                'activities' => $equityStateActivities,
+                'forecastables' => $equityStateForecastables,
+                'cumulative_targets' => $cumulativeTargets,
+                EquityBucketsMigrator::VERSION_KEY => $equityBucketsVersion,
+            ], JSON_UNESCAPED_UNICODE);
+            $Jobs->saveOrFail($job);
+        }
+
         if (empty($needCurve)) {
             // Réinitialiser current_step en cas d'erreur
             $Jobs->updateAll(
@@ -1037,7 +1078,7 @@ class ScheduleDayGenerationService
             );
 
             $forecastableOffers = array_keys($needCurve);
-            // Équité "période" sur les offres forecastables activées (offers.equity_enabled=1)
+            // Équité "période" : offres equity_enabled, agrégées par bucket de groupe si applicable
             $equityOffers = $Offers->find()
                 ->select(['name'])
                 ->where(['is_forecastable' => 1, 'equity_enabled' => 1])
@@ -1045,16 +1086,38 @@ class ScheduleDayGenerationService
                 ->extract('name')
                 ->map(fn($v) => (string)$v)
                 ->toList();
-            $periodEquityOffers = array_values(array_intersect($equityOffers, $forecastableOffers));
+
+            $periodEquityOffers = [];
+            $seenBuckets = [];
+            foreach ($forecastableOffers as $offName) {
+                $offName = (string)$offName;
+                $bucket = (string)($offerEquityBuckets[$offName] ?? $offName);
+                if (isset($seenBuckets[$bucket])) {
+                    continue;
+                }
+                $bucketActive = in_array($offName, $equityOffers, true);
+                if (!$bucketActive) {
+                    foreach ($offerEquityBuckets as $otherOffer => $otherBucket) {
+                        if ($otherBucket === $bucket && in_array((string)$otherOffer, $equityOffers, true)) {
+                            $bucketActive = true;
+                            break;
+                        }
+                    }
+                }
+                if ($bucketActive) {
+                    $seenBuckets[$bucket] = true;
+                    $periodEquityOffers[] = $bucket;
+                }
+            }
 
             $periodEquityScores = [];
-            foreach ($periodEquityOffers as $offName) {
+            foreach ($periodEquityOffers as $bucket) {
                 foreach ($updatedAgentsForPasse2 as $ag) {
                     $aid = (int)($ag['id'] ?? 0);
                     if ($aid <= 0) {
                         continue;
                     }
-                    $periodEquityScores[$offName][$aid] = (int)($equityStateForecastables[$offName][$aid] ?? 0);
+                    $periodEquityScores[$bucket][$aid] = (int)($equityStateForecastables[$bucket][$aid] ?? 0);
                 }
             }
 
@@ -1214,6 +1277,9 @@ class ScheduleDayGenerationService
                 'debug_logging' => $debugSolvers,
                 'relative_gap_limit' => 0.01, // Stop si < 1% d'écart avec l'optimum
             ];
+            if (!empty($offerGroupsPayload)) {
+                $wfmProblemPasse2['offer_groups'] = array_values($offerGroupsPayload);
+            }
 
             $resp2 = $http->post(
                 $solverUrl . '/api/v1/solve-schedule',
@@ -1383,13 +1449,18 @@ class ScheduleDayGenerationService
         $schedule = $this->normalizeScheduleNoOverlap($schedule);
 
         // Maj équité période forecastables (minutes) à partir de la Passe 2 (segments WORK)
+        // Les minutes sont agrégées par bucket de groupe (pas par offre membre/mixte).
         if (!empty($periodEquityOffers) && is_array($schedulePasse2)) {
             foreach ($schedulePasse2 as $seg) {
                 if (!is_array($seg) || ($seg['label'] ?? '') !== 'WORK') {
                     continue;
                 }
                 $off = (string)($seg['offer'] ?? '');
-                if ($off === '' || !in_array($off, $periodEquityOffers, true)) {
+                if ($off === '') {
+                    continue;
+                }
+                $bucket = (string)($offerEquityBuckets[$off] ?? $off);
+                if (!in_array($bucket, $periodEquityOffers, true)) {
                     continue;
                 }
                 $aid = (int)($seg['agent_id'] ?? 0);
@@ -1405,10 +1476,11 @@ class ScheduleDayGenerationService
                 if ($min <= 0) {
                     continue;
                 }
-                if (!isset($equityStateForecastables[$off]) || !is_array($equityStateForecastables[$off])) {
-                    $equityStateForecastables[$off] = [];
+                if (!isset($equityStateForecastables[$bucket]) || !is_array($equityStateForecastables[$bucket])) {
+                    $equityStateForecastables[$bucket] = [];
                 }
-                $equityStateForecastables[$off][$aid] = (int)($equityStateForecastables[$off][$aid] ?? 0) + $min;
+                $equityStateForecastables[$bucket][$aid] =
+                    (int)($equityStateForecastables[$bucket][$aid] ?? 0) + $min;
             }
         }
 
@@ -1482,12 +1554,13 @@ class ScheduleDayGenerationService
             $DraftRanges->saveManyOrFail($entities);
         }
 
-        // Persister l'état d'équité mis à jour (V2 : inclut les cibles cumulées pour scope aligné avec currentRealization)
+        // Persister l'état d'équité mis à jour (V2 : buckets groupe + cibles cumulées)
         $job->equity_state_json = json_encode([
             'activities' => $equityStateActivities,
             'forecastables' => $equityStateForecastables,
             'cumulative_targets' => $cumulativeTargets,
-        ]);
+            EquityBucketsMigrator::VERSION_KEY => $equityBucketsVersion ?? EquityBucketsMigrator::VERSION,
+        ], JSON_UNESCAPED_UNICODE);
         $Jobs->saveOrFail($job);
 
         // Réinitialiser current_step à la fin du traitement du jour

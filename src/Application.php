@@ -150,6 +150,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
                 ServerRequest::class => RequestPolicy::class,
                 \App\Resource\PagesResource::class => \App\Policy\PagesPolicy::class,
                 \App\Resource\OffersResource::class => \App\Policy\OffersPolicy::class,
+                \App\Resource\OfferGroupsResource::class => \App\Policy\OfferGroupsPolicy::class,
                 \App\Resource\UsersResource::class => \App\Policy\UsersPolicy::class,
                 \App\Resource\AlertsResource::class => \App\Policy\AlertsPolicy::class,
                 \App\Resource\AbsencesResource::class => \App\Policy\AbsencesPolicy::class,

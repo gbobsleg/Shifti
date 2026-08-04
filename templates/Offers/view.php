@@ -53,6 +53,39 @@ $formatDateFr = function (?string $date): ?string {
         </div>
     </div>
     <div class="card-body">
+        <?php
+        $asMixed = $offer->offer_group_as_mixed ?? null;
+        $asMember = $offer->offer_group_member ?? null;
+        $memberGroup = $asMember->offer_group ?? null;
+        ?>
+        <?php if ($asMixed): ?>
+            <div class="alert alert-info d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <i class="bi bi-diagram-3"></i>
+                    Cette offre est configurée comme <strong>Mixte</strong> du groupe
+                    <strong><?= h($asMixed->name) ?></strong>.
+                </div>
+                <?= $this->Html->link(
+                    'Voir le groupe',
+                    ['controller' => 'OfferGroups', 'action' => 'view', $asMixed->id],
+                    ['class' => 'btn btn-sm btn-outline-info']
+                ) ?>
+            </div>
+        <?php elseif ($memberGroup): ?>
+            <div class="alert alert-secondary d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <i class="bi bi-people"></i>
+                    Cette offre est configurée comme <strong>Membre</strong> du groupe
+                    <strong><?= h($memberGroup->name) ?></strong>.
+                </div>
+                <?= $this->Html->link(
+                    'Voir le groupe',
+                    ['controller' => 'OfferGroups', 'action' => 'view', $memberGroup->id],
+                    ['class' => 'btn btn-sm btn-outline-secondary']
+                ) ?>
+            </div>
+        <?php endif; ?>
+
         <?php // --- Informations de l'offre --- ?>
         <div class="card border-primary mb-4">
             <div class="card-header bg-primary text-white">

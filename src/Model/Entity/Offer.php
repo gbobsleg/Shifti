@@ -35,6 +35,8 @@ use DateTimeInterface;
  *
  * @property \App\Model\Entity\Range[] $ranges
  * @property \App\Model\Entity\ProphetTuningJob[] $prophet_tuning_jobs
+ * @property \App\Model\Entity\OfferGroup|null $offer_group_as_mixed
+ * @property \App\Model\Entity\OfferGroupMember|null $offer_group_member
  */
 class Offer extends Entity
 {
@@ -72,6 +74,8 @@ class Offer extends Entity
         'skills' => true,
         'users' => true,
         'prophet_tuning_jobs' => true,
+        'offer_group_as_mixed' => true,
+        'offer_group_member' => true,
     ];
 
     protected function _setStartDate($value): ?FrozenTime

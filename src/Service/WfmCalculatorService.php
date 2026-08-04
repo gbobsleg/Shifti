@@ -3,6 +3,7 @@ namespace App\Service;
 
 use App\Model\Entity\WfmSetting;
 use App\Service\ForecastService;
+use App\Service\OfferGroups\OfferGroupsNeedService;
 use Cake\ORM\Locator\LocatorAwareTrait;
 use DateTimeInterface;
 
@@ -81,6 +82,22 @@ class WfmCalculatorService
         }
 
         return $needCurve;
+    }
+
+    /**
+     * Applique les groupes d'offres sur une need_curve brute.
+     *
+     * - mode members : injecte l'offre mixte avec courbe à 0
+     * - mode group : Largest Remainder depuis le mixte vers les membres, mixte remis à 0
+     *
+     * @param array<string, array<string, int>> $needCurve
+     * @return array<string, array<string, int>>
+     */
+    public function finalizeNeedCurveWithOfferGroups(array $needCurve): array
+    {
+        $service = new OfferGroupsNeedService();
+
+        return $service->applyToNeedCurve($needCurve)['need_curve'];
     }
 
     /**

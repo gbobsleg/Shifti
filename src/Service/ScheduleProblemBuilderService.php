@@ -5,6 +5,7 @@ namespace App\Service;
 
 use App\Model\Entity\WfmSetting;
 use App\Service\Equity\EquityScoresProviderInterface;
+use App\Service\OfferGroups\OfferGroupsNeedService;
 use Cake\I18n\FrozenTime;
 use Cake\ORM\Locator\LocatorAwareTrait;
 
@@ -22,11 +23,13 @@ class ScheduleProblemBuilderService
 
     private AgentAvailabilityService $agentAvailabilityService;
     private RemoteWorkIntervalsService $remoteWorkIntervalsService;
+    private OfferGroupsNeedService $offerGroupsNeedService;
 
-    public function __construct()
+    public function __construct(?OfferGroupsNeedService $offerGroupsNeedService = null)
     {
         $this->agentAvailabilityService = new AgentAvailabilityService();
         $this->remoteWorkIntervalsService = new RemoteWorkIntervalsService();
+        $this->offerGroupsNeedService = $offerGroupsNeedService ?? new OfferGroupsNeedService();
     }
 
     /**
@@ -52,6 +55,9 @@ class ScheduleProblemBuilderService
      *   remote_work_intervals_by_agent: array<int,array<int,array{start:string,end:string}>>,
      *   fixed_activities: array<int,array<string,mixed>>,
      *   generated_virtual_offers: array<int,string>,
+     *   offer_groups: list<array{name:string,mixed:string,members:list<string>,prefer_mixed:bool}>,
+     *   offer_equity_buckets: array<string,string>,
+     *   offer_groups_meta: list<array{name:string,mixed:string,members:list<string>}>,
      *   diagnostics: array<string,mixed>
      * }
      */
@@ -72,8 +78,12 @@ class ScheduleProblemBuilderService
             'fixed_activities_remote_work_incompatibilities' => [],
         ];
 
-        // --- Need curve (scénario + fallback live) ---
-        $needCurve = $this->buildNeedCurve($dateToCalc, $settings, $scenarioId, $diagnostics);
+        // --- Need curve (scénario + fallback live) + groupes d'offres ---
+        $needBuilt = $this->buildNeedCurve($dateToCalc, $settings, $scenarioId, $diagnostics);
+        $needCurve = $needBuilt['need_curve'];
+        $offerGroupsPayload = $needBuilt['offer_groups'];
+        $offerEquityBuckets = $needBuilt['offer_to_bucket'];
+        $offerGroupsMeta = $needBuilt['groups_meta'];
 
         // --- Paramètres journée ---
         $workdayStart = $this->normalizeTime((string)$settings->day_start_time, '09:00:00');
@@ -99,7 +109,15 @@ class ScheduleProblemBuilderService
 
         // --- Agents ---
         $agentIds = array_map('intval', $options['agent_ids'] ?? []);
-        $buildAgents = $this->buildAgents($dateToCalc, $needCurve, $scenarioId, $strictWork, $diagnostics, $agentIds);
+        $buildAgents = $this->buildAgents(
+            $dateToCalc,
+            $needCurve,
+            $scenarioId,
+            $strictWork,
+            $diagnostics,
+            $agentIds,
+            $offerGroupsMeta,
+        );
         $agentsForJson = $buildAgents['agents'];
         $agentSiteById = $buildAgents['agent_site_by_id'];
         $agentNameById = $buildAgents['agent_name_by_id'];
@@ -153,6 +171,9 @@ class ScheduleProblemBuilderService
             'remote_work_intervals_by_agent' => $remoteIntervalsByAgent,
             'fixed_activities' => $fixedActivities,
             'generated_virtual_offers' => [],
+            'offer_groups' => $offerGroupsPayload,
+            'offer_equity_buckets' => $offerEquityBuckets,
+            'offer_groups_meta' => $offerGroupsMeta,
             'fixed_equity_scores' => $equityScores,
             'diagnostics' => $diagnostics,
         ];
@@ -160,7 +181,12 @@ class ScheduleProblemBuilderService
 
     /**
      * @param array<string,mixed> $diagnostics (par référence)
-     * @return array<string,array<string,int>>
+     * @return array{
+     *   need_curve: array<string,array<string,int>>,
+     *   offer_groups: list<array{name:string,mixed:string,members:list<string>,prefer_mixed:bool}>,
+     *   offer_to_bucket: array<string,string>,
+     *   groups_meta: list<array{name:string,mixed:string,members:list<string>}>
+     * }
      */
     private function buildNeedCurve(FrozenTime $dateToCalc, WfmSetting $settings, int $scenarioId, array &$diagnostics): array
     {
@@ -168,54 +194,63 @@ class ScheduleProblemBuilderService
         $calculatorService = new WfmCalculatorService($forecastService);
 
         if ($scenarioId <= 0) {
-            return $calculatorService->generateNeedCurve($dateToCalc, $settings);
-        }
+            $needCurve = $calculatorService->generateNeedCurve($dateToCalc, $settings);
+        } else {
+            $ScenarioLinks = $this->fetchTable('ForecastScenariosOffers');
+            $Offers = $this->fetchTable('Offers');
+            $WfmScenarioService = new WfmScenarioService($forecastService, $calculatorService);
 
-        $ScenarioLinks = $this->fetchTable('ForecastScenariosOffers');
-        $Offers = $this->fetchTable('Offers');
-        $WfmScenarioService = new WfmScenarioService($forecastService, $calculatorService);
-
-        $needCurve = [];
-        $links = $ScenarioLinks->find()->where(['scenario_id' => $scenarioId])->all();
-        $missingOffers = [];
-        foreach ($links as $link) {
-            $offer = $Offers->get((int)$link->offer_id);
-            $series = $WfmScenarioService->getSeries($scenarioId, (int)$offer->id, $dateToCalc, 'need');
-            if ($series && !empty($series['data'])) {
-                $needCurve[(string)$offer->name] = $series['data'];
-            } else {
-                $missingOffers[] = (string)$offer->name;
-            }
-        }
-
-        if (!empty($missingOffers)) {
-            $diagnostics['missing_scenario_series'] = $missingOffers;
-            $diagnostics['warnings'][] = [
-                'type' => 'scenario_missing_series',
-                'message' => 'Séries manquantes pour: ' . implode(', ', $missingOffers) . ' — fallback calcul live.',
-            ];
-            $liveCurve = $calculatorService->generateNeedCurve($dateToCalc, $settings);
-            foreach ($missingOffers as $offerName) {
-                if (isset($liveCurve[$offerName])) {
-                    $needCurve[$offerName] = $liveCurve[$offerName];
+            $needCurve = [];
+            $links = $ScenarioLinks->find()->where(['scenario_id' => $scenarioId])->all();
+            $missingOffers = [];
+            foreach ($links as $link) {
+                $offer = $Offers->get((int)$link->offer_id);
+                $series = $WfmScenarioService->getSeries($scenarioId, (int)$offer->id, $dateToCalc, 'need');
+                if ($series && !empty($series['data'])) {
+                    $needCurve[(string)$offer->name] = $series['data'];
+                } else {
+                    $missingOffers[] = (string)$offer->name;
                 }
             }
-            if (empty($needCurve)) {
-                $needCurve = $liveCurve;
+
+            if (!empty($missingOffers)) {
+                $diagnostics['missing_scenario_series'] = $missingOffers;
+                $diagnostics['warnings'][] = [
+                    'type' => 'scenario_missing_series',
+                    'message' => 'Séries manquantes pour: ' . implode(', ', $missingOffers) . ' — fallback calcul live.',
+                ];
+                $liveCurve = $calculatorService->generateNeedCurve($dateToCalc, $settings);
+                foreach ($missingOffers as $offerName) {
+                    if (isset($liveCurve[$offerName])) {
+                        $needCurve[$offerName] = $liveCurve[$offerName];
+                    }
+                }
+                if (empty($needCurve)) {
+                    $needCurve = $liveCurve;
+                }
             }
         }
 
-        return $needCurve;
+        // Groupes d'offres : modes members / group (Largest Remainder) + payload solveur
+        return $this->offerGroupsNeedService->applyToNeedCurve($needCurve);
     }
 
     /**
      * @param array<string,array<string,int>> $needCurve
      * @param array<string,mixed> $diagnostics (par référence)
      * @param array<int,int> $agentIds Filtre optionnel (sélection manuelle d'agents) ; vide = aucun filtre
+     * @param list<array{name:string,mixed:string,members:list<string>}> $offerGroupsMeta
      * @return array{agents:array<int,array<string,mixed>>,agent_site_by_id:array<int,string|null>,agent_name_by_id:array<int,string>}
      */
-    private function buildAgents(FrozenTime $dateToCalc, array $needCurve, int $scenarioId, bool $strictWork, array &$diagnostics, array $agentIds = []): array
-    {
+    private function buildAgents(
+        FrozenTime $dateToCalc,
+        array $needCurve,
+        int $scenarioId,
+        bool $strictWork,
+        array &$diagnostics,
+        array $agentIds = [],
+        array $offerGroupsMeta = [],
+    ): array {
         $Users = $this->fetchTable('Users');
         $dow = (int)$dateToCalc->format('N');
 
@@ -317,14 +352,12 @@ class ScheduleProblemBuilderService
                 }
             }
 
-            // Garder seulement si l'agent peut couvrir au moins une offre forecastable (si live)
-            $hasForecastableSkill = false;
-            foreach ($skills as $s) {
-                if (isset($needCurve[$s])) {
-                    $hasForecastableSkill = true;
-                    break;
-                }
-            }
+            // Garder si skill ∈ need_curve OU skill = mixte d'un groupe dont un membre est dans need_curve
+            $hasForecastableSkill = $this->offerGroupsNeedService->agentHasRelevantSkill(
+                $skills,
+                $needCurve,
+                $offerGroupsMeta,
+            );
             if ($scenarioId <= 0 && !$hasForecastableSkill) {
                 // En live: exclure si aucune skill ne matche les offres de needCurve
                 $diagnostics['excluded_agents'][] = [
