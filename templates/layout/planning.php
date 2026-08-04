@@ -104,7 +104,12 @@ $this->append('script', $this->Html->script('dropdown-actions-body', ['block' =>
     <head>
         <?= $this->Html->charset() ?>
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-        <title><?= h('Planning - '.$this->fetch('title')) ?></title>
+        <?php
+        $appName = (string)Configure::read('App.name', 'Shifti');
+        $pageTitle = trim((string)$this->fetch('title'));
+        $documentTitle = $pageTitle !== '' ? ($appName . ' - ' . $pageTitle) : $appName;
+        ?>
+        <title><?= h($documentTitle) ?></title>
         <?= $this->fetch('meta') ?>
         <?= $this->Html->css('navbar') ?>
         <?= $this->Html->css('footer') ?>

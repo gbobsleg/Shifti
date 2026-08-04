@@ -13,13 +13,16 @@
  * @license       https://opensource.org/licenses/mit-license.php MIT License
  * @var \App\View\AppView $this
  */
+use Cake\Core\Configure;
+$appName = (string)Configure::read('App.name', 'Shifti');
+$pageTitle = (string)($this->fetch('title') ?: 'Erreur');
 ?>
 <!doctype html>
 <html lang="fr">
   <head>
     <?= $this->Html->charset() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title><?= h($this->fetch('title') ?: 'Erreur') ?></title>
+    <title><?= h($appName . ' - ' . $pageTitle) ?></title>
     <?= $this->Html->meta(['link' => '/favicon.svg', 'rel' => 'icon', 'type' => 'image/svg+xml']) ?>
     <?= $this->Html->meta(['link' => '/favicon-32.png', 'rel' => 'icon', 'type' => 'image/png', 'sizes' => '32x32']) ?>
     <?= $this->Html->meta('icon', '/favicon.ico') ?>

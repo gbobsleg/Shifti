@@ -2,13 +2,15 @@
 /**
  * Layout pour la page de login (minimal, sans navbar/footer)
  */
+use Cake\Core\Configure;
+$appName = (string)Configure::read('App.name', 'Shifti');
 ?>
 <!doctype html>
 <html lang="fr">
 <head>
     <?= $this->Html->charset() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title><?= h('Planning - Connexion') ?></title>
+    <title><?= h($appName . ' - Connexion') ?></title>
     <?= $this->Html->meta(['link' => '/favicon.svg', 'rel' => 'icon', 'type' => 'image/svg+xml']) ?>
     <?= $this->Html->meta(['link' => '/favicon-32.png', 'rel' => 'icon', 'type' => 'image/png', 'sizes' => '32x32']) ?>
     <?= $this->Html->meta('icon', '/favicon.ico') ?>

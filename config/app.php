@@ -52,6 +52,9 @@ return [
         'encoding' => env('APP_ENCODING', 'UTF-8'),
         'defaultLocale' => env('APP_DEFAULT_LOCALE', 'fr_FR'),
         'defaultTimezone' => env('APP_DEFAULT_TIMEZONE', 'UTC'),
+        // Nom affiché (onglets navigateur, footer) — aligné sur APP_NAME / .env
+        'name' => env('APP_NAME', 'Shifti'),
+        'title' => env('APP_NAME', 'Shifti'),
         'base' => false,
         'dir' => 'src',
         'webroot' => 'webroot',
