@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import List, Dict, Optional, Any, Union
+from typing import List, Dict, Optional, Any, Union, Set
 from pydantic import BaseModel, Field, validator
 
 
@@ -91,6 +91,46 @@ class MinMaxOffer(BaseModel):
         return v
 
 
+class OfferGroupSpec(BaseModel):
+    """Groupe d'offres (membres + profil mixte) pour la couverture passe 2."""
+
+    class Config(_StrictConfig):
+        pass
+
+    name: str
+    mixed: str
+    members: List[str]
+    prefer_mixed: bool = True
+
+    @validator("name")
+    def _name_non_empty(cls, v):
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError("offer_groups.name doit être une chaîne non vide")
+        return v.strip()
+
+    @validator("mixed")
+    def _mixed_non_empty(cls, v):
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError("offer_groups.mixed doit être une chaîne non vide")
+        return v.strip()
+
+    @validator("members")
+    def _members_valid(cls, v, values):
+        if not isinstance(v, list) or len(v) < 2:
+            raise ValueError("offer_groups.members doit contenir au moins 2 offres")
+        cleaned: List[str] = []
+        for m in v:
+            if not isinstance(m, str) or not m.strip():
+                raise ValueError("offer_groups.members ne doit contenir que des chaînes non vides")
+            cleaned.append(m.strip())
+        if len(cleaned) != len(set(cleaned)):
+            raise ValueError("offer_groups.members ne doit pas contenir de doublons")
+        mixed = values.get("mixed")
+        if isinstance(mixed, str) and mixed in cleaned:
+            raise ValueError("offer_groups.mixed ne doit pas figurer dans members")
+        return cleaned
+
+
 class Problem(BaseModel):
     class Config(_StrictConfig):
         pass
@@ -136,6 +176,10 @@ class Problem(BaseModel):
     period_equity_scores: Optional[Dict[str, Dict[int, int]]] = None
     weight_period_equity: int = 0
 
+    # Groupes d'offres (profils mixtes) — absent / None => chemin legacy inchangé
+    offer_groups: Optional[List[OfferGroupSpec]] = None
+    weight_prefer_mixed: int = 80
+
     # Poids de l'objectif
     weight_shortage: int = 1000
     weight_surplus: int = 1
@@ -161,6 +205,31 @@ class Problem(BaseModel):
     def _offers_strings(cls, v):
         if not all(isinstance(x, str) and x.strip() for x in v):
             raise ValueError("offers doit être une liste de chaînes non vides")
+        return v
+
+    @validator("offer_groups")
+    def _offer_groups_consistent(cls, v, values):
+        if v is None:
+            return v
+        offers = values.get("offers") or []
+        offer_set = set(offers)
+        seen_names: Set[str] = set()
+        seen_offers: Set[str] = set()
+        for g in v:
+            if g.name in seen_names:
+                raise ValueError(f"offer_groups: nom de groupe dupliqué '{g.name}'")
+            seen_names.add(g.name)
+            if g.mixed not in offer_set:
+                raise ValueError(f"offer_groups[{g.name}].mixed '{g.mixed}' absent de offers")
+            if g.mixed in seen_offers:
+                raise ValueError(f"offer_groups: offre '{g.mixed}' déjà utilisée dans un autre groupe")
+            seen_offers.add(g.mixed)
+            for m in g.members:
+                if m not in offer_set:
+                    raise ValueError(f"offer_groups[{g.name}].members contient '{m}' absent de offers")
+                if m in seen_offers:
+                    raise ValueError(f"offer_groups: offre '{m}' déjà utilisée dans un autre groupe")
+                seen_offers.add(m)
         return v
 
     @validator("slot_minutes")

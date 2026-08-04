@@ -17,7 +17,47 @@ from ortools.sat.python import cp_model
 import re
 import math
 
-from models.data_models import Agent, Window, MinMaxOffer, Problem
+from models.data_models import Agent, Window, MinMaxOffer, Problem, OfferGroupSpec
+
+
+def build_offer_equity_bucket_map(
+    offers: List[str],
+    offer_groups: Optional[List[OfferGroupSpec]],
+) -> Dict[str, str]:
+    """Mappe chaque offre vers son seau d'équité (nom de groupe ou offre elle-même)."""
+    mapping: Dict[str, str] = {off: off for off in offers}
+    for g in offer_groups or []:
+        for m in g.members:
+            if m in mapping:
+                mapping[m] = g.name
+        if g.mixed in mapping:
+            mapping[g.mixed] = g.name
+    return mapping
+
+
+def _resolve_offer_groups(
+    offers: List[str],
+    offer_groups: Optional[List[OfferGroupSpec]],
+) -> List[Dict[str, Any]]:
+    """Indexe les groupes présents dans `offers` pour la couverture."""
+    resolved: List[Dict[str, Any]] = []
+    if not offer_groups:
+        return resolved
+    for g in offer_groups:
+        if g.mixed not in offers:
+            continue
+        member_ks = [offers.index(m) for m in g.members if m in offers]
+        if len(member_ks) < 2:
+            continue
+        resolved.append({
+            "name": g.name,
+            "mixed_k": offers.index(g.mixed),
+            "member_ks": member_ks,
+            "prefer_mixed": bool(g.prefer_mixed),
+            "members": list(g.members),
+            "mixed": g.mixed,
+        })
+    return resolved
 
 # =========================
 # Utilitaires temps
@@ -194,6 +234,24 @@ def build_hard_coverage_model(
                     arr[idx] = int(val)
         need_by_index.append(arr)
 
+    # Groupes d'offres (optionnel) : need mixte forcé à 0 avant logs / équations
+    resolved_groups = _resolve_offer_groups(offers, getattr(problem, "offer_groups", None))
+    mixed_ks: Set[int] = {int(gs["mixed_k"]) for gs in resolved_groups}
+    grouped_member_ks: Set[int] = set()
+    for gs in resolved_groups:
+        grouped_member_ks.update(int(k) for k in gs["member_ks"])
+        mk = int(gs["mixed_k"])
+        for i in range(N):
+            need_by_index[mk][i] = 0
+    if resolved_groups:
+        print(
+            "[COVERAGE] offer_groups actifs: "
+            + ", ".join(
+                f"{gs['name']}(mixed={gs['mixed']},members={gs['members']},prefer_mixed={gs['prefer_mixed']})"
+                for gs in resolved_groups
+            )
+        )
+
     # Logs compacts needs
     try:
         sample_times = []
@@ -316,6 +374,7 @@ def build_hard_coverage_model(
         lit_pm_break = _register_assumption(ag.id, "pm_break") if use_assump else None
         lit_earliest_end = _register_assumption(ag.id, "earliest_end") if use_assump else None
         allowed = set(ag.skills or [])
+        agent_eligible_offers = [off for off in offers if off in allowed]
         avl_s = parse_hhmm_or_hhmmss(ag.availability_start_time)
         avl_e = parse_hhmm_or_hhmmss(ag.availability_end_time)
         has_any_skill = any(off in allowed for off in offers)
@@ -748,7 +807,10 @@ def build_hard_coverage_model(
             model.Add(eq_mo_af == 0)
         model.Add(eq_mo_af == 0).OnlyEnforceIf(any_morning.Not())
         model.Add(eq_mo_af == 0).OnlyEnforceIf(any_afternoon_window.Not())
-        same_offer_am_pm_flags.append(eq_mo_af)
+        # Filet mono-compétence : pas de pénalité « même offre AM+PM » s'il n'y a
+        # qu'une seule offre de travail éligible (ex. TI-AE only, mono CESU).
+        if len(agent_eligible_offers) > 1:
+            same_offer_am_pm_flags.append(eq_mo_af)
 
         ampm_both = model.NewBoolVar(f"ampm_both_a{a}")
         model.AddImplication(ampm_both, any_morning)
@@ -793,10 +855,7 @@ def build_hard_coverage_model(
 
         lu_candidates_av = [i for i in lu_candidates if (i in in_av_idx and (i + lunch_slots - 1) in in_av_idx)]
         
-        agent_offers = []
-        for k, off in enumerate(offers):
-            if has_any_skill and off in allowed:
-                agent_offers.append(off)
+        agent_offers = list(agent_eligible_offers)
         
         agent_diagnostics.append({
             "agent_id": ag.id,
@@ -815,27 +874,62 @@ def build_hard_coverage_model(
     shortage_vars: List[cp_model.IntVar] = []
     surplus_vars: List[cp_model.IntVar] = []
     shortage_vars_by_offer: List[List[cp_model.IntVar]] = [[] for _ in range(K)]
+    # Couverture effective membre = mono + alloc (pour reporting post-solve)
+    effective_cover_by_offer: List[List[Optional[cp_model.IntVar]]] = [[None for _ in range(N)] for _ in range(K)]
 
     cap_set = set(problem.cap_to_need_offers or [])
-    for k in range(K):
-        for i in range(N):
-            s_work = model.NewIntVar(0, A, f"s_work_k{k}_i{i}")
-            model.Add(s_work == sum(x[a][i][k] for a in range(A)))
-            need = int(need_by_index[k][i])
-            # BORNE CORRIGÉE : le manque (shortage) doit pouvoir représenter un besoin
-            # supérieur au nombre d'agents modélisés (sous-effectif réel, ex: sélection
-            # manuelle d'un sous-ensemble d'agents). Avec une borne fixée à A, l'équation
-            # s_work + shortage - surplus == need devenait impossible à satisfaire dès que
-            # need > A, provoquant un INFEASIBLE artificiel là où une simple pénalité de
-            # couverture (soft constraint) était attendue.
-            shortage = model.NewIntVar(0, max(A, need), f"short_k{k}_i{i}")
-            surplus = model.NewIntVar(0, A, f"surp_k{k}_i{i}")
-            model.Add(s_work + shortage - surplus == need)
-            if offers[k] in cap_set:
-                model.Add(s_work <= need)
-            shortage_vars.append(shortage)
-            shortage_vars_by_offer[k].append(shortage)
-            surplus_vars.append(surplus)
+
+    def _add_standard_cover_eq(k: int, i: int, staffed: cp_model.IntVar) -> None:
+        need = int(need_by_index[k][i])
+        shortage = model.NewIntVar(0, max(A, need), f"short_k{k}_i{i}")
+        surplus = model.NewIntVar(0, A, f"surp_k{k}_i{i}")
+        model.Add(staffed + shortage - surplus == need)
+        if offers[k] in cap_set:
+            model.Add(staffed <= need)
+        shortage_vars.append(shortage)
+        shortage_vars_by_offer[k].append(shortage)
+        surplus_vars.append(surplus)
+        effective_cover_by_offer[k][i] = staffed
+
+    if not resolved_groups:
+        # Chemin legacy : inchangé
+        for k in range(K):
+            for i in range(N):
+                s_work = model.NewIntVar(0, A, f"s_work_k{k}_i{i}")
+                model.Add(s_work == sum(x[a][i][k] for a in range(A)))
+                # BORNE CORRIGÉE : shortage ∈ [0, max(A, need)] pour éviter INFEASIBLE
+                # artificiel quand need > A (sous-effectif / sélection manuelle).
+                _add_standard_cover_eq(k, i, s_work)
+    else:
+        # Offres hors groupe : équation classique
+        for k in range(K):
+            if k in mixed_ks or k in grouped_member_ks:
+                continue
+            for i in range(N):
+                s_work = model.NewIntVar(0, A, f"s_work_k{k}_i{i}")
+                model.Add(s_work == sum(x[a][i][k] for a in range(A)))
+                _add_standard_cover_eq(k, i, s_work)
+
+        # Offres mixtes : need=0, pas d'équation shortage (capacité allouée aux membres)
+        # Membres : mono_m + alloc_m + shortage - surplus == need ; Σ alloc == mixed_count
+        for gs in resolved_groups:
+            gname = str(gs["name"]).replace(" ", "_")
+            mixed_k = int(gs["mixed_k"])
+            member_ks: List[int] = [int(k) for k in gs["member_ks"]]
+            for i in range(N):
+                mixed_count = model.NewIntVar(0, A, f"mixed_cnt_{gname}_i{i}")
+                model.Add(mixed_count == sum(x[a][i][mixed_k] for a in range(A)))
+                allocs: List[cp_model.IntVar] = []
+                for m_k in member_ks:
+                    alloc = model.NewIntVar(0, A, f"alloc_{gname}_k{m_k}_i{i}")
+                    allocs.append(alloc)
+                model.Add(sum(allocs) == mixed_count)
+                for j, m_k in enumerate(member_ks):
+                    mono = model.NewIntVar(0, A, f"mono_{gname}_k{m_k}_i{i}")
+                    model.Add(mono == sum(x[a][i][m_k] for a in range(A)))
+                    staffed = model.NewIntVar(0, A, f"staffed_{gname}_k{m_k}_i{i}")
+                    model.Add(staffed == mono + allocs[j])
+                    _add_standard_cover_eq(m_k, i, staffed)
 
     cont_penalty_vars: List[cp_model.IntVar] = []
     agents_used_pen_vars: List[cp_model.IntVar] = []
@@ -929,6 +1023,8 @@ def build_hard_coverage_model(
         "shortage_vars": shortage_vars,
         "surplus_vars": surplus_vars,
         "shortage_vars_by_offer": shortage_vars_by_offer,
+        "effective_cover_by_offer": effective_cover_by_offer,
+        "resolved_groups": resolved_groups,
         "cont_penalty_vars": cont_penalty_vars,
         "agents_used_pen_vars": agents_used_pen_vars,
         "agent_diagnostics": agent_diagnostics,
@@ -1057,6 +1153,10 @@ def solve_schedule(problem: Problem):
     shortage_vars = _hard["shortage_vars"]
     surplus_vars = _hard["surplus_vars"]
     shortage_vars_by_offer = _hard["shortage_vars_by_offer"]
+    effective_cover_by_offer = _hard["effective_cover_by_offer"]
+    resolved_groups = _hard["resolved_groups"]
+    sel_morning_by_a = _hard["sel_morning_by_a"]
+    sel_afternoon_by_a = _hard["sel_afternoon_by_a"]
     cont_penalty_vars = _hard["cont_penalty_vars"]
     agents_used_pen_vars = _hard["agents_used_pen_vars"]
     agent_diagnostics = _hard["agent_diagnostics"]
@@ -1067,6 +1167,7 @@ def solve_schedule(problem: Problem):
     W_EEND = problem.weight_early_end
     # W_BRK_ALIGN ignoré intentionnellement (voir commentaires)
     W_PER_EQ = getattr(problem, "weight_period_equity", 0) or 0
+    W_PREF_MIXED = int(getattr(problem, "weight_prefer_mixed", 80) or 0)
     obj_terms: List[cp_model.LinearExpr] = []
 
     # Borne haute cohérente avec shortage ∈ [0, max(A, need)] par créneau/offre.
@@ -1080,8 +1181,14 @@ def solve_schedule(problem: Problem):
     )
     total_shortage_var = model.NewIntVar(0, max(A * N * K, shortage_ub), "total_shortage")
     total_surplus_var = model.NewIntVar(0, A * N * K, "total_surplus")
-    model.Add(total_shortage_var == sum(shortage_vars))
-    model.Add(total_surplus_var == sum(surplus_vars))
+    if shortage_vars:
+        model.Add(total_shortage_var == sum(shortage_vars))
+    else:
+        model.Add(total_shortage_var == 0)
+    if surplus_vars:
+        model.Add(total_surplus_var == sum(surplus_vars))
+    else:
+        model.Add(total_surplus_var == 0)
 
     cover_terms: List[cp_model.LinearExpr] = []
     priority_set = set(problem.priority_offers or [])
@@ -1089,7 +1196,8 @@ def solve_schedule(problem: Problem):
         per_offer_weight = W_SHORT * (problem.priority_shortage_multiplier if off in priority_set else 1)
         if shortage_vars_by_offer[k]:
             cover_terms.append(per_offer_weight * sum(shortage_vars_by_offer[k]))
-    cover_terms.append(W_SURP * sum(surplus_vars))
+    if surplus_vars:
+        cover_terms.append(W_SURP * sum(surplus_vars))
 
     obj_terms.extend(cover_terms)
     
@@ -1108,13 +1216,39 @@ def solve_schedule(problem: Problem):
     if W_EEND > 0:
         obj_terms.append(W_EEND * sum(end_idx))
 
+    # Préférence soft pour le profil mixte : pénalise la sélection d'un membre
+    # (matin / après-midi) si l'agent a aussi la skill mixte.
+    if W_PREF_MIXED > 0 and resolved_groups:
+        for gs in resolved_groups:
+            if not gs.get("prefer_mixed"):
+                continue
+            mixed_name = gs["mixed"]
+            member_names = gs["members"]
+            member_ks = [int(k) for k in gs["member_ks"]]
+            for a, ag in enumerate(problem.agents):
+                skills = set(ag.skills or [])
+                if mixed_name not in skills:
+                    continue
+                if not any(m in skills for m in member_names):
+                    continue
+                for k in member_ks:
+                    obj_terms.append(W_PREF_MIXED * sel_morning_by_a[a][k])
+                    obj_terms.append(W_PREF_MIXED * sel_afternoon_by_a[a][k])
+
     if W_PER_EQ > 0 and getattr(problem, "period_equity_offers", None) and getattr(problem, "period_equity_scores", None):
         per_eq_set = set(problem.period_equity_offers or [])
         scores_map = problem.period_equity_scores or {}
+        bucket_map = build_offer_equity_bucket_map(offers, getattr(problem, "offer_groups", None))
         for k, off in enumerate(offers):
-            if off not in per_eq_set:
+            bucket = bucket_map.get(off, off)
+            # Accepte bucket (groupe) ou nom d'offre legacy dans period_equity_offers
+            if bucket not in per_eq_set and off not in per_eq_set:
                 continue
-            off_scores = scores_map.get(off, {}) if isinstance(scores_map, dict) else {}
+            off_scores = None
+            if isinstance(scores_map, dict):
+                off_scores = scores_map.get(bucket)
+                if off_scores is None:
+                    off_scores = scores_map.get(off, {})
             if not isinstance(off_scores, dict):
                 continue
             for a, ag in enumerate(problem.agents):
@@ -1330,18 +1464,34 @@ def solve_schedule(problem: Problem):
         schedule_flat.extend(segs)
 
     coverage: List[Dict[str, Any]] = []
+    mixed_ks_report = {int(gs["mixed_k"]) for gs in (resolved_groups or [])}
     for k, off in enumerate(offers):
         times: List[Dict[str, Any]] = []
         for i in range(N):
-            cov = sum(solver.BooleanValue(x[a][i][k]) for a in range(A)) if ok else 0
             need_val = int(need_by_index[k][i])
-            times.append({
-                "time": fmt_hhmmss(starts_min[i]),
-                "need": need_val,
-                "covered": int(cov),
-                "shortage": max(0, need_val - cov),
-                "surplus": max(0, cov - need_val),
-            })
+            if ok and effective_cover_by_offer[k][i] is not None:
+                cov = int(solver.Value(effective_cover_by_offer[k][i]))
+            elif ok:
+                cov = sum(solver.BooleanValue(x[a][i][k]) for a in range(A))
+            else:
+                cov = 0
+            if k in mixed_ks_report:
+                # Pas d'équation shortage sur le mixte : reporting informatif seulement
+                times.append({
+                    "time": fmt_hhmmss(starts_min[i]),
+                    "need": 0,
+                    "covered": int(cov),
+                    "shortage": 0,
+                    "surplus": 0,
+                })
+            else:
+                times.append({
+                    "time": fmt_hhmmss(starts_min[i]),
+                    "need": need_val,
+                    "covered": int(cov),
+                    "shortage": max(0, need_val - cov),
+                    "surplus": max(0, cov - need_val),
+                })
         coverage.append({"offer": off, "times": times})
 
     result_status = "OPTIMAL" if status == cp_model.OPTIMAL else ("FEASIBLE" if status == cp_model.FEASIBLE else solver.StatusName(status))

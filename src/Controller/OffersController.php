@@ -59,8 +59,13 @@ class OffersController extends AppController
     public function view($id = null)
     {
         $this->Authorization->authorize(new \App\Resource\OffersResource(), 'view');
-        $offer = $this->Offers->get($id, [
-            'contain' => [],
+        // joinType LEFT obligatoire sur OfferGroups : le belongsTo est INNER par défaut,
+        // ce qui exclut l'offre entière si elle n'est pas membre d'un groupe.
+        $offer = $this->Offers->get($id, contain: [
+            'OfferGroupAsMixed',
+            'OfferGroupMember' => [
+                'OfferGroups' => ['joinType' => 'LEFT'],
+            ],
         ]);
 
         $prophetDefaults = $this->getProphetDefaultsForOffer($offer);
