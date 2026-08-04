@@ -24,10 +24,10 @@ jobs:
             set -euo pipefail
             APP_PATH="${{ secrets.VPS_APP_PATH }}"
             cd "$APP_PATH"
-            set -a
-            # shellcheck disable=SC1091
-            source .env
-            set +a
+            MYSQL_USER="$(docker compose exec -T db printenv MYSQL_USER | tr -d '\r')"
+            MYSQL_PASSWORD="$(docker compose exec -T db printenv MYSQL_PASSWORD | tr -d '\r')"
+            MYSQL_DATABASE="$(docker compose exec -T db printenv MYSQL_DATABASE | tr -d '\r')"
+            echo "DB user=$MYSQL_USER db=$MYSQL_DATABASE"
             echo "=== BEFORE ==="
             docker compose exec -T db mariadb -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "
             SELECT id, offer_id, status, progress_trials_done, progress_trials_total,
