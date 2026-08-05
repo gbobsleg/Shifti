@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Model\Entity\ProphetTuningJob;
+use Cake\Database\Expression\QueryExpression;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -133,5 +135,80 @@ class ProphetTuningJobsTable extends Table
         ]);
 
         return $rules;
+    }
+
+    /**
+     * Annule un job queued/running. finished_at via UTC_TIMESTAMP() SQL.
+     *
+     * @return array{ok: bool, message: string, job_id: int|null, previous_status: string|null}
+     */
+    public function cancelActiveJob(int $jobId, string $reason = 'Annulé depuis l’interface.'): array
+    {
+        $job = $this->find()
+            ->select(['id', 'status'])
+            ->where(['id' => $jobId])
+            ->contain([])
+            ->first();
+
+        if (!$job) {
+            return [
+                'ok' => false,
+                'message' => 'Job introuvable.',
+                'job_id' => null,
+                'previous_status' => null,
+            ];
+        }
+
+        $previous = (string)$job->status;
+        if (!in_array($previous, [
+            ProphetTuningJob::STATUS_QUEUED,
+            ProphetTuningJob::STATUS_RUNNING,
+        ], true)) {
+            return [
+                'ok' => false,
+                'message' => sprintf(
+                    'Le job #%d n’est pas annulable (statut « %s »).',
+                    $jobId,
+                    $previous
+                ),
+                'job_id' => $jobId,
+                'previous_status' => $previous,
+            ];
+        }
+
+        $statement = $this->updateQuery()
+            ->set([
+                'status' => ProphetTuningJob::STATUS_CANCELLED,
+                'error_message' => mb_substr($reason, 0, 65000),
+                'finished_at' => new QueryExpression('UTC_TIMESTAMP()'),
+                'modified' => new QueryExpression('UTC_TIMESTAMP()'),
+            ])
+            ->where([
+                'id' => $jobId,
+                'status IN' => [
+                    ProphetTuningJob::STATUS_QUEUED,
+                    ProphetTuningJob::STATUS_RUNNING,
+                ],
+            ])
+            ->execute();
+
+        if ($statement->rowCount() < 1) {
+            return [
+                'ok' => false,
+                'message' => sprintf(
+                    'Impossible d’annuler le job #%d (statut déjà modifié).',
+                    $jobId
+                ),
+                'job_id' => $jobId,
+                'previous_status' => $previous,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'message' => sprintf('Job #%d annulé.', $jobId),
+            'job_id' => $jobId,
+            'previous_status' => $previous,
+        ];
     }
 }

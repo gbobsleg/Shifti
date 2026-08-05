@@ -329,7 +329,7 @@ class OffersController extends AppController
 
         if ($busy) {
             $message = sprintf(
-                'Cette offre a déjà un job de tuning %s (job #%d). Attendez la fin ou annulez-le avant d’en relancer un.',
+                'Cette offre a déjà un job de tuning %s (job #%d). Attendez la fin ou utilisez Annuler avant d’en relancer un.',
                 (string)$busy->status,
                 (int)$busy->id
             );
@@ -420,6 +420,64 @@ class OffersController extends AppController
     }
 
     /**
+     * Annule le job Optuna queued/running de cette offre.
+     *
+     * @param string|null $id Offer id
+     */
+    public function tuneCancel($id = null)
+    {
+        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'tuneCancel');
+        $this->request->allowMethod(['post']);
+
+        $offer = $this->Offers->get((int)$id, contain: []);
+        $Jobs = $this->fetchTable('ProphetTuningJobs');
+
+        $busy = $Jobs->find()
+            ->select(['id', 'status'])
+            ->where([
+                'offer_id' => (int)$offer->id,
+                'status IN' => [
+                    ProphetTuningJob::STATUS_QUEUED,
+                    ProphetTuningJob::STATUS_RUNNING,
+                ],
+            ])
+            ->orderDesc('id')
+            ->contain([])
+            ->first();
+
+        if (!$busy) {
+            $message = 'Aucun job queued/running à annuler pour cette offre.';
+            if ($this->wantsJson()) {
+                return $this->jsonResponse(['success' => false, 'message' => $message], 409);
+            }
+            $this->Flash->error($message);
+
+            return $this->redirect(['action' => 'edit', $offer->id]);
+        }
+
+        $result = $Jobs->cancelActiveJob(
+            (int)$busy->id,
+            'Annulé depuis la fiche offre.'
+        );
+
+        if ($this->wantsJson()) {
+            return $this->jsonResponse([
+                'success' => $result['ok'],
+                'message' => $result['message'],
+                'job_id' => $result['job_id'],
+            ], $result['ok'] ? 200 : 409);
+        }
+
+        if ($result['ok']) {
+            $this->Flash->success($result['message']);
+        } else {
+            $this->Flash->error($result['message']);
+        }
+
+        return $this->redirect(['action' => 'edit', $offer->id]);
+    }
+
+    /**
      * Endpoint léger de polling (select exclusif, contain([])).
      *
      * @param string|null $id Offer id
@@ -472,14 +530,7 @@ class OffersController extends AppController
             ->first();
 
         $fmtDt = static function ($value): ?string {
-            if ($value === null || $value === '') {
-                return null;
-            }
-            if ($value instanceof \DateTimeInterface) {
-                return $value->format('Y-m-d H:i:s');
-            }
-
-            return (string)$value;
+            return ProphetOptunaConfig::formatDateTimeForUi($value);
         };
 
         $jobPayload = null;
@@ -769,6 +820,7 @@ class OffersController extends AppController
             'urls' => [
                 'status' => Router::url(['controller' => 'Offers', 'action' => 'tuneStatus', $offer->id]),
                 'start' => Router::url(['controller' => 'Offers', 'action' => 'tuneStart', $offer->id]),
+                'cancel' => Router::url(['controller' => 'Offers', 'action' => 'tuneCancel', $offer->id]),
                 'apply' => Router::url(['controller' => 'Offers', 'action' => 'tuneApply', $offer->id]),
                 'reject' => Router::url(['controller' => 'Offers', 'action' => 'tuneReject', $offer->id]),
                 'rollback' => Router::url(['controller' => 'Offers', 'action' => 'tuneRollback', $offer->id]),

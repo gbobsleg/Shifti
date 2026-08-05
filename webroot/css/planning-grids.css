@@ -69,13 +69,15 @@ main > .container-fluid:has(> .grids-page-shell) {
     margin-right: 0;
 }
 
-/* Barre de recherche fixe — alignée sur le shell (pas full-bleed viewport) */
+/* Barre de recherche fixe — alignée sur le shell (pas full-bleed viewport)
+ * z-index sous la navbar Bootstrap fixed-top (1030) pour ne pas masquer
+ * les dropdowns navbar (ex. badge Jobs). */
 .grids-search-bar-sticky {
     position: fixed;
     top: 56px;
     left: 0;
     right: 0;
-    z-index: 1050;
+    z-index: 1020;
     border-radius: 0;
     background-color: #f8f9fa;
     border-color: #dee2e6;

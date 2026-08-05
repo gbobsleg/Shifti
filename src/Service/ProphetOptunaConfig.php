@@ -11,6 +11,9 @@ final class ProphetOptunaConfig
     /** Fuseau fixe pour le planning cron (affiché en UI). */
     public const CRON_TIMEZONE = 'Europe/Paris';
 
+    /** Affichage des horodatages job (stockés en UTC en BDD). */
+    public const DISPLAY_TIMEZONE = self::CRON_TIMEZONE;
+
     /** 1=Lundi … 7=Dimanche (aligné date('N')). */
     public const WEEKDAY_LABELS = [
         1 => 'Lundi',
@@ -196,5 +199,28 @@ final class ProphetOptunaConfig
         }
 
         return null;
+    }
+
+    /**
+     * Formate un datetime BDD (UTC) pour l’UI en Europe/Paris.
+     */
+    public static function formatDateTimeForUi(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        try {
+            if ($value instanceof \DateTimeInterface) {
+                $dt = \DateTimeImmutable::createFromInterface($value);
+            } else {
+                $dt = new \DateTimeImmutable((string)$value, new \DateTimeZone('UTC'));
+            }
+        } catch (\Exception) {
+            return (string)$value;
+        }
+
+        return $dt->setTimezone(new \DateTimeZone(self::DISPLAY_TIMEZONE))
+            ->format('Y-m-d H:i:s');
     }
 }

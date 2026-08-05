@@ -19,11 +19,11 @@ import json
 import sys
 import time
 import traceback
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 from prophet_common import get_db_connection
 from prophet_tuning_core import (
+    JobCancelled,
     assert_min_history,
     build_prophet_params_from_offer,
     describe_seasonality_adaptation,
@@ -37,9 +37,59 @@ from prophet_tuning_core import (
     should_auto_apply,
 )
 
+# Sentinel : injecte UTC_TIMESTAMP() en SQL (jamais datetime.now() / NOW() local).
+_UTC_TIMESTAMP = object()
+
 
 def _json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def reclaim_orphaned_running() -> int:
+    """
+    Au démarrage worker : marque les running orphelins en failed.
+    Ne reprend / ne relance pas le travail.
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE prophet_tuning_jobs
+            SET status = 'failed',
+                finished_at = UTC_TIMESTAMP(),
+                modified = UTC_TIMESTAMP(),
+                error_message = %s
+            WHERE status = 'running'
+            """,
+            (
+                "Worker redémarré — job interrompu (orphelin). "
+                "Relancer manuellement ou via le cron si besoin.",
+            ),
+        )
+        conn.commit()
+        n = int(cursor.rowcount or 0)
+        cursor.close()
+        return n
+    finally:
+        conn.close()
+
+
+def _fetch_job_status(conn, job_id: int) -> Optional[str]:
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT status FROM prophet_tuning_jobs WHERE id = %s",
+        (job_id,),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    if not row:
+        return None
+    return str(row[0])
+
+
+def _is_cancelled(conn, job_id: int) -> bool:
+    return _fetch_job_status(conn, job_id) == "cancelled"
 
 
 def claim_next_job() -> Optional[int]:
@@ -80,8 +130,8 @@ def claim_next_job() -> Optional[int]:
             """
             UPDATE prophet_tuning_jobs
             SET status = 'running',
-                started_at = NOW(),
-                modified = NOW(),
+                started_at = UTC_TIMESTAMP(),
+                modified = UTC_TIMESTAMP(),
                 error_message = NULL
             WHERE id = %s AND status = 'queued'
             """,
@@ -121,31 +171,48 @@ def _fetch_wfm_optuna_settings(conn) -> Dict[str, Any]:
     return merge_optuna_settings(raw if isinstance(raw, dict) else None)
 
 
-def _update_job(conn, job_id: int, fields: Dict[str, Any]) -> None:
+def _update_job(
+    conn,
+    job_id: int,
+    fields: Dict[str, Any],
+    *,
+    only_if_status: Optional[str] = None,
+) -> int:
     if not fields:
-        return
+        return 0
     cols = []
     vals = []
     for key, value in fields.items():
-        cols.append(f"`{key}` = %s")
-        vals.append(value)
-    cols.append("`modified` = NOW()")
+        if value is _UTC_TIMESTAMP:
+            cols.append(f"`{key}` = UTC_TIMESTAMP()")
+        else:
+            cols.append(f"`{key}` = %s")
+            vals.append(value)
+    cols.append("`modified` = UTC_TIMESTAMP()")
     vals.append(job_id)
     sql = f"UPDATE prophet_tuning_jobs SET {', '.join(cols)} WHERE id = %s"
+    if only_if_status is not None:
+        sql += " AND status = %s"
+        vals.append(only_if_status)
     cursor = conn.cursor()
     cursor.execute(sql, tuple(vals))
     conn.commit()
+    n = int(cursor.rowcount or 0)
     cursor.close()
+    return n
 
 
 def _fail_job(conn, job_id: int, message: str) -> None:
+    if _is_cancelled(conn, job_id):
+        print(f"[OptunaWorker] Job #{job_id} déjà cancelled — skip fail")
+        return
     _update_job(
         conn,
         job_id,
         {
             "status": "failed",
             "error_message": message[:65000],
-            "finished_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "finished_at": _UTC_TIMESTAMP,
         },
     )
     _touch_offer_last_run(conn, job_id)
@@ -162,7 +229,7 @@ def _touch_offer_last_run(conn, job_id: int) -> None:
     cursor.execute(
         """
         UPDATE offers
-        SET prophet_tuning_last_run_at = NOW(),
+        SET prophet_tuning_last_run_at = UTC_TIMESTAMP(),
             prophet_tuning_last_job_id = %s
         WHERE id = %s
         """,
@@ -305,9 +372,18 @@ def process_job(job_id: int) -> None:
             # Reconnexion courte pour ne pas tenir la conn pendant des heures
             progress_conn = get_db_connection()
             try:
+                if _is_cancelled(progress_conn, job_id):
+                    return
                 _update_job(progress_conn, job_id, fields)
             finally:
                 progress_conn.close()
+
+        def cancel_check() -> bool:
+            check_conn = get_db_connection()
+            try:
+                return _is_cancelled(check_conn, job_id)
+            finally:
+                check_conn.close()
 
         try:
             best_params, best_scores_raw, study = run_optuna_search(
@@ -315,11 +391,19 @@ def process_job(job_id: int) -> None:
                 offer_profile,
                 optuna_cfg,
                 progress_callback=on_progress,
+                cancel_check=cancel_check,
             )
+        except JobCancelled as e:
+            print(f"[OptunaWorker] Job #{job_id} annulé — arrêt Optuna ({e})")
+            return
         except Exception as e:
             _fail_job(conn, job_id, f"Échec Optuna: {e}")
             print(f"[OptunaWorker] Job #{job_id} failed (optuna): {e}")
             traceback.print_exc()
+            return
+
+        if _is_cancelled(conn, job_id):
+            print(f"[OptunaWorker] Job #{job_id} cancelled — skip completed")
             return
 
         best_scores = scores_for_storage(best_scores_raw, horizon, n_cutoffs)
@@ -350,7 +434,11 @@ def process_job(job_id: int) -> None:
             _write_draft(conn, offer_id, best_params, draft_scores)
             print(f"[OptunaWorker] Brouillon écrit pour offer_id={offer_id}")
 
-        _update_job(
+        if _is_cancelled(conn, job_id):
+            print(f"[OptunaWorker] Job #{job_id} cancelled avant write completed — skip")
+            return
+
+        updated = _update_job(
             conn,
             job_id,
             {
@@ -361,10 +449,17 @@ def process_job(job_id: int) -> None:
                 "progress_trials_done": n_trials,
                 "progress_trials_total": n_trials,
                 "auto_applied": 1 if auto_applied else 0,
-                "finished_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "finished_at": _UTC_TIMESTAMP,
                 "error_message": None,
             },
+            only_if_status="running",
         )
+        if updated < 1:
+            print(
+                f"[OptunaWorker] Job #{job_id} non marqué completed "
+                "(statut déjà changé, ex. cancelled)"
+            )
+            return
         _touch_offer_last_run(conn, job_id)
         print(
             f"[OptunaWorker] Job #{job_id} completed — "
@@ -403,6 +498,17 @@ def run_loop(sleep_seconds: float = 5.0, once: bool = False) -> None:
     print("Prophet Optuna Tuning Worker")
     print(f"Sleep={sleep_seconds}s  once={once}")
     print("=" * 60)
+
+    try:
+        reclaimed = reclaim_orphaned_running()
+        if reclaimed:
+            print(
+                f"[OptunaWorker] {reclaimed} job(s) running orphelin(s) "
+                "marqué(s) failed au démarrage"
+            )
+    except Exception as e:
+        print(f"[OptunaWorker] reclaim orphelins échoué: {e}")
+        traceback.print_exc()
 
     while True:
         job_id = None

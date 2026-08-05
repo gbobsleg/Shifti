@@ -423,6 +423,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
             'urls' => [
                 'status' => $this->Url->build(['action' => 'tuneStatus', $offer->id]),
                 'start' => $this->Url->build(['action' => 'tuneStart', $offer->id]),
+                'cancel' => $this->Url->build(['action' => 'tuneCancel', $offer->id]),
                 'apply' => $this->Url->build(['action' => 'tuneApply', $offer->id]),
                 'reject' => $this->Url->build(['action' => 'tuneReject', $offer->id]),
                 'rollback' => $this->Url->build(['action' => 'tuneRollback', $offer->id]),
@@ -453,6 +454,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
 
             return implode(' · ', array_map('strval', $a['notes']));
         };
+        $isJobActive = in_array($jobStatus, ['queued', 'running'], true);
         ?>
         <div class="card border-warning mb-4" id="prophet-tuning-section">
             <div class="card-header bg-warning">
@@ -463,6 +465,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                  data-csrf-token="<?= h($csrfToken) ?>"
                  data-url-status="<?= h($prophetTuning['urls']['status']) ?>"
                  data-url-start="<?= h($prophetTuning['urls']['start']) ?>"
+                 data-url-cancel="<?= h($prophetTuning['urls']['cancel']) ?>"
                  data-url-apply="<?= h($prophetTuning['urls']['apply']) ?>"
                  data-url-reject="<?= h($prophetTuning['urls']['reject']) ?>"
                  data-url-rollback="<?= h($prophetTuning['urls']['rollback']) ?>">
@@ -518,7 +521,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     <span data-pt-seasonality-adapt-text><?= h($seasonalityAdaptText) ?></span>
                 </div>
 
-                <div class="mb-3" data-pt-progress-wrap style="<?= in_array($jobStatus, ['queued', 'running', 'completed', 'failed'], true) ? '' : 'display:none' ?>">
+                <div class="mb-3" data-pt-progress-wrap style="<?= in_array($jobStatus, ['queued', 'running', 'completed', 'failed', 'cancelled'], true) ? '' : 'display:none' ?>">
                     <div class="d-flex justify-content-between small mb-1">
                         <span>Progression</span>
                         <span data-pt-progress-label><?= (int)$trialsDone ?> / <?= (int)$trialsTotal ?> essais</span>
@@ -539,8 +542,13 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                 </div>
 
                 <div class="mb-2">
-                    <button type="button" class="btn btn-warning btn-sm mr-2" data-pt-start>
+                    <button type="button" class="btn btn-warning btn-sm mr-2" data-pt-start
+                            <?= $isJobActive ? 'disabled' : '' ?>>
                         <i class="bi bi-play-fill"></i> Lancer un tuning
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm mr-2" data-pt-cancel
+                            style="<?= $isJobActive ? '' : 'display:none' ?>">
+                        <i class="bi bi-x-circle"></i> Annuler le job
                     </button>
                     <span class="small" data-pt-message></span>
                 </div>

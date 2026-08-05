@@ -73,6 +73,11 @@ class OffersPolicy
     {
         return $this->roleId($identity) === 1;
     }
+
+    public function canTuneCancel(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->roleId($identity) === 1;
+    }
 }
 
 

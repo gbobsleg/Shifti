@@ -304,6 +304,11 @@ def scores_for_storage(scores: Dict[str, float], horizon_days: int, n_cutoffs: i
 
 
 ProgressCallback = Callable[[int, int, Optional[float]], None]
+CancelCheck = Callable[[], bool]
+
+
+class JobCancelled(Exception):
+    """Levée quand le job a été annulé côté BDD pendant Optuna."""
 
 
 def run_optuna_search(
@@ -311,10 +316,12 @@ def run_optuna_search(
     offer_profile: Dict[str, Any],
     optuna_cfg: Dict[str, Any],
     progress_callback: Optional[ProgressCallback] = None,
+    cancel_check: Optional[CancelCheck] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any], optuna.Study]:
     """
     Lance Optuna (TPE). Retourne (best_params, best_scores, study).
     L'appelant DOIT supprimer la study et appeler gc.collect().
+    Si cancel_check() devient True, study.stop() après le trial courant puis JobCancelled.
     """
     horizon = int(optuna_cfg["test_horizon_days"])
     n_cutoffs = int(optuna_cfg.get("n_cutoffs", 3))
@@ -331,6 +338,9 @@ def run_optuna_search(
     mfo_max = int(optuna_cfg["monthly_fourier_order_max"])
 
     def objective(trial: optuna.Trial) -> float:
+        if cancel_check is not None and cancel_check():
+            # TrialPruned + study.stop() dans le callback : arrête la vague proprement
+            raise optuna.TrialPruned()
         tunable = {
             "changepoint_prior_scale": trial.suggest_float(
                 "changepoint_prior_scale", cps_min, cps_max, log=True
@@ -358,17 +368,27 @@ def run_optuna_search(
     )
 
     def _callback(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
-        if progress_callback is None:
-            return
-        best_mae = None
-        if study.best_trial is not None:
-            best_mae = float(study.best_value)
-        progress_callback(len(study.trials), n_trials, best_mae)
+        if progress_callback is not None:
+            best_mae = None
+            if study.best_trial is not None:
+                best_mae = float(study.best_value)
+            progress_callback(len(study.trials), n_trials, best_mae)
+        if cancel_check is not None and cancel_check():
+            study.stop()
 
     if progress_callback:
         progress_callback(0, n_trials, None)
 
+    if cancel_check is not None and cancel_check():
+        raise JobCancelled("Job annulé avant Optuna")
+
     study.optimize(objective, n_trials=n_trials, callbacks=[_callback], show_progress_bar=False)
+
+    if cancel_check is not None and cancel_check():
+        raise JobCancelled("Job annulé pendant Optuna")
+
+    if study.best_trial is None:
+        raise JobCancelled("Job annulé — aucun trial abouti")
 
     best_tunable = dict(study.best_params)
     best_params = build_prophet_params_from_offer(

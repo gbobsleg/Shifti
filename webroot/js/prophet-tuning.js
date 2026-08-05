@@ -43,6 +43,7 @@
         var urls = {
             status: root.getAttribute('data-url-status'),
             start: root.getAttribute('data-url-start'),
+            cancel: root.getAttribute('data-url-cancel'),
             apply: root.getAttribute('data-url-apply'),
             reject: root.getAttribute('data-url-reject'),
             rollback: root.getAttribute('data-url-rollback')
@@ -64,6 +65,7 @@
         var elSeasonAdaptText = qs(root, '[data-pt-seasonality-adapt-text]');
 
         var btnStart = qs(root, '[data-pt-start]');
+        var btnCancel = qs(root, '[data-pt-cancel]');
         var btnApply = qs(root, '[data-pt-apply]');
         var btnReject = qs(root, '[data-pt-reject]');
         var btnRollback = qs(root, '[data-pt-rollback]');
@@ -144,7 +146,7 @@
             setText(elStatus, status === 'none' ? 'Aucun job' : status);
 
             var running = status === 'queued' || status === 'running';
-            show(elProgressWrap, running || status === 'completed' || status === 'failed');
+            show(elProgressWrap, running || status === 'completed' || status === 'failed' || status === 'cancelled');
 
             if (job) {
                 var done = job.progress_trials_done || 0;
@@ -211,6 +213,10 @@
 
             if (btnStart) {
                 btnStart.disabled = running || busy;
+            }
+            show(btnCancel, running);
+            if (btnCancel) {
+                btnCancel.disabled = busy;
             }
 
             if (running) {
@@ -291,6 +297,11 @@
         bindPost(btnApply, urls.apply, 'Appliquer le brouillon Optuna comme profil Prophet officiel ?');
         bindPost(btnReject, urls.reject, 'Rejeter le brouillon Optuna ?');
         bindPost(btnRollback, urls.rollback, 'Restaurer le profil Prophet précédent ?');
+        bindPost(
+            btnCancel,
+            urls.cancel,
+            'Annuler ce job Optuna ? S’il est en cours, l’arrêt prend effet après le trial en cours.'
+        );
 
         refresh();
     }

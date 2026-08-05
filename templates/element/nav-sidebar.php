@@ -61,7 +61,10 @@
             <?php
             $bjStatusUrl = $this->Url->build(['controller' => 'BackgroundJobs', 'action' => 'status', '_ext' => 'json']);
             $bjIndexUrl = $this->Url->build(['controller' => 'BackgroundJobs', 'action' => 'index']);
-            $this->Html->script('background-jobs-badge', ['block' => true]);
+            $this->Html->script('background-jobs-badge', [
+                'block' => true,
+                'timestamp' => 'force',
+            ]);
             ?>
             <li class="nav-item dropdown bj-badge-idle"
                 id="background-jobs-badge"

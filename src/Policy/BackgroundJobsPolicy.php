@@ -36,4 +36,9 @@ class BackgroundJobsPolicy
     {
         return $this->isAdminOrManager($identity);
     }
+
+    public function canCancelOptuna(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->isAdminOrManager($identity);
+    }
 }

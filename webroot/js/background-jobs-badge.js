@@ -36,6 +36,8 @@
             case 'infeasible':
             case 'finished_with_errors':
                 return 'badge-danger';
+            case 'cancelled':
+                return 'badge-secondary';
             default:
                 return 'badge-secondary';
         }
@@ -78,17 +80,45 @@
         return html;
     }
 
+    function mergeBadgeItems(data) {
+        var active = data && data.items ? data.items.slice() : [];
+        var recent = data && data.recent ? data.recent : [];
+        var seen = {};
+        var out = [];
+        function push(item) {
+            if (!item) {
+                return;
+            }
+            var key = String(item.type || '') + ':' + String(item.id || '');
+            if (seen[key]) {
+                return;
+            }
+            seen[key] = true;
+            out.push(item);
+        }
+        active.forEach(push);
+        recent.forEach(push);
+        return out.slice(0, MAX_ITEMS);
+    }
+
+    function renderError(seeAllUrl, message) {
+        return (
+            '<span class="dropdown-item-text text-danger small">' + esc(message || 'Chargement impossible') + '</span>' +
+            '<div class="dropdown-divider"></div>' +
+            '<a class="dropdown-item text-primary" href="' + esc(seeAllUrl || '/background-jobs') + '">' +
+                '<i class="bi bi-arrow-right-circle mr-1"></i> Voir tout' +
+            '</a>'
+        );
+    }
+
     function isBackgroundJobsPage() {
         var path = window.location.pathname || '';
-        // Évite le double polling avec background-jobs-page.js
+        // Sur la page Jobs, la page poll déjà : on hydrate le badge une fois, sans intervalle.
         return path === '/background-jobs' || path.indexOf('/background-jobs/') === 0;
     }
 
     function init(root) {
         if (!root) {
-            return;
-        }
-        if (isBackgroundJobsPage()) {
             return;
         }
         var url = root.getAttribute('data-url-status');
@@ -100,6 +130,9 @@
         var elCount = qs(root, '[data-bj-count]');
         var elMenu = qs(root, '[data-bj-menu]');
         var timer = null;
+        var lastPayload = null;
+        var menuReady = false;
+        var skipInterval = isBackgroundJobsPage();
 
         function updateCount(n) {
             var count = Number(n) || 0;
@@ -113,14 +146,23 @@
             root.classList.toggle('bj-badge-active', count > 0);
         }
 
+        function paintMenuFromPayload(data) {
+            if (!elMenu) {
+                return;
+            }
+            elMenu.innerHTML = renderList(mergeBadgeItems(data || {}), seeAllUrl);
+            menuReady = true;
+        }
+
         function apply(data) {
             if (!data || !data.success) {
                 return;
             }
+            lastPayload = data;
             updateCount(data.active_count);
-            // Anti-flicker : ne pas réécrire la liste si le dropdown est ouvert
-            if (elMenu && !isDropdownOpen(elMenu)) {
-                elMenu.innerHTML = renderList(data.items || [], seeAllUrl);
+            // Anti-flicker : ne pas réécrire si ouvert — SAUF tant que jamais hydraté
+            if (elMenu && (!isDropdownOpen(elMenu) || !menuReady)) {
+                paintMenuFromPayload(data);
             }
         }
 
@@ -145,6 +187,10 @@
                 .then(apply)
                 .catch(function (err) {
                     console.error('[background-jobs-badge]', err);
+                    if (elMenu && !menuReady) {
+                        elMenu.innerHTML = renderError(seeAllUrl, 'Chargement impossible');
+                        menuReady = true;
+                    }
                 });
         }
 
@@ -156,8 +202,28 @@
         }
 
         function startPoll() {
+            if (skipInterval) {
+                return;
+            }
             stopPoll();
             timer = setInterval(fetchStatus, POLL_MS);
+        }
+
+        // À la fermeture : peindre le dernier snapshot (évite "Chargement…" figé)
+        if (typeof window.jQuery !== 'undefined') {
+            window.jQuery(root).on('hidden.bs.dropdown', function () {
+                if (lastPayload) {
+                    paintMenuFromPayload(lastPayload);
+                    updateCount(lastPayload.active_count);
+                } else if (!menuReady) {
+                    fetchStatus();
+                }
+            });
+            window.jQuery(root).on('show.bs.dropdown', function () {
+                if (!menuReady) {
+                    fetchStatus();
+                }
+            });
         }
 
         document.addEventListener('visibilitychange', function () {
@@ -168,7 +234,7 @@
             fetchStatus().then(startPoll);
         });
 
-        // Premier fetch immédiat (compteur + liste), puis intervalle 45s
+        // Premier fetch immédiat (compteur + liste), puis intervalle 45s hors page Jobs
         if (!document.hidden) {
             fetchStatus().then(startPoll);
         }
