@@ -1,0 +1,24 @@
+# =============================================================================
+# Surcharge Compose pour CI et runners partagés (ubuntu-latest, self-hosted).
+# Isole conteneurs, volumes et réseau du stack local (noms figés dans docker-compose.yml).
+#
+# Usage :
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml docker compose …
+# =============================================================================
+
+services:
+  db:
+    container_name: shifti_ci_db
+
+  app:
+    container_name: shifti_ci_app
+
+networks:
+  shifti_net:
+    name: shifti_ci_net
+
+volumes:
+  db_data:
+    name: shifti_ci_db_data
+  app_tmp:
+    name: shifti_ci_app_tmp

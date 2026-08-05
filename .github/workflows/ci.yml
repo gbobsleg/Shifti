@@ -1,0 +1,172 @@
+# CI V1 — qualité PHP, tests PHPUnit, build Docker et smoke HTTP/Python.
+# Le déploiement VPS reste dans deploy-production.yml (inchangé).
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality-php:
+    name: Qualité PHP (PHPCS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: PHP 8.3 + extensions
+        uses: shivammathur/setup-php@v2.37.2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, intl, pdo_mysql, sqlite3, zip, bcmath, opcache
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache dépendances Composer
+        uses: actions/cache@v6.1.0
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Installer les dépendances Composer
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Format / style
+        run: composer cs-check
+
+      - name: Lint
+        run: composer cs-check
+
+  test-php:
+    name: Tests PHP (PHPUnit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_password
+          MYSQL_DATABASE: test_shifti
+          MYSQL_USER: shifti_test
+          MYSQL_PASSWORD: shifti_test_pass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+          --health-start-period=30s
+    env:
+      DATABASE_TEST_URL: >-
+        mysql://shifti_test:shifti_test_pass@127.0.0.1:3306/test_shifti?encoding=utf8mb4&timezone=UTC&cacheMetadata=true&quoteIdentifiers=false&persistent=false
+      SECURITY_SALT: ci_test_salt_for_phpunit_only_not_production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: PHP 8.3 + extensions
+        uses: shivammathur/setup-php@v2.37.2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, intl, pdo_mysql, sqlite3, zip, bcmath, opcache
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache dépendances Composer
+        uses: actions/cache@v6.1.0
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Installer les dépendances Composer
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Config locale de test
+        run: cp config/app_local.example.php config/app_local.php
+
+      - name: Tests PHPUnit
+        run: composer test
+
+  build-and-smoke:
+    name: Build Docker et smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Override CI : noms conteneurs / volumes / réseau isolés (docker-compose.ci.yml)
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Préparer le fichier .env CI
+        run: cp .env.ci.example .env
+
+      - name: Build image application
+        run: docker compose build app
+
+      - name: Démarrer MariaDB et application (attente HEALTHCHECK)
+        run: docker compose up -d --wait --wait-timeout 600 db app
+
+      - name: Migrations base de données
+        run: docker compose exec -T app php bin/cake.php migrations migrate
+
+      - name: Attendre solveurs Python
+        run: |
+          set -euo pipefail
+
+          echo "Attente solveurs Python (8000 / 8001)…"
+          for i in $(seq 1 48); do
+            if docker compose exec -T app curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1 \
+              && docker compose exec -T app curl -fsS http://127.0.0.1:8001/health >/dev/null 2>&1; then
+              echo "Solveurs Python prêts."
+              break
+            fi
+            if [ "$i" -eq 48 ]; then
+              echo "Timeout solveurs Python"
+              docker compose logs app
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Tests unitaires Python (groupes d'offres)
+        run: |
+          docker compose exec -T app bash -c \
+            'cd /var/www/html/solver-python && /opt/venv/bin/python -m unittest tests.test_offer_groups_coverage -v'
+
+      - name: Smoke HTTP application (hôte)
+        run: |
+          set -euo pipefail
+          APP_HTTP_PORT="$(grep '^APP_HTTP_PORT=' .env | cut -d= -f2)"
+          HTTP_CODE="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${APP_HTTP_PORT}/")"
+          echo "Code HTTP page d'accueil : ${HTTP_CODE}"
+          if [[ ! "${HTTP_CODE}" =~ ^[23] ]]; then
+            echo "Smoke HTTP application échoué (attendu 2xx ou 3xx)."
+            exit 1
+          fi
+
+      - name: Smoke health solveur OR-Tools
+        run: docker compose exec -T app curl -fsS http://127.0.0.1:8000/health
+
+      - name: Smoke health Prophet
+        run: docker compose exec -T app curl -fsS http://127.0.0.1:8001/health
+
+      - name: Arrêter la stack Docker
+        if: always()
+        run: docker compose down -v
