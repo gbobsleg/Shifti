@@ -22,12 +22,12 @@ composer.phar
 
 # Tooling local
 .bolt/
-.cursor/
 .cursorrules
 .idea/
 .vscode/*
 !.vscode/extensions.json
 *.code-workspace
+.worktrees/
 
 # OS
 .DS_Store
