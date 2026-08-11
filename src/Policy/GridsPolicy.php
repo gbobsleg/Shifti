@@ -30,6 +30,18 @@ class GridsPolicy
         $rid = $this->roleId($identity);
         return $rid === 1 || $rid === 2; // Admin/Manager
     }
+
+    public function canDayHistory(IdentityInterface $identity, mixed $resource): bool
+    {
+        $rid = $this->roleId($identity);
+        return $rid === 1 || $rid === 2; // Admin/Manager
+    }
+
+    public function canRestoreDayHistory(IdentityInterface $identity, mixed $resource): bool
+    {
+        $rid = $this->roleId($identity);
+        return $rid === 1 || $rid === 2; // Admin/Manager
+    }
 }
 
 

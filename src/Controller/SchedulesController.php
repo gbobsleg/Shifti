@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Service\ForecastService;
 use App\Service\AgentsAfterFixedActivitiesService;
 use App\Service\FixedActivitiesBuilderService;
+use App\Service\PlanningDayHistoryService;
 use App\Service\ScheduleProblemBuilderService;
 use App\Service\WfmCalculatorService;
 use App\Service\WfmScenarioService;
@@ -13,9 +14,11 @@ use App\Service\Equity\SingleDayEquityScoresProvider;
 use Cake\Core\Configure;
 use Cake\Http\Client;
 use Cake\I18n\FrozenTime;
+use Cake\Log\Log;
 use DateTime;
 use DateTimeInterface;
 use Exception;
+use Throwable;
 
 /**
  * Schedules Controller
@@ -2189,6 +2192,31 @@ class SchedulesController extends AppController
         //    Note: on supprime toujours ce qui a été généré précédemment (comment "Généré par WFM"),
         //    même si, par erreur de configuration, ces segments ont été mappés sur une offre "absence".
         $dateStr = $date->format('Y-m-d');
+
+        $historyUserIds = [];
+        foreach ($schedule as $segForHistory) {
+            if (!isset($segForHistory['agent_id'])) {
+                continue;
+            }
+            $uid = (int)$segForHistory['agent_id'];
+            if ($uid > 0) {
+                $historyUserIds[$uid] = $uid;
+            }
+        }
+        $existingUserIds = $RangesTable->find()
+            ->select(['user_id'])
+            ->distinct(['user_id'])
+            ->where(['DATE(date_start)' => $dateStr])
+            ->all()
+            ->extract('user_id')
+            ->map(fn($id) => (int)$id)
+            ->toList();
+        foreach ($existingUserIds as $uid) {
+            if ($uid > 0) {
+                $historyUserIds[$uid] = $uid;
+            }
+        }
+
         $protectedOfferIds = $OffersTable->find()
             ->select(['id'])
             ->where(['offer_type IN' => ['absence', 'remote_work']])
@@ -2333,9 +2361,11 @@ class SchedulesController extends AppController
         $this->log("Blocs ignorés: {$skippedCount}", 'debug');
 
         // 5. Sauvegarder
+        $saveSucceeded = false;
         if (!empty($entities)) {
             if ($RangesTable->saveMany($entities)) {
                 $this->log('✅ Sauvegarde réussie: ' . count($entities) . ' ranges', 'debug');
+                $saveSucceeded = true;
             } else {
                 // ... (log des erreurs comme avant) ...
                 $this->log('❌ Échec de la sauvegarde', 'error');
@@ -2345,6 +2375,24 @@ class SchedulesController extends AppController
             }
         } else {
             $this->log('⚠️ Aucune entité à sauvegarder', 'warning');
+            // Delete déjà appliqué sans erreur : jour potentiellement vidé / inchangé côté inserts
+            $saveSucceeded = true;
+        }
+
+        // Historique : uniquement si l'écriture ranges a réussi
+        if ($saveSucceeded && !empty($historyUserIds)) {
+            $identity = $this->request->getAttribute('identity');
+            $actorUserId = (int)($identity?->get('id') ?? 0);
+            try {
+                (new PlanningDayHistoryService())->recordAffectedUsers(
+                    array_values($historyUserIds),
+                    [$dateStr],
+                    PlanningDayHistoryService::SOURCE_GENERATION,
+                    $actorUserId > 0 ? $actorUserId : null,
+                );
+            } catch (Throwable $historyError) {
+                Log::error('PlanningDayHistory (generation) échoué: ' . $historyError->getMessage());
+            }
         }
     }
 

@@ -28,6 +28,8 @@ $canAlertsDelete = $can('delete', new \App\Resource\AlertsResource());
 <?php echo $this->Html->script('picker-grids', ['block' => true]); ?>
 <?php if ($canSavePlanning): ?>
     <?php echo $this->Html->script('dragselect', ['block' => true]); ?>
+    <?php $this->Html->css('planning-day-history', ['block' => true]); ?>
+    <?php echo $this->Html->script('planning-day-history', ['block' => true, 'timestamp' => true]); ?>
 <?php endif; ?>
 <?php echo $this->Html->script('grids', ['block' => true]); ?>
 <?= $this->element('apex_series_chart'); ?>
@@ -311,6 +313,40 @@ foreach($alertsArray as $alert) {
             <i class="bi bi-floppy-fill mr-2"></i><span>Enregistrer le planning</span>
         </span>
     </button>
+
+    <div
+        id="planningDayHistoryRoot"
+        class="d-none"
+        data-history-url="<?= h($this->Url->build(['controller' => 'Grids', 'action' => 'dayHistory', '_ext' => 'json'])) ?>"
+        data-restore-url="<?= h($this->Url->build(['controller' => 'Grids', 'action' => 'restoreDayHistory', '_ext' => 'json'])) ?>"
+        data-csrf-token="<?= h((string)$this->request->getAttribute('csrfToken')) ?>"
+    ></div>
+
+    <div id="planningDayHistoryMenu" class="pdh-context-menu" hidden>
+        <button type="button" class="pdh-context-menu__item" id="planningDayHistoryMenuOpen">
+            Historique du jour
+        </button>
+    </div>
+
+    <div class="modal fade" id="planningDayHistoryModal" tabindex="-1" role="dialog" aria-labelledby="planningDayHistoryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="planningDayHistoryModalLabel">Historique du jour</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Fermer">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="pdh-modal-meta text-muted small mb-3" id="planningDayHistoryMeta"></p>
+                    <div id="planningDayHistoryList" class="pdh-versions"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
 <?php endif; ?>
 <?php if (!$embedMode): ?>
 </div><!-- .grids-page-shell -->

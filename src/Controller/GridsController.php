@@ -3,10 +3,14 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\PlanningDayHistoryService;
+use Cake\Event\EventInterface;
+use Cake\Log\Log;
 use Cake\I18n\FrozenTime;
 use DateTime;
 use DateTimeInterface;
 use Exception;
+use Throwable;
 
 class GridsController extends AppController
 {
@@ -17,6 +21,26 @@ class GridsController extends AppController
     {
         parent::initialize();
         $this->loadComponent('Groom');
+    }
+
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+
+        // Désactive le composant Ajax.Ajax uniquement pour les endpoints JSON purs
+        // afin d'éviter qu'il force AjaxView et modifie le payload.
+        if (in_array($this->request->getParam('action'), ['dayHistory', 'restoreDayHistory'], true)) {
+            if ($this->components()->has('Ajax')) {
+                $this->components()->unload('Ajax');
+            }
+        }
+
+        // Déverrouille SecurityComponent pour le POST AJAX de restauration (sinon 403)
+        if ($this->request->getParam('action') === 'restoreDayHistory') {
+            if ($this->components()->has('Security')) {
+                $this->Security->setConfig('unlockedActions', ['restoreDayHistory']);
+            }
+        }
     }
 
     /**
@@ -509,6 +533,37 @@ class GridsController extends AppController
                 // Succès de la transaction
                 $messages[] = ['message' => __('Le planning a été sauvegardé. %d nouveaux créneaux créés, %d anciennes plages remplacées.', $savedCount, $deletedCount), 'element' => 'flash/success'];
                 $responseStatus = 'success';
+
+                // Historique agent×jour : uniquement après succès de la sauvegarde ranges
+                $historyDays = [];
+                foreach ($actionRanges as $action) {
+                    if (empty($action['date_start'])) {
+                        continue;
+                    }
+                    $historyDays[] = (new FrozenTime($action['date_start']))->format('Y-m-d');
+                }
+                $identity = $this->request->getAttribute('identity');
+                $actorUserId = null;
+                if ($identity) {
+                    if (method_exists($identity, 'getIdentifier')) {
+                        $actorUserId = (int)$identity->getIdentifier();
+                    } elseif (method_exists($identity, 'get')) {
+                        $actorUserId = (int)$identity->get('id');
+                    }
+                }
+                if ($actorUserId !== null && $actorUserId <= 0) {
+                    $actorUserId = null;
+                }
+                try {
+                    (new PlanningDayHistoryService())->recordAffectedUsers(
+                        array_values(array_map('intval', $affectedUserIds)),
+                        array_values(array_unique($historyDays)),
+                        PlanningDayHistoryService::SOURCE_MANUAL,
+                        $actorUserId,
+                    );
+                } catch (Throwable $historyError) {
+                    Log::error('PlanningDayHistory (manual) échoué: ' . $historyError->getMessage());
+                }
             } catch (Exception $e) {
                 // Échec de la transaction
                 $validationErrors = json_decode($e->getMessage(), true) ?? $e->getMessage();
@@ -572,5 +627,169 @@ class GridsController extends AppController
         return $this->redirect(['action' => 'index']);
     }
 
- // Fin de la méthode add
+    /**
+     * Liste JSON de l'historique planning publié pour un agent × jour.
+     */
+    public function dayHistory()
+    {
+        $this->Authorization->authorize(new \App\Resource\GridsResource(), 'dayHistory');
+        $this->request->allowMethod(['get']);
+
+        $userId = (int)$this->request->getQuery('user_id');
+        $day = (string)$this->request->getQuery('day');
+
+        $this->viewBuilder()->setClassName('Json');
+
+        if ($userId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+            $this->set([
+                'success' => false,
+                'message' => 'Paramètres invalides (user_id, day=YYYY-MM-DD requis).',
+                'versions' => [],
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['success', 'message', 'versions']);
+
+            return;
+        }
+
+        // Récupérer les horaires d'ouverture pour dynamiser les mini-barres
+        $wfmSettings = $this->fetchTable('WfmSettings')->find()->first();
+        $startTime = 0.0;
+        $endTime = 24.0;
+        if ($wfmSettings) {
+            if (!empty($wfmSettings->day_start_time)) {
+                $startTime = $this->parseTimeToFloat((string)$wfmSettings->day_start_time);
+            }
+            if (!empty($wfmSettings->day_end_time)) {
+                $endTime = $this->parseTimeToFloat((string)$wfmSettings->day_end_time);
+            }
+        }
+
+        $Histories = $this->fetchTable('PlanningDayHistories');
+        $rows = $Histories->find()
+            ->contain(['ActorUsers'])
+            ->where([
+                'PlanningDayHistories.user_id' => $userId,
+                'PlanningDayHistories.day' => $day,
+            ])
+            ->orderBy([
+                'PlanningDayHistories.created' => 'DESC',
+                'PlanningDayHistories.id' => 'DESC',
+            ])
+            ->all();
+
+        $versions = [];
+        foreach ($rows as $row) {
+            $actor = $row->actor_user ?? null;
+            $actorName = null;
+            if ($actor) {
+                $first = trim((string)($actor->first_name ?? ''));
+                $last = trim((string)($actor->last_name ?? ''));
+                $actorName = trim($first . ' ' . $last);
+                if ($actorName === '') {
+                    $actorName = (string)($actor->email ?? ('#' . (int)$actor->id));
+                }
+            }
+
+            $created = $row->created;
+            $versions[] = [
+                'id' => (int)$row->id,
+                'created' => $created instanceof DateTimeInterface
+                    ? $created->format('Y-m-d H:i:s')
+                    : ($created !== null ? (string)$created : null),
+                'source' => (string)$row->source,
+                'actor_user_id' => $row->actor_user_id !== null ? (int)$row->actor_user_id : null,
+                'actor_name' => $actorName,
+                'snapshot' => is_array($row->snapshot) ? $row->snapshot : [],
+            ];
+        }
+
+        $this->set([
+            'success' => true,
+            'user_id' => $userId,
+            'day' => $day,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'versions' => $versions,
+        ]);
+        $this->viewBuilder()->setOption('serialize', ['success', 'user_id', 'day', 'start_time', 'end_time', 'versions']);
+    }
+
+    /**
+     * Convertit une chaîne horaire "HH:MM" en float (ex: "08:30" -> 8.5)
+     */
+    private function parseTimeToFloat(string $time): float
+    {
+        $parts = explode(':', trim($time));
+        $hours = isset($parts[0]) ? (int)$parts[0] : 0;
+        $minutes = isset($parts[1]) ? (int)$parts[1] : 0;
+
+        return $hours + ($minutes / 60);
+    }
+
+    /**
+     * Restaure une version d'historique (JSON).
+     */
+    public function restoreDayHistory()
+    {
+        $this->Authorization->authorize(new \App\Resource\GridsResource(), 'restoreDayHistory');
+        $this->request->allowMethod(['post']);
+
+        $historyId = (int)($this->request->getData('history_id') ?? $this->request->getQuery('history_id') ?? 0);
+
+        $this->viewBuilder()->setClassName('Json');
+
+        if ($historyId <= 0) {
+            $this->set([
+                'success' => false,
+                'message' => 'Paramètre history_id invalide.',
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['success', 'message']);
+
+            return;
+        }
+
+        $identity = $this->request->getAttribute('identity');
+        $actorUserId = null;
+        if ($identity) {
+            if (method_exists($identity, 'getIdentifier')) {
+                $actorUserId = (int)$identity->getIdentifier();
+            } elseif (method_exists($identity, 'get')) {
+                $actorUserId = (int)$identity->get('id');
+            } elseif (method_exists($identity, 'getOriginalData')) {
+                $orig = $identity->getOriginalData();
+                if (is_object($orig) && isset($orig->id)) {
+                    $actorUserId = (int)$orig->id;
+                }
+            }
+        }
+
+        if ($actorUserId === null || $actorUserId <= 0) {
+            $this->set([
+                'success' => false,
+                'message' => 'Utilisateur non identifié.'
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['success', 'message']);
+            return;
+        }
+
+        try {
+            (new PlanningDayHistoryService())->restore($historyId, $actorUserId);
+
+            $this->set([
+                'success' => true,
+                'message' => 'Version restaurée.',
+                'history_id' => $historyId,
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['success', 'message', 'history_id']);
+        } catch (Throwable $e) {
+            Log::error('PlanningDayHistory restore échoué: ' . $e->getMessage());
+
+            $this->set([
+                'success' => false,
+                'message' => 'Échec de la restauration.',
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['success', 'message']);
+        }
+    }
+
 }
