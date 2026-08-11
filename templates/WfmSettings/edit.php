@@ -850,11 +850,110 @@
             </div>
         </div>
 
+        <?php // --- Temps de recherche des Solveurs --- ?>
+        <?php
+            $solver = $wfmSetting->solver_settings_json;
+            $solverDefaults = ['global' => 300, 'pass1' => 60, 'pass1_5' => 30, 'pass2' => 195];
+        ?>
+        <div class="card border-danger mb-4" id="solver-timeout-section">
+            <div class="card-header bg-danger text-white">
+                <i class="bi bi-cpu"></i> Temps de recherche des Solveurs (Timeouts en secondes)
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">
+                    <i class="bi bi-info-circle"></i>
+                    Ces limites définissent le temps maximum alloué à chaque solveur CP-SAT.
+                    Le <strong>Global</strong> représente le timeout réseau total côté PHP (appel HTTP vers le solveur Python).
+                    La somme des passes (P1 + P1.5 + P2) ne doit pas dépasser <strong>Global - 15s</strong> (marge réseau/PHP).
+                </p>
+                <div id="solver-timeout-error" class="alert alert-danger py-2 mb-3" style="display:none;">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <span id="solver-timeout-error-msg"></span>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-globe2"></i> Limite Globale infrastructure
+                        </label>
+                        <?= $this->Form->control('solver_settings_json.global', [
+                            'type' => 'number',
+                            'min' => 15,
+                            'step' => 1,
+                            'required' => true,
+                            'label' => false,
+                            'class' => 'form-control solver-timeout-field',
+                            'id' => 'solver-global',
+                            'value' => $solver['global'] ?? $solverDefaults['global'],
+                            'data-default' => $solverDefaults['global'],
+                        ]) ?>
+                        <small class="text-muted">Timeout HTTP côté PHP (doit couvrir toutes les passes + marge)</small>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-1-circle-fill"></i> Passe 1 : Activités fixes
+                        </label>
+                        <?= $this->Form->control('solver_settings_json.pass1', [
+                            'type' => 'number',
+                            'min' => 1,
+                            'step' => 1,
+                            'required' => true,
+                            'label' => false,
+                            'class' => 'form-control solver-timeout-field',
+                            'id' => 'solver-pass1',
+                            'value' => $solver['pass1'] ?? $solverDefaults['pass1'],
+                            'data-default' => $solverDefaults['pass1'],
+                        ]) ?>
+                        <small class="text-muted">Solveur Passe 1 — solve-fixed-activities</small>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-arrow-repeat"></i> Passe 1.5 : Rotation
+                        </label>
+                        <?= $this->Form->control('solver_settings_json.pass1_5', [
+                            'type' => 'number',
+                            'min' => 1,
+                            'step' => 1,
+                            'required' => true,
+                            'label' => false,
+                            'class' => 'form-control solver-timeout-field',
+                            'id' => 'solver-pass1_5',
+                            'value' => $solver['pass1_5'] ?? $solverDefaults['pass1_5'],
+                            'data-default' => $solverDefaults['pass1_5'],
+                        ]) ?>
+                        <small class="text-muted">Solveur Passe 1.5 — solve-rotation</small>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-2-circle-fill"></i> Passe 2 : Couverture
+                        </label>
+                        <?= $this->Form->control('solver_settings_json.pass2', [
+                            'type' => 'number',
+                            'min' => 1,
+                            'step' => 1,
+                            'required' => true,
+                            'label' => false,
+                            'class' => 'form-control solver-timeout-field',
+                            'id' => 'solver-pass2',
+                            'value' => $solver['pass2'] ?? $solverDefaults['pass2'],
+                            'data-default' => $solverDefaults['pass2'],
+                        ]) ?>
+                        <small class="text-muted">Solveur Passe 2 — solve-coverage</small>
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-2">
+                    <i class="bi bi-calculator"></i>
+                    Budget vérifié en temps réel : <strong>P1 + P1.5 + P2 ≤ Global - 15s</strong>.
+                    Le bouton d'enregistrement se désactive automatiquement si la somme dépasse le budget.
+                </small>
+            </div>
+        </div>
+
         <?php // --- Boutons d'action --- ?>
         <div class="mt-3">
             <?= $this->Form->button('<i class="bi bi-save mr-2"></i> Enregistrer', [
                 'class' => 'btn btn-primary mr-3',
-                'escapeTitle' => false
+                'escapeTitle' => false,
+                'id' => 'solver-submit-btn',
             ]) ?>
             <?= $this->Html->link(
                 '<i class="bi bi-x-circle mr-2"></i> Annuler',
@@ -946,5 +1045,84 @@ document.addEventListener('DOMContentLoaded', function () {
             workdayInput.addEventListener(ev, refreshEstimate);
         }
     });
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var fields = [
+        document.getElementById('solver-global'),
+        document.getElementById('solver-pass1'),
+        document.getElementById('solver-pass1_5'),
+        document.getElementById('solver-pass2'),
+    ];
+    if (!fields[0]) {
+        return;
+    }
+    var submitBtn = document.getElementById('solver-submit-btn');
+    var errorDiv = document.getElementById('solver-timeout-error');
+    var errorMsg = document.getElementById('solver-timeout-error-msg');
+    var section = document.getElementById('solver-timeout-section');
+
+    function validateTimeouts() {
+        var g = parseInt(fields[0].value, 10);
+        var p1 = parseInt(fields[1].value, 10);
+        var p15 = parseInt(fields[2].value, 10);
+        var p2 = parseInt(fields[3].value, 10);
+
+        if (isNaN(g) || isNaN(p1) || isNaN(p15) || isNaN(p2)) {
+            if (errorDiv) { errorDiv.style.display = 'none'; }
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('disabled');
+                submitBtn.title = 'Veuillez remplir tous les champs.';
+            }
+            return;
+        }
+
+        var sum = p1 + p15 + p2;
+        var limit = g - 15;
+
+        if (sum > limit) {
+            if (errorDiv) {
+                errorDiv.style.display = '';
+                errorMsg.textContent =
+                    'Erreur : La somme des passes (' + sum + 's) dépasse le budget global (' +
+                    g + 's) moins la marge réseau de 15s. Limite autorisée : ' + limit + 's.';
+            }
+            if (section) {
+                section.classList.add('border-danger');
+                section.classList.remove('border-success');
+            }
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('disabled');
+                submitBtn.title = 'La somme des passes dépasse le budget global.';
+            }
+        } else {
+            if (errorDiv) {
+                errorDiv.style.display = 'none';
+            }
+            if (section) {
+                section.classList.remove('border-danger');
+                section.classList.add('border-success');
+            }
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('disabled');
+                submitBtn.title = '';
+            }
+        }
+    }
+
+    fields.forEach(function (f) {
+        if (f) {
+            f.addEventListener('input', validateTimeouts);
+            f.addEventListener('change', validateTimeouts);
+        }
+    });
+
+    // Validation initiale au chargement
+    validateTimeouts();
 });
 </script>

@@ -55,6 +55,7 @@ class FixedActivityProblem(BaseModel):
     slot_minutes: int
     agents: List[Agent]
     fixed_activities: List[FixedActivity]
+    timeout_seconds: float = 60.0
     enable_am_pm_breaks: bool = False
     break_duration_minutes: int = 15
     am_break_window: Optional[TimeWindow] = None
@@ -616,7 +617,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
     )
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 20.0
+    solver.parameters.max_time_in_seconds = max(1.0, float(problem.timeout_seconds))
     status = solver.Solve(model)
 
     # =================================================================

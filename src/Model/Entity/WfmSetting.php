@@ -29,6 +29,7 @@ use Cake\ORM\Entity;
  * @property array|null $prophet_defaults_json
  * @property array|null $optuna_settings_json
  * @property array|null $worked_days_json
+ * @property array|null $solver_settings_json
  * @property bool|null $strict_work_hours
  * @property bool $enable_am_pm_breaks
  * @property bool $enforce_remote_work_incompatibilities
@@ -74,5 +75,6 @@ class WfmSetting extends Entity
         'lunch_offer' => true,
         'enforce_remote_work_incompatibilities' => true,
         'worked_days_json' => true,
+        'solver_settings_json' => true,
     ];
 }

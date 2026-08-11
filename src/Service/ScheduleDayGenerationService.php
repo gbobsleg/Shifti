@@ -40,6 +40,13 @@ class ScheduleDayGenerationService
         $job = $Jobs->get($jobId);
         $settings = $WfmSettings->get((int)$job->wfm_setting_id, ['contain' => ['PauseOffers', 'LunchOffers']]);
 
+        // Timeouts solveurs dynamiques (depuis wfm_settings.solver_settings_json)
+        $solverSettings = $settings->solver_settings_json;
+        $solverTimeoutGlobal = (int)($solverSettings['global'] ?? 300);
+        $solverTimeoutPass1 = (int)($solverSettings['pass1'] ?? 60);
+        $solverTimeoutPass1_5 = (int)($solverSettings['pass1_5'] ?? 30);
+        $solverTimeoutPass2 = (int)($solverSettings['pass2'] ?? 195);
+
         // Étape 1: Préparation
         $Jobs->updateAll(
             ['current_step' => 'preparation_donnees', 'modified' => (new \DateTimeImmutable())->format('Y-m-d H:i:s')],
@@ -189,9 +196,7 @@ class ScheduleDayGenerationService
 
         // --- 5) HTTP client vers service Python ---
         $solverUrl = Configure::read('PythonSolver.url', 'http://127.0.0.1:8000');
-        // Mode diagnostic : marge pour le second solve d'explication d'infaisabilité (Passe 2).
-        $httpTimeout = $debugSolvers ? 320 : 300;
-        $http = new Client(['timeout' => $httpTimeout]);
+        $http = new Client(['timeout' => $solverTimeoutGlobal]);
 
         $fixedActivityAssignments = [];
         $fixedActivityShortfalls = [];
@@ -249,6 +254,7 @@ class ScheduleDayGenerationService
                 'agents' => $agentsForSolver,
                 'fixed_activities' => $fixedPayload['fixed_activities'],
                 'generation_date' => $dateStr,
+                'timeout_seconds' => $solverTimeoutPass1,
                 'workday_start_time' => $fixedPayload['workday_start_time'],
                 'workday_end_time' => $fixedPayload['workday_end_time'],
                 'slot_minutes' => $fixedPayload['slot_minutes'],
@@ -802,6 +808,7 @@ class ScheduleDayGenerationService
                     'agents' => $rotationAgents,
                     'slot_minutes' => 15,
                     'need_curve' => $needCurveById, // Courbe de besoin indexée par ID d'offre
+                    'timeout_seconds' => $solverTimeoutPass1_5,
                 ];
 
                 if ($debugSolvers) {
@@ -1249,6 +1256,7 @@ class ScheduleDayGenerationService
                 'offers' => array_values($forecastableOffers),
                 'need_curve' => $residualNeedCurve, // Besoin net après déduction de la rotation
                 'agents' => $updatedAgentsForPasse2,
+                'timeout_seconds' => $solverTimeoutPass2,
                 // Les agents de rotation étant exclus, fixed_work n'est plus nécessaire
                 // 'fixed_work' => $rotationFixedWorkPayload, // SUPPRIMÉ : agents exclus
                 'workday_start_time' => $workdayStart,

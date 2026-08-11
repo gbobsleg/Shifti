@@ -1132,7 +1132,7 @@ def _run_assumption_solve(
         model.AddAssumptions(assumption_lits)
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 90.0
+    solver.parameters.max_time_in_seconds = max(1.0, float(getattr(problem, 'timeout_seconds', None) or 90.0))
     solver.parameters.num_search_workers = 1
     status = solver.Solve(model)
     status_name = solver.StatusName(status)
@@ -1143,7 +1143,8 @@ def _run_assumption_solve(
         return labels, status_name
 
     # Timeout / limite de temps : OR-Tools renvoie souvent UNKNOWN
-    if status == cp_model.UNKNOWN and solver.WallTime() >= 14.5:
+    timeout_s = solver.parameters.max_time_in_seconds
+    if status == cp_model.UNKNOWN and solver.WallTime() >= timeout_s * 0.5:
         return [], "TIMEOUT"
 
     return [], status_name
@@ -1153,6 +1154,11 @@ def _run_assumption_solve(
 @router.post("/solve-schedule")
 def solve_schedule(problem: Problem):
     debug = getattr(problem, "debug_logging", False)
+
+    # Timeout dynamique : réparti entre phase 1 (2/3) et phase 2 (1/3)
+    ts = max(1.0, float(getattr(problem, 'timeout_seconds', None) or 30.0))
+    phase1_ts = max(1.0, ts * 2.0 / 3.0)
+    phase2_ts = ts - phase1_ts
 
     def dlog(msg: str) -> None:
         if debug:
@@ -1410,7 +1416,7 @@ def solve_schedule(problem: Problem):
     model.Minimize(sum(phase1_terms))
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 20.0
+    solver.parameters.max_time_in_seconds = phase1_ts
     solver.parameters.num_search_workers = 8
     # Configuration du Gap Limit (Performance)
     if hasattr(problem, 'relative_gap_limit') and problem.relative_gap_limit > 0:
@@ -1425,7 +1431,7 @@ def solve_schedule(problem: Problem):
         model.Add(total_surplus_var == best_total_surplus)
         model.Minimize(sum(obj_terms))
         solver2 = cp_model.CpSolver()
-        solver2.parameters.max_time_in_seconds = 10.0
+        solver2.parameters.max_time_in_seconds = phase2_ts
         solver2.parameters.num_search_workers = 8
         # Configuration du Gap Limit (Performance)
         if hasattr(problem, 'relative_gap_limit') and problem.relative_gap_limit > 0:

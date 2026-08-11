@@ -160,6 +160,8 @@ class Problem(BaseModel):
 
     # Contrôle: activer/désactiver pauses AM/PM
     enable_am_pm_breaks: bool = True
+    # Timeout solveur CP-SAT injecté par CakePHP
+    timeout_seconds: Optional[float] = None
     # Priorité d'offres
     priority_offers: Optional[List[str]] = None
     priority_shortage_multiplier: int = 5

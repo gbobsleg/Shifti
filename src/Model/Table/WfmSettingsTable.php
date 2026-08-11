@@ -47,6 +47,7 @@ class WfmSettingsTable extends Table
         $this->getSchema()->setColumnType('prophet_defaults_json', 'json');
         $this->getSchema()->setColumnType('optuna_settings_json', 'json');
         $this->getSchema()->setColumnType('worked_days_json', 'json');
+        $this->getSchema()->setColumnType('solver_settings_json', 'json');
 
         $this->belongsTo('PauseOffers', [
             'className' => 'Offers',
@@ -210,6 +211,50 @@ class WfmSettingsTable extends Table
                 'message' => 'Les jours travaillés doivent être un tableau.',
             ])
             ->allowEmptyArray('worked_days_json');
+
+        $validator
+            ->add('solver_settings_json', 'isArray', [
+                'rule' => function ($value) {
+                    return $value === null || is_array($value);
+                },
+                'message' => 'Les paramètres de timeout solveur doivent être un tableau JSON.',
+            ])
+            ->add('solver_settings_json', 'requiredKeys', [
+                'rule' => function ($value) {
+                    if ($value === null || $value === []) {
+                        return true;
+                    }
+                    $requiredKeys = ['global', 'pass1', 'pass1_5', 'pass2'];
+                    foreach ($requiredKeys as $key) {
+                        if (!array_key_exists($key, $value)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                },
+                'message' => 'Le JSON doit contenir les clés global, pass1, pass1_5 et pass2.',
+            ])
+            ->add('solver_settings_json', 'timeoutBudget', [
+                'rule' => function ($value) {
+                    if ($value === null || $value === []) {
+                        return true;
+                    }
+                    $requiredKeys = ['global', 'pass1', 'pass1_5', 'pass2'];
+                    foreach ($requiredKeys as $key) {
+                        if (!isset($value[$key]) || !is_numeric($value[$key])) {
+                            return false;
+                        }
+                    }
+                    $sum = (int)$value['pass1'] + (int)$value['pass1_5'] + (int)$value['pass2'];
+                    $global = (int)$value['global'];
+                    if ($sum > $global - 15) {
+                        return false;
+                    }
+                    return true;
+                },
+                'message' => 'La somme de pass1 + pass1_5 + pass2 ne doit pas dépasser global - 15 secondes (marge réseau/PHP).',
+            ])
+            ->allowEmptyArray('solver_settings_json');
 
         return $validator;
     }

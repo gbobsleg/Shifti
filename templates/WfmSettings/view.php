@@ -445,6 +445,91 @@ if (is_string($rawProphet) && $rawProphet !== '') {
             </div>
         </div>
 
+        <?php // --- Temps de recherche des Solveurs --- ?>
+        <?php
+            $solver = $wfmSetting->solver_settings_json;
+            $solverDefaults = ['global' => 300, 'pass1' => 60, 'pass1_5' => 30, 'pass2' => 195];
+            $g = $solver['global'] ?? $solverDefaults['global'];
+            $p1 = $solver['pass1'] ?? $solverDefaults['pass1'];
+            $p15 = $solver['pass1_5'] ?? $solverDefaults['pass1_5'];
+            $p2 = $solver['pass2'] ?? $solverDefaults['pass2'];
+            $sum = $p1 + $p15 + $p2;
+            $limit = (int)$g - 15;
+            $budgetOk = $sum <= $limit;
+        ?>
+        <div class="card border-<?= $budgetOk ? 'success' : 'danger' ?> mb-4">
+            <div class="card-header bg-<?= $budgetOk ? 'success' : 'danger' ?> text-white">
+                <i class="bi bi-cpu"></i> Temps de recherche des Solveurs (Timeouts en secondes)
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <label class="text-muted small mb-1">
+                            <i class="bi bi-globe2"></i> Limite Globale infrastructure
+                        </label>
+                        <div>
+                            <span class="badge badge-primary" style="font-size: 1rem;">
+                                <?= h((string)$g) ?>s
+                            </span>
+                            <small class="text-muted d-block">Timeout HTTP côté PHP</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label class="text-muted small mb-1">
+                            <i class="bi bi-1-circle-fill"></i> Passe 1 : Activités fixes
+                        </label>
+                        <div>
+                            <span class="badge badge-info" style="font-size: 1rem;">
+                                <?= h((string)$p1) ?>s
+                            </span>
+                            <small class="text-muted d-block">solve-fixed-activities</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label class="text-muted small mb-1">
+                            <i class="bi bi-arrow-repeat"></i> Passe 1.5 : Rotation
+                        </label>
+                        <div>
+                            <span class="badge badge-info" style="font-size: 1rem;">
+                                <?= h((string)$p15) ?>s
+                            </span>
+                            <small class="text-muted d-block">solve-rotation</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label class="text-muted small mb-1">
+                            <i class="bi bi-2-circle-fill"></i> Passe 2 : Couverture
+                        </label>
+                        <div>
+                            <span class="badge badge-info" style="font-size: 1rem;">
+                                <?= h((string)$p2) ?>s
+                            </span>
+                            <small class="text-muted d-block">solve-coverage</small>
+                        </div>
+                    </div>
+                </div>
+                <hr class="my-3">
+                <div class="row small">
+                    <div class="col-md-6">
+                        <strong><i class="bi bi-calculator"></i> Budget :</strong>
+                        P1 + P1.5 + P2 = <strong><?= (int)$sum ?>s</strong>
+                        ≤ Global - 15s = <strong><?= (int)$limit ?>s</strong>
+                    </div>
+                    <div class="col-md-6">
+                        <?php if ($budgetOk): ?>
+                            <span class="badge badge-success">
+                                <i class="bi bi-check-circle"></i> Budget respecté
+                            </span>
+                        <?php else: ?>
+                            <span class="badge badge-danger">
+                                <i class="bi bi-exclamation-triangle-fill"></i> Dépassement de <?= (int)($sum - $limit) ?>s
+                            </span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <?php // --- Boutons d'action --- ?>
         <div class="mt-3">
             <?= $this->Html->link(

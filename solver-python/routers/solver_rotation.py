@@ -38,6 +38,7 @@ class RotationRequest(BaseModel):
     date: str  # Date du Lundi de la semaine à planifier "YYYY-MM-DD"
     agents: List[RotationAgent]
     slot_minutes: int = 15
+    timeout_seconds: float = 10.0
     # Nouvelle courbe de besoin : ID Offre -> Liste de floats (besoin par slot)
     need_curve: Optional[Dict[int, List[float]]] = None
 
@@ -332,8 +333,7 @@ def solve_rotation(request: RotationRequest):
     # --- 4. Résolution ---
     
     solver = cp_model.CpSolver()
-    # Augmenter un peu le temps si nécessaire, mais 5s est souvent suffisant pour la rotation
-    solver.parameters.max_time_in_seconds = 10.0 
+    solver.parameters.max_time_in_seconds = max(1.0, float(request.timeout_seconds))
     status = solver.Solve(model)
     
     response_blocks = []
