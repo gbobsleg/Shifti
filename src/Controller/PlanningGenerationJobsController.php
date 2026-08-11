@@ -3,13 +3,30 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\PlanningDayHistoryService;
 use Cake\Http\Exception\NotFoundException;
 use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
+use Cake\Log\Log;
 use Cake\Routing\Router;
+use Cake\Event\EventInterface;
+use Throwable;
 
 class PlanningGenerationJobsController extends AppController
 {
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+
+        // Désactive le composant Ajax.Ajax uniquement pour les endpoints JSON purs
+        // afin d'éviter qu'il force AjaxView et modifie le payload (ex: saveDraft AJAX).
+        if (in_array($this->request->getParam('action'), ['saveDraft'], true)) {
+            if ($this->components()->has('Ajax')) {
+                $this->components()->unload('Ajax');
+            }
+        }
+    }
+
     public function index()
     {
         $this->Authorization->authorize(new \App\Resource\PlanningGenerationJobsResource(), 'index');
@@ -521,6 +538,18 @@ class PlanningGenerationJobsController extends AppController
         $Jobs = $this->fetchTable('PlanningGenerationJobs');
         $job = $Jobs->get($id, ['contain' => ['Users', 'WfmSettings']]);
 
+        // Charger les détails des conflits d'absences depuis report_json
+        $skippedDetails = [];
+        $skippedCount = 0;
+        $reportJson = $job->report_json;
+        if (is_string($reportJson) && $reportJson !== '') {
+            $decoded = json_decode($reportJson, true);
+            if (is_array($decoded) && isset($decoded['skipped_details'])) {
+                $skippedDetails = $decoded['skipped_details'];
+                $skippedCount = count($skippedDetails);
+            }
+        }
+
         $Days = $this->fetchTable('PlanningGenerationJobDays');
         $firstProcessedDay = $Days->find()
             ->where([
@@ -541,7 +570,7 @@ class PlanningGenerationJobsController extends AppController
 
         $status = (string)$job->status;
         $tab = (string)($this->request->getQuery('tab') ?? '');
-        if (!in_array($tab, ['planning', 'qualite', 'technique'], true)) {
+        if (!in_array($tab, ['planning', 'qualite', 'technique', 'conflits'], true)) {
             if (in_array($status, ['queued', 'running'], true)) {
                 $tab = 'planning';
             } elseif ($status === 'finished_with_errors') {
@@ -576,6 +605,8 @@ class PlanningGenerationJobsController extends AppController
             'daysLight',
             'workspaceTab',
             'workspaceSection',
+            'skippedDetails',
+            'skippedCount',
         ));
     }
 
@@ -1555,17 +1586,28 @@ class PlanningGenerationJobsController extends AppController
             return $this->redirect(['action' => 'view', $id, '?' => ['tab' => 'qualite']]);
         }
 
-        $protectedOfferIds = $Offers->find()
+        $absenceOfferIds = $Offers->find()
             ->select(['id'])
-            ->where(['offer_type IN' => ['absence', 'remote_work']])
+            ->where(['offer_type' => 'absence'])
             ->all()
             ->extract('id')
             ->map(fn($v) => (int)$v)
             ->toList();
+        $remoteWorkOfferIds = $Offers->find()
+            ->select(['id'])
+            ->where(['offer_type' => 'remote_work'])
+            ->all()
+            ->extract('id')
+            ->map(fn($v) => (int)$v)
+            ->toList();
+        $protectedOfferIds = array_values(array_unique(array_merge($absenceOfferIds, $remoteWorkOfferIds)));
 
         $connection = $Ranges->getConnection();
         $publishedDays = 0;
         $skippedDraftRanges = 0;
+        $skippedDetails = [];
+        $historyUserIds = [];
+        $historyDays = [];
 
         $connection->begin();
         try {
@@ -1574,6 +1616,22 @@ class PlanningGenerationJobsController extends AppController
                 $dateStr = $date->format('Y-m-d');
                 $dayStart = new FrozenTime($dateStr . ' 00:00:00');
                 $dayEnd = new FrozenTime($dateStr . ' 23:59:59');
+
+                // Agents déjà présents sur le jour (avant mutation) pour l'historique
+                $existingUserIds = $Ranges->find()
+                    ->select(['user_id'])
+                    ->distinct(['user_id'])
+                    ->where(['DATE(date_start)' => $dateStr])
+                    ->all()
+                    ->extract('user_id')
+                    ->map(fn($v) => (int)$v)
+                    ->toList();
+                foreach ($existingUserIds as $uid) {
+                    if ($uid > 0) {
+                        $historyUserIds[$uid] = $uid;
+                    }
+                }
+                $historyDays[$dateStr] = $dateStr;
 
                 // Supprimer les ranges existants (hors absences/télétravail), et tout ce qui a été généré avant.
                 $deleteConditions = [
@@ -1589,7 +1647,8 @@ class PlanningGenerationJobsController extends AppController
                 $Ranges->deleteAll($deleteConditions);
 
                 // Charger ranges protégés du jour (pour éviter de publier par-dessus)
-                $protectedRangesByUser = [];
+                $absenceRangesByUser = [];
+                $remoteWorkRangesByUser = [];
                 if (!empty($protectedOfferIds)) {
                     $protectedRows = $Ranges->find()
                         ->where([
@@ -1597,11 +1656,16 @@ class PlanningGenerationJobsController extends AppController
                             'date_start <=' => $dayEnd,
                             'date_end >=' => $dayStart,
                         ])
-                        ->select(['user_id', 'date_start', 'date_end'])
+                        ->select(['user_id', 'offer_id', 'date_start', 'date_end'])
                         ->all();
                     foreach ($protectedRows as $pr) {
                         $uid = (int)$pr->user_id;
-                        $protectedRangesByUser[$uid][] = [$pr->date_start, $pr->date_end];
+                        $offerId = (int)$pr->offer_id;
+                        if (in_array($offerId, $absenceOfferIds, true)) {
+                            $absenceRangesByUser[$uid][] = [$pr->date_start, $pr->date_end];
+                        } elseif (in_array($offerId, $remoteWorkOfferIds, true)) {
+                            $remoteWorkRangesByUser[$uid][] = [$pr->date_start, $pr->date_end];
+                        }
                     }
                 }
 
@@ -1611,6 +1675,7 @@ class PlanningGenerationJobsController extends AppController
                         'date_start <=' => $dayEnd,
                         'date_end >=' => $dayStart,
                     ])
+                    ->contain(['Users', 'Offers'])
                     ->all()
                     ->toList();
 
@@ -1625,7 +1690,7 @@ class PlanningGenerationJobsController extends AppController
                     $de = $dr->date_end;
                     $blocked = false;
 
-                    foreach (($protectedRangesByUser[$uid] ?? []) as [$ps, $pe]) {
+                    foreach (($absenceRangesByUser[$uid] ?? []) as [$ps, $pe]) {
                         // chevauchement ?
                         if ($ds < $pe && $de > $ps) {
                             $blocked = true;
@@ -1635,6 +1700,17 @@ class PlanningGenerationJobsController extends AppController
 
                     if ($blocked) {
                         $skippedDraftRanges++;
+                        $skippedDetails[] = [
+                            'agent' => trim(
+                                ($dr->user->last_name ?? '') . ' ' . ($dr->user->first_name ?? '')
+                            ),
+                            'user_id' => $uid,
+                            'date' => $dr->date_start->format('Y-m-d'),
+                            'heure_debut' => $dr->date_start->format('H:i'),
+                            'heure_fin'   => $dr->date_end->format('H:i'),
+                            'offre'       => $dr->offer->name ?? ('#' . (int)$dr->offer_id),
+                            'offer_id'    => (int)$dr->offer_id,
+                        ];
                         continue;
                     }
 
@@ -1647,22 +1723,61 @@ class PlanningGenerationJobsController extends AppController
                     ]);
                 }
 
+                // Garde-fou : plafonner à 500 entrées pour ne pas surcharger report_json
+                if (count($skippedDetails) > 500) {
+                    $skippedDetails = array_slice($skippedDetails, 0, 500);
+                }
+
                 if (!empty($toInsert)) {
                     $Ranges->saveManyOrFail($toInsert);
                     $publishedDays++;
+                    foreach ($toInsert as $entity) {
+                        $uid = (int)$entity->user_id;
+                        if ($uid > 0) {
+                            $historyUserIds[$uid] = $uid;
+                        }
+                    }
                 }
             }
 
             $connection->commit();
+
+            // Persister les détails des segments ignorés dans report_json du job
+            $existingReport = $job->report_json;
+            if (is_string($existingReport) && $existingReport !== '') {
+                $existingReport = json_decode($existingReport, true);
+            }
+            if (!is_array($existingReport)) {
+                $existingReport = [];
+            }
+            $existingReport['skipped_details'] = $skippedDetails;
+            $Jobs->patchEntity($job, ['report_json' => json_encode($existingReport)]);
+            $Jobs->saveOrFail($job);
         } catch (\Throwable $e) {
             $connection->rollback();
             $this->Flash->error('Erreur publication: ' . $e->getMessage());
             return $this->redirect(['action' => 'view', $id, '?' => ['tab' => 'qualite']]);
         }
 
+        // Historique : uniquement après commit réussi de la publication
+        if (!empty($historyUserIds) && !empty($historyDays)) {
+            $identity = $this->request->getAttribute('identity');
+            $actorUserId = (int)($identity?->get('id') ?? 0);
+            try {
+                (new PlanningDayHistoryService())->recordAffectedUsers(
+                    array_values($historyUserIds),
+                    array_values($historyDays),
+                    PlanningDayHistoryService::SOURCE_PUBLISH,
+                    $actorUserId > 0 ? $actorUserId : null,
+                );
+            } catch (Throwable $historyError) {
+                Log::error('PlanningDayHistory (publish) échoué: ' . $historyError->getMessage());
+            }
+        }
+
         $msg = "Publication effectuée: {$publishedDays} jour(s) publiés.";
         if ($skippedDraftRanges > 0) {
-            $msg .= " {$skippedDraftRanges} segment(s) brouillon ignoré(s) (conflit absences/télétravail).";
+            $msg .= " {$skippedDraftRanges} segment(s) brouillon ignoré(s) (conflit absences).";
         }
         $this->Flash->success($msg);
 
@@ -2160,12 +2275,16 @@ class PlanningGenerationJobsController extends AppController
         $responseStatus = 'success';
 
         handle_response:
-        $this->viewBuilder()->setClassName('Json');
-        $this->set([
+        // Réponse JSON stricte pour AJAX (pas de rendu de vue)
+        $this->autoRender = false;
+        $this->response = $this->response->withType('application/json');
+        $responseData = [
             'status' => $responseStatus,
             '_message' => $messages,
-        ]);
-        $this->viewBuilder()->setOption('serialize', ['status', '_message']);
+        ];
+        $this->response = $this->response->withStringBody(json_encode($responseData));
+
+        return $this->response;
     }
 
     private function normalizeTime(mixed $t, string $default = '00:00:00'): string

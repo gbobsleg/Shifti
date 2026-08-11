@@ -9,6 +9,7 @@
  */
 $stats = $stats ?? null;
 $currentTab = $workspaceTab ?? 'planning';
+$skippedCountNav = (int)($skippedCount ?? 0);
 
 $queryBase = $this->request->getQueryParams();
 unset($queryBase['tab'], $queryBase['section']);
@@ -38,10 +39,19 @@ $tabs = [
     'planning' => ['label' => 'Planning', 'icon' => 'calendar3'],
     'qualite' => ['label' => 'Qualité', 'icon' => 'clipboard-check', 'badge' => $qualityBadge, 'badgeClass' => 'danger'],
     'technique' => ['label' => 'Technique', 'icon' => 'bug', 'badge' => $techBadge, 'badgeClass' => 'warning'],
+    'conflits' => [
+        'label' => "Conflits d'absences",
+        'icon' => 'shield-x',
+        'badge' => $skippedCountNav,
+        'badgeClass' => 'danger',
+        'hideWhenEmpty' => true,
+    ],
 ];
 ?>
 <ul class="nav nav-tabs mb-3" id="workspace-nav" role="tablist">
-    <?php foreach ($tabs as $key => $meta): ?>
+    <?php foreach ($tabs as $key => $meta):
+        if (!empty($meta['hideWhenEmpty']) && empty($meta['badge'])) continue;
+    ?>
         <li class="nav-item" role="presentation">
             <?= $this->Html->link(
                 '<i class="bi bi-' . h($meta['icon']) . '"></i> ' . h($meta['label'])

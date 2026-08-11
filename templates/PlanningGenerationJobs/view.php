@@ -151,6 +151,8 @@ $workspaceSection = $workspaceSection ?? '';
             <?= $this->element('PlanningGenerationJobs/workspace/_tab_quality') ?>
         <?php elseif ($workspaceTab === 'technique'): ?>
             <?= $this->element('PlanningGenerationJobs/workspace/_tab_tech') ?>
+        <?php elseif ($workspaceTab === 'conflits'): ?>
+            <?= $this->element('PlanningGenerationJobs/workspace/_tab_absence_conflicts') ?>
         <?php else: ?>
             <?= $this->element('PlanningGenerationJobs/workspace/_tab_planning') ?>
         <?php endif; ?>
