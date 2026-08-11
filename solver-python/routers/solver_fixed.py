@@ -165,9 +165,14 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
         if site_name not in pools: pools[site_name] = []
         pools[site_name].append(a_idx)
 
+        av_s = parse_t(agent.availability_start_time)
+        av_e = parse_t(agent.availability_end_time)
+
         # Init Lunch Vars
         for t in lunch_indices:
-            start_lunch[a_idx, t] = model.NewBoolVar(f'start_lunch_a{a_idx}_t{t}')
+            t_time = grid[t]
+            if t_time >= av_s and (t_time + lunch_dur_slots * slot_min) <= av_e:
+                start_lunch[a_idx, t] = model.NewBoolVar(f'start_lunch_a{a_idx}_t{t}')
 
         # TT Slots
         tt_slots = set()
@@ -394,9 +399,11 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
         # PAUSES & REPAS
         am_vars = []
         for t in am_indices:
-            v = model.NewBoolVar(f'start_am_a{a_idx}_t{t}')
-            start_am[a_idx, t] = v
-            am_vars.append(v)
+            t_time = grid[t]
+            if t_time >= av_s and (t_time + break_dur_slots * slot_min) <= av_e:
+                v = model.NewBoolVar(f'start_am_a{a_idx}_t{t}')
+                start_am[a_idx, t] = v
+                am_vars.append(v)
         if am_vars:
             model.Add(sum(am_vars) <= 1)
             has_work_am = model.NewBoolVar(f'work_am_a{a_idx}')
@@ -408,9 +415,11 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
 
         pm_vars = []
         for t in pm_indices:
-            v = model.NewBoolVar(f'start_pm_a{a_idx}_t{t}')
-            start_pm[a_idx, t] = v
-            pm_vars.append(v)
+            t_time = grid[t]
+            if t_time >= av_s and (t_time + break_dur_slots * slot_min) <= av_e:
+                v = model.NewBoolVar(f'start_pm_a{a_idx}_t{t}')
+                start_pm[a_idx, t] = v
+                pm_vars.append(v)
         if pm_vars:
             model.Add(sum(pm_vars) <= 1)
             has_work_pm = model.NewBoolVar(f'work_pm_a{a_idx}')
@@ -421,7 +430,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 model.Add(sum(pm_vars) == 0)
         
         # LUNCH
-        lunch_vars_agent = [start_lunch[a_idx, t] for t in lunch_indices]
+        lunch_vars_agent = [start_lunch[a_idx, t] for t in lunch_indices if (a_idx, t) in start_lunch]
         if lunch_vars_agent:
             model.Add(sum(lunch_vars_agent) <= 1)
             is_present_all_day = model.NewBoolVar(f'present_all_a{a_idx}')
@@ -607,7 +616,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
     )
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 20.0
+    solver.parameters.max_time_in_seconds = 60.0
     status = solver.Solve(model)
 
     # =================================================================
