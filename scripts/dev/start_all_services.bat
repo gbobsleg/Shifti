@@ -39,7 +39,7 @@ if not exist "%PYTHON_EXE%" (
 
 REM Demarrer le solveur OR-Tools en arriere-plan
 echo [1/5] Demarrage du solveur OR-Tools (port 8000)...
-start "OR-Tools Solver - Port 8000" cmd /k "cd /d %SOLVER_DIR% && %PYTHON_EXE% -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+start "OR-Tools Solver - Port 8000" cmd /k "cd /d %SOLVER_DIR% && %PYTHON_EXE% -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload --timeout-keep-alive 120 --timeout-graceful-shutdown 120"
 
 REM Attendre 2 secondes
 timeout /t 2 /nobreak >nul

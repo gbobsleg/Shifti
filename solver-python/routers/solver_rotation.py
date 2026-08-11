@@ -333,7 +333,7 @@ def solve_rotation(request: RotationRequest):
     
     solver = cp_model.CpSolver()
     # Augmenter un peu le temps si nécessaire, mais 5s est souvent suffisant pour la rotation
-    solver.parameters.max_time_in_seconds = 5.0 
+    solver.parameters.max_time_in_seconds = 10.0 
     status = solver.Solve(model)
     
     response_blocks = []

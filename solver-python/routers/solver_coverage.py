@@ -1132,7 +1132,7 @@ def _run_assumption_solve(
         model.AddAssumptions(assumption_lits)
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 15.0
+    solver.parameters.max_time_in_seconds = 90.0
     solver.parameters.num_search_workers = 1
     status = solver.Solve(model)
     status_name = solver.StatusName(status)

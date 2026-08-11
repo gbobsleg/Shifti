@@ -616,7 +616,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
     )
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 60.0
+    solver.parameters.max_time_in_seconds = 20.0
     status = solver.Solve(model)
 
     # =================================================================

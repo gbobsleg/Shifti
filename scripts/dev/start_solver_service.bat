@@ -24,7 +24,7 @@ if not exist "%PYTHON_EXE%" (
     exit /b 1
 )
 
-"%PYTHON_EXE%" -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+"%PYTHON_EXE%" -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload --timeout-keep-alive 120 --timeout-graceful-shutdown 120
 
 pause
 endlocal
