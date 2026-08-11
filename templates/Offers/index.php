@@ -132,6 +132,7 @@
                             $typeLabels = [
                                 'normal' => '<span class="badge badge-primary">Normale</span>',
                                 'absence' => '<span class="badge badge-secondary">Absence</span>',
+                                'meeting' => '<span class="badge badge-dark">Réunion, Formation, Mandat</span>',
                                 'remote_work' => '<span class="badge badge-info">Télétravail</span>',
                                 'pause' => '<span class="badge badge-warning">Pause</span>',
                                 'lunch' => '<span class="badge badge-success">Repas</span>',

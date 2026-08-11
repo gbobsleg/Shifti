@@ -22,8 +22,10 @@ class AgentAvailabilityService
         $Offers = $this->fetchTable('Offers');
         $Ranges = $this->fetchTable('Ranges');
 
-        // Récupérer les IDs des offres de type "absence"
-        $absenceOfferIds = $Offers->find('ByType', ['type' => 'absence'])
+        // Recuperer les IDs des offres de type "absence" ou "meeting"
+        $absenceOfferIds = $Offers->find()
+            ->select(['id'])
+            ->where(['offer_type IN' => ['absence', 'meeting']])
             ->all()
             ->extract('id')
             ->map(fn($id) => (int)$id)

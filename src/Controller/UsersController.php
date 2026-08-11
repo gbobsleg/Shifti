@@ -293,7 +293,7 @@ class UsersController extends AppController
         $offers = $this->Users->Offers->find('list', [
             'order' => ['name' => 'ASC']
         ])->where([
-            'Offers.offer_type NOT IN' => ['pause', 'lunch', 'remote_work', 'absence']
+            'Offers.offer_type NOT IN' => ['pause', 'lunch', 'remote_work', 'absence', 'meeting']
         ]);
         $userSkills = [];
         $contractsData = null;
@@ -813,7 +813,7 @@ class UsersController extends AppController
         $offers = $this->Users->Offers->find('list', [
             'order' => ['name' => 'ASC']
         ])->where([
-            'Offers.offer_type NOT IN' => ['pause', 'lunch', 'remote_work', 'absence']
+            'Offers.offer_type NOT IN' => ['pause', 'lunch', 'remote_work', 'absence', 'meeting']
         ]);
         
         // Charger les règles de rotation disponibles

@@ -396,14 +396,16 @@ def build_hard_coverage_model(
             if not in_avail:
                 model.Add(before_end[a][i] == 0)
         
+        lunch_forbidden_slots_set: Set[int] = set()
+        breaks_forbidden_slots_set: Set[int] = set()
+        forces_lunch_slots_set: Set[int] = set()
         if ag.unavailable_intervals:
-            lunch_forbidden_slots_set = set()
-            breaks_forbidden_slots_set = set()
             for interval in ag.unavailable_intervals:
                 start_block = parse_hhmm_or_hhmmss(interval['start'])
                 end_block = parse_hhmm_or_hhmmss(interval['end'])
                 allow_lunch = interval.get('allow_lunch', True)
                 allow_breaks = interval.get('allow_breaks', True)
+                forces_lunch = interval.get('forces_lunch', False)
                 
                 for i, s in enumerate(starts_min):
                     slot_start = s
@@ -416,6 +418,8 @@ def build_hard_coverage_model(
                             lunch_forbidden_slots_set.add(i)
                         if not allow_breaks:
                             breaks_forbidden_slots_set.add(i)
+                        if forces_lunch:
+                            forces_lunch_slots_set.add(i)
 
             for i in lunch_forbidden_slots_set:
                 model.Add(lunch[a][i] == 0)
@@ -546,9 +550,13 @@ def build_hard_coverage_model(
             if i in in_av_idx:
                 if s + slot <= lu_start_min:
                     expr = sum(x[a][i][k] for k in range(K))
+                    if i in forces_lunch_slots_set:
+                        expr += 1
                     sum_before.append(expr)
                 if s >= lu_end_min:
                     expr = sum(x[a][i][k] for k in range(K))
+                    if i in forces_lunch_slots_set:
+                        expr += 1
                     sum_after.append(expr)
         
         if sum_before:
@@ -573,7 +581,12 @@ def build_hard_coverage_model(
         model.AddBoolAnd([any_before, any_after]).OnlyEnforceIf(both_sides)
         model.AddBoolOr([any_before.Not(), any_after.Not()]).OnlyEnforceIf(both_sides.Not())
 
-        lu_candidates_av = [i for i in lu_candidates if (i in in_av_idx and (i + lunch_slots - 1) in in_av_idx)]
+        lu_candidates_av = [
+            i for i in lu_candidates
+            if i in in_av_idx
+            and (i + lunch_slots - 1) in in_av_idx
+            and all(j not in lunch_forbidden_slots_set for j in range(i, i + lunch_slots))
+        ]
         lu_start_vars = [model.NewBoolVar(f"lunch_start_a{a}_i{i}") for i in lu_candidates_av]
         for idx, i0 in enumerate(lu_candidates_av):
             for j in range(i0, i0 + lunch_slots):
@@ -666,7 +679,12 @@ def build_hard_coverage_model(
             model.AddBoolAnd([any_before_am, any_after_am]).OnlyEnforceIf(both_sides_am)
             model.AddBoolOr([any_before_am.Not(), any_after_am.Not()]).OnlyEnforceIf(both_sides_am.Not())
 
-            am_idx_av = [i for i in am_candidates if (i in in_av_idx and (i + break_slots - 1) in in_av_idx)]
+            am_idx_av = [
+                i for i in am_candidates
+                if i in in_av_idx
+                and (i + break_slots - 1) in in_av_idx
+                and all(j not in breaks_forbidden_slots_set for j in range(i, i + break_slots))
+            ]
             am_idx_av_by_agent[a] = am_idx_av
             if am_idx_av:
                 _add_hard_enf(model, sum(am_break[a][i] for i in am_idx_av) == break_slots, both_sides_am, lit_am_break)
@@ -708,7 +726,12 @@ def build_hard_coverage_model(
             model.AddBoolAnd([any_before_pm, any_after_pm]).OnlyEnforceIf(both_sides_pm)
             model.AddBoolOr([any_before_pm.Not(), any_after_pm.Not()]).OnlyEnforceIf(both_sides_pm.Not())
 
-            pm_idx_av = [i for i in pm_candidates if (i in in_av_idx and (i + break_slots - 1) in in_av_idx)]
+            pm_idx_av = [
+                i for i in pm_candidates
+                if i in in_av_idx
+                and (i + break_slots - 1) in in_av_idx
+                and all(j not in breaks_forbidden_slots_set for j in range(i, i + break_slots))
+            ]
             pm_idx_av_by_agent[a] = pm_idx_av
             if pm_idx_av:
                 _add_hard_enf(model, sum(pm_break[a][i] for i in pm_idx_av) == break_slots, both_sides_pm, lit_pm_break)
@@ -850,10 +873,25 @@ def build_hard_coverage_model(
         am_idx_av = []
         pm_idx_av = []
         if problem.enable_am_pm_breaks:
-            am_idx_av = [i for i in am_candidates if (i in in_av_idx and (i + break_slots - 1) in in_av_idx)]
-            pm_idx_av = [i for i in pm_candidates if (i in in_av_idx and (i + break_slots - 1) in in_av_idx)]
+            am_idx_av = [
+                i for i in am_candidates
+                if i in in_av_idx
+                and (i + break_slots - 1) in in_av_idx
+                and all(j not in breaks_forbidden_slots_set for j in range(i, i + break_slots))
+            ]
+            pm_idx_av = [
+                i for i in pm_candidates
+                if i in in_av_idx
+                and (i + break_slots - 1) in in_av_idx
+                and all(j not in breaks_forbidden_slots_set for j in range(i, i + break_slots))
+            ]
 
-        lu_candidates_av = [i for i in lu_candidates if (i in in_av_idx and (i + lunch_slots - 1) in in_av_idx)]
+        lu_candidates_av = [
+            i for i in lu_candidates
+            if i in in_av_idx
+            and (i + lunch_slots - 1) in in_av_idx
+            and all(j not in lunch_forbidden_slots_set for j in range(i, i + lunch_slots))
+        ]
         
         agent_offers = list(agent_eligible_offers)
         

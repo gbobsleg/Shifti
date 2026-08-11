@@ -73,6 +73,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             'options' => [
                                 'normal' => 'Normale (affectation standard)',
                                 'absence' => 'Absence (congés, maladie)',
+                                'meeting' => 'Réunion, Formation, Mandat',
                                 'remote_work' => 'Télétravail',
                                 'pause' => 'Pause',
                                 'lunch' => 'Repas',

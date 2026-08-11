@@ -263,8 +263,10 @@ class RotationTargetCalculatorService
         $Ranges = $this->fetchTable('Ranges');
         $Offers = $this->fetchTable('Offers');
 
-        // Récupérer les IDs des offres de type 'absence'
-        $absenceOfferIds = $Offers->find('ByType', ['type' => 'absence'])
+        // Recuperer les IDs des offres de type 'absence' ou 'meeting'
+        $absenceOfferIds = $Offers->find()
+            ->select(['id'])
+            ->where(['offer_type IN' => ['absence', 'meeting']])
             ->all()
             ->extract('id')
             ->toList();

@@ -2219,7 +2219,7 @@ class SchedulesController extends AppController
 
         $protectedOfferIds = $OffersTable->find()
             ->select(['id'])
-            ->where(['offer_type IN' => ['absence', 'remote_work']])
+            ->where(['offer_type IN' => ['absence', 'meeting', 'remote_work']])
             ->all()
             ->extract('id')
             ->map(fn($id) => (int)$id)
@@ -2255,7 +2255,9 @@ class SchedulesController extends AppController
         
         // Fallback sur offres système par type
         $OffersTable = $this->fetchTable('Offers');
-        $absenceOffer = $OffersTable->find('ByType', ['type' => 'absence'])->first();
+        $absenceOffer = $OffersTable->find()
+            ->where(['offer_type IN' => ['absence', 'meeting']])
+            ->first();
         $absenceOfferId = $absenceOffer ? $absenceOffer->id : null;
         
         if ($pauseOfferId === null && $absenceOfferId === null) {
@@ -2740,7 +2742,9 @@ class SchedulesController extends AppController
         $OffersTable = $this->fetchTable('Offers');
         
         // Trouver TOUTES les offres "Absence" (réunion/formation/mandat peuvent être des offres différentes)
-        $absenceOfferIds = $OffersTable->find('ByType', ['type' => 'absence'])
+        $absenceOfferIds = $OffersTable->find()
+            ->select(['id'])
+            ->where(['offer_type IN' => ['absence', 'meeting']])
             ->all()
             ->extract('id')
             ->map(fn($id) => (int)$id)

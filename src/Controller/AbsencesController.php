@@ -54,7 +54,7 @@ class AbsencesController extends AppController
         }
 
         $offers = $this->Offers->find('list')
-            ->where(['offer_type' => 'absence'])
+            ->where(['offer_type IN' => ['absence', 'meeting']])
             ->toArray();
         $absenceOfferIds = array_keys($offers);
 
@@ -82,7 +82,7 @@ class AbsencesController extends AppController
 
         $offers = $this->Offers->find('list')
             ->where([
-                'offer_type' => 'absence',
+                'offer_type IN' => ['absence', 'meeting'],
                 ])
             ->toArray();
 
@@ -139,7 +139,7 @@ class AbsencesController extends AppController
 
         $offers = $this->Offers->find('list')
             ->where([
-                'offer_type' => 'absence',
+                'offer_type IN' => ['absence', 'meeting'],
             ])
             ->toArray();
 

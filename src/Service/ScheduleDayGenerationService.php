@@ -356,7 +356,9 @@ class ScheduleDayGenerationService
                 $dayStart = $dateToCalc->startOfDay();
                 $dayEnd = $dateToCalc->endOfDay();
                 
-                $absenceOfferIds = $Offers->find('ByType', ['type' => 'absence'])
+                $absenceOfferIds = $Offers->find()
+                    ->select(['id'])
+                    ->where(['offer_type IN' => ['absence', 'meeting']])
                     ->all()
                     ->extract('id')
                     ->toList();
@@ -679,9 +681,9 @@ class ScheduleDayGenerationService
                     foreach ($userRangesForRotation as $r) {
                         $type = strtolower($r->offer->offer_type ?? 'unknown');
 
-                        // Seuls les événements typés 'absence' (congés, réunions, formations...) bloquent la rotation.
-                        // Le télétravail ou autres types ne doivent pas empêcher la planification.
-                        if ($type === 'absence') {
+                        // Seuls les evenements de type absence/meeting (conges, reunions, formations...) bloquent la rotation.
+                        // Le teletravail ou autres types ne doivent pas empecher la planification.
+                        if ($type === 'absence' || $type === 'meeting') {
                             $rangeDate = $r->date_start instanceof \DateTimeInterface 
                                 ? $r->date_start 
                                 : new FrozenTime($r->date_start);
@@ -1225,11 +1227,11 @@ class ScheduleDayGenerationService
                     ->all();
 
                 foreach ($dbRanges as $range) {
-                    // Seules les vraies absences (congés, réunions, formations...) bloquent la planification.
-                    // Le télétravail ou autres types ne doivent pas empêcher la Passe 2.
+                    // Seules les vraies absences et reunions (conges, formations...) bloquent la planification.
+                    // Le teletravail ou autres types ne doivent pas empecher la Passe 2.
                     $type = strtolower($range->offer->offer_type ?? 'unknown');
                     
-                    if ($type === 'absence') {
+                    if ($type === 'absence' || $type === 'meeting') {
                         $unavailable[] = [
                             'start' => $range->date_start->format('H:i:s'),
                             'end' => $range->date_end->format('H:i:s'),
@@ -1502,7 +1504,10 @@ class ScheduleDayGenerationService
         ]);
 
         $offerMap = $Offers->find('list', ['keyField' => 'name', 'valueField' => 'id'])->toArray();
-        $absenceOfferId = $Offers->find('ByType', ['type' => 'absence'])->first()?->id;
+        $absenceOfferId = $Offers->find()
+            ->select(['id'])
+            ->where(['offer_type IN' => ['absence', 'meeting']])
+            ->first()?->id;
         $pauseOfferId = $settings->pause_offer_id ?? $absenceOfferId;
         $lunchOfferId = $settings->lunch_offer_id ?? $absenceOfferId;
 
@@ -1785,10 +1790,13 @@ class ScheduleDayGenerationService
             foreach ($rangesFound as $r) {
                 $type = $r->offer->offer_type ?? 'unknown';
                 if (in_array(strtolower($type), $blockingTypes)) {
+                    $isMeeting = (strtolower($type) === 'meeting');
                     $unavailable[] = [
                         'start' => $r->date_start->format('H:i:s'),
                         'end' => $r->date_end->format('H:i:s'),
-                        'allow_lunch' => true,
+                        'allow_lunch' => false,
+                        'allow_breaks' => false,
+                        'forces_lunch' => $isMeeting,
                     ];
                 }
             }
@@ -1806,10 +1814,13 @@ class ScheduleDayGenerationService
             foreach ($draftsFound as $d) {
                 $type = $d->offer->offer_type ?? 'unknown';
                 if (in_array(strtolower($type), $blockingTypes)) {
+                    $isMeeting = (strtolower($type) === 'meeting');
                     $unavailable[] = [
                         'start' => $d->date_start->format('H:i:s'),
                         'end' => $d->date_end->format('H:i:s'),
-                        'allow_lunch' => true,
+                        'allow_lunch' => false,
+                        'allow_breaks' => false,
+                        'forces_lunch' => $isMeeting,
                     ];
                 }
             }

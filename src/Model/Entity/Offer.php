@@ -137,6 +137,11 @@ class Offer extends Entity
         return $this->offer_type === 'absence';
     }
 
+    public function isMeeting(): bool
+    {
+        return $this->offer_type === 'meeting';
+    }
+
     public function isRemoteWork(): bool
     {
         return $this->offer_type === 'remote_work';
@@ -160,6 +165,7 @@ class Offer extends Entity
         $labels = [
             'normal' => 'Normale',
             'absence' => 'Absence',
+            'meeting' => 'Reunion, Formation, Mandat',
             'remote_work' => 'Télétravail',
             'pause' => 'Pause',
             'lunch' => 'Repas',

@@ -1158,10 +1158,10 @@ class PlanningGenerationJobsController extends AppController
             ->indexBy('id')
             ->toArray();
 
-        // Offres "protégées" (absence / télétravail) pour dénominateurs
+        // Offres "protégées" (absence / réunion / télétravail) pour dénominateurs
         $absenceOfferIds = $Offers->find()
             ->select(['id'])
-            ->where(['offer_type' => 'absence'])
+            ->where(['offer_type IN' => ['absence', 'meeting']])
             ->all()
             ->extract('id')
             ->map(fn($v) => (int)$v)
@@ -1336,7 +1336,7 @@ class PlanningGenerationJobsController extends AppController
             }
 
             $type = (string)($offer->offer_type ?? '');
-            $isProtected = in_array($type, ['absence', 'remote_work'], true);
+            $isProtected = in_array($type, ['absence', 'meeting', 'remote_work'], true);
             $isPause = ($type === 'pause');
             $isLunch = ($type === 'lunch');
 
@@ -1588,7 +1588,7 @@ class PlanningGenerationJobsController extends AppController
 
         $absenceOfferIds = $Offers->find()
             ->select(['id'])
-            ->where(['offer_type' => 'absence'])
+            ->where(['offer_type IN' => ['absence', 'meeting']])
             ->all()
             ->extract('id')
             ->map(fn($v) => (int)$v)
@@ -1906,7 +1906,7 @@ class PlanningGenerationJobsController extends AppController
                     ])
                     ->contain(['Offers'])
                     ->matching('Offers', function ($q2) {
-                        return $q2->where(['Offers.offer_type IN' => ['absence', 'remote_work']]);
+                        return $q2->where(['Offers.offer_type IN' => ['absence', 'meeting', 'remote_work']]);
                     });
             })
             ->leftJoinWith('Sites')

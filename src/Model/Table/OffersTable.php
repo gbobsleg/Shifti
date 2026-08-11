@@ -128,7 +128,7 @@ class OffersTable extends Table
 
         $validator
             ->scalar('offer_type')
-            ->inList('offer_type', ['normal', 'absence', 'remote_work', 'pause', 'lunch'])
+            ->inList('offer_type', ['normal', 'absence', 'meeting', 'remote_work', 'pause', 'lunch'])
             ->requirePresence('offer_type', 'create')
             ->notEmptyString('offer_type');
 
