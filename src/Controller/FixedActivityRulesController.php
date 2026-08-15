@@ -13,11 +13,10 @@ class FixedActivityRulesController extends AppController
             ->find()
             ->contain(['Offers', 'Sites']);
 
-        // Tri par défaut : priorité DESC puis offre ASC
+        // Tri par défaut : ordre indiqué par l'utilisateur (sort_order ASC)
         // Sauf si un tri est déjà spécifié via le Paginator
         if (!$this->request->getQuery('sort')) {
-            $query->orderDesc('FixedActivityRules.priority')
-                  ->orderAsc('FixedActivityRules.offer_id');
+            $query->orderAsc('FixedActivityRules.sort_order');
         }
 
         // Filtres
@@ -30,31 +29,6 @@ class FixedActivityRulesController extends AppController
         if ($this->request->getQuery('active') !== null && $this->request->getQuery('active') !== '') {
             $query->where(['FixedActivityRules.active' => (bool)$this->request->getQuery('active')]);
         }
-
-        // Calculer min et max des priorités pour le dégradé dynamique (avant pagination)
-        // Créer une requête séparée sans associations pour éviter les erreurs
-        $prioritiesQuery = $this->fetchTable('FixedActivityRules')->find();
-        
-        // Appliquer les mêmes filtres
-        if ($this->request->getQuery('offer_id')) {
-            $prioritiesQuery->where(['FixedActivityRules.offer_id' => $this->request->getQuery('offer_id')]);
-        }
-        if ($this->request->getQuery('site_mode')) {
-            $prioritiesQuery->where(['FixedActivityRules.site_mode' => $this->request->getQuery('site_mode')]);
-        }
-        if ($this->request->getQuery('active') !== null && $this->request->getQuery('active') !== '') {
-            $prioritiesQuery->where(['FixedActivityRules.active' => (bool)$this->request->getQuery('active')]);
-        }
-        
-        $allRulesForPriority = $prioritiesQuery->select(['priority'])->all();
-        $priorities = [];
-        foreach ($allRulesForPriority as $rule) {
-            if ($rule->priority !== null) {
-                $priorities[] = (int)$rule->priority;
-            }
-        }
-        $priorityMin = !empty($priorities) ? min($priorities) : null;
-        $priorityMax = !empty($priorities) ? max($priorities) : null;
 
         $this->paginate = ['limit' => 25];
         $rules = $this->paginate($query);
@@ -97,7 +71,7 @@ class FixedActivityRulesController extends AppController
         // Options pour les filtres
         $offers = $this->fetchTable('Offers')->find('list')->order(['name' => 'ASC'])->toArray();
 
-        $this->set(compact('rules', 'stats', 'offers', 'priorityMin', 'priorityMax'));
+        $this->set(compact('rules', 'stats', 'offers'));
     }
 
     public function add()
@@ -132,14 +106,8 @@ class FixedActivityRulesController extends AppController
                 $data['fixed_activity_blocks'] = $cleanBlocks;
             }
             
-            // Normaliser priority : convertir string vide en null, sinon en int
-            if (isset($data['priority'])) {
-                if ($data['priority'] === '' || $data['priority'] === null) {
-                    $data['priority'] = null;
-                } else {
-                    $data['priority'] = (int)$data['priority'];
-                }
-            }
+            // Normaliser allow_shortfall : valeur binaire (0/1)
+            $data['allow_shortfall'] = !empty($data['allow_shortfall']) ? 1 : 0;
             
             $rule = $table->patchEntity($rule, $data, [
                 'associated' => ['Sites', 'FixedActivityBlocks', 'IncompatibleOffers']
@@ -188,14 +156,8 @@ class FixedActivityRulesController extends AppController
                 $data['fixed_activity_blocks'] = $cleanBlocks;
             }
             
-            // Normaliser priority : convertir string vide en null, sinon en int
-            if (isset($data['priority'])) {
-                if ($data['priority'] === '' || $data['priority'] === null) {
-                    $data['priority'] = null;
-                } else {
-                    $data['priority'] = (int)$data['priority'];
-                }
-            }
+            // Normaliser allow_shortfall : valeur binaire (0/1)
+            $data['allow_shortfall'] = !empty($data['allow_shortfall']) ? 1 : 0;
             
             $rule = $table->patchEntity($rule, $data, [
                 'associated' => ['Sites', 'FixedActivityBlocks', 'IncompatibleOffers']
@@ -215,7 +177,7 @@ class FixedActivityRulesController extends AppController
         $this->Authorization->authorize(new \App\Resource\FixedActivityRulesResource(), 'view');
 
         $table = $this->fetchTable('FixedActivityRules');
-        $rule = $table->get($id, ['contain' => ['Offers', 'Sites', 'IncompatibleOffers']]);
+        $rule = $table->get($id, ['contain' => ['Offers', 'Sites', 'IncompatibleOffers', 'FixedActivityBlocks']]);
         $this->set(compact('rule'));
     }
 

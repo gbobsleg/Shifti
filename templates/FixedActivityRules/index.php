@@ -164,7 +164,8 @@
             <table class="table table-striped table-hover table-sm">
                 <thead>
                     <tr>
-                        <th scope="col" class="text-center"><?= $this->Paginator->sort('priority', 'Priorité') ?></th>
+                        <th scope="col" class="text-center"><?= $this->Paginator->sort('sort_order', 'Ordre') ?></th>
+                        <th scope="col" class="text-center"><?= $this->Paginator->sort('allow_shortfall', 'Couverture') ?></th>
                         <th scope="col"><?= $this->Paginator->sort('offer_id', 'Offre') ?></th>
                         <th scope="col"><?= $this->Paginator->sort('site_mode', 'Mode') ?></th>
                         <th scope="col">Sites</th>
@@ -178,7 +179,7 @@
                 <tbody>
                     <?php if (count($rules) === 0): ?>
                         <tr>
-                            <td colspan="9" class="text-center py-5">
+                            <td colspan="10" class="text-center py-5">
                                 <div class="empty-state">
                                     <i class="bi bi-calendar-check" style="font-size: 4rem; color: #dee2e6;"></i>
                                     <h4 class="mt-3 text-muted">Aucune règle trouvée</h4>
@@ -232,48 +233,17 @@
                         ?>
                         <tr class="<?= $rowClass ?>">
                             <td class="text-center">
-                                <?php if ($r->priority !== null): ?>
-                                    <?php
-                                        $priority = (int)$r->priority;
-                                        // Calculer le ratio de priorité (0 = min, 1 = max)
-                                        if ($priorityMin !== null && $priorityMax !== null && $priorityMax > $priorityMin) {
-                                            $ratio = ($priority - $priorityMin) / ($priorityMax - $priorityMin);
-                                        } elseif ($priorityMin !== null && $priorityMax !== null && $priorityMax === $priorityMin) {
-                                            // Toutes les priorités sont identiques
-                                            $ratio = 0.5;
-                                        } else {
-                                            // Pas de min/max disponible, utiliser la valeur absolue
-                                            $ratio = $priority / 100;
-                                        }
-                                        
-                                        // Déterminer la couleur et l'icône selon le ratio (0 = basse, 1 = haute)
-                                        if ($ratio >= 0.8) {
-                                            $badgeClass = 'badge-danger';
-                                            $icon = 'bi-arrow-up-circle-fill';
-                                            $title = 'Priorité très haute';
-                                        } elseif ($ratio >= 0.6) {
-                                            $badgeClass = 'badge-warning';
-                                            $icon = 'bi-arrow-up-circle';
-                                            $title = 'Priorité haute';
-                                        } elseif ($ratio >= 0.4) {
-                                            $badgeClass = 'badge-info';
-                                            $icon = 'bi-dash-circle';
-                                            $title = 'Priorité moyenne';
-                                        } elseif ($ratio >= 0.2) {
-                                            $badgeClass = 'badge-primary';
-                                            $icon = 'bi-arrow-down-circle';
-                                            $title = 'Priorité basse';
-                                        } else {
-                                            $badgeClass = 'badge-success';
-                                            $icon = 'bi-arrow-down-circle-fill';
-                                            $title = 'Priorité très basse';
-                                        }
-                                    ?>
-                                    <span class="badge <?= $badgeClass ?>" title="<?= h($title) ?>: <?= h($priority) ?>">
-                                        <i class="bi <?= $icon ?>"></i> <?= h($priority) ?>
+                                <span class="badge badge-light text-dark"><?= h((int)($r->sort_order ?? 0)) ?></span>
+                            </td>
+                            <td class="text-center">
+                                <?php if ($r->allow_shortfall): ?>
+                                    <span class="badge badge-secondary" title="Couverture optionnelle : cette activité peut ne pas être couverte">
+                                        <i class="bi bi-check-circle"></i> Optionnel
                                     </span>
                                 <?php else: ?>
-                                    <span class="text-muted">—</span>
+                                    <span class="badge badge-danger" title="Couverture obligatoire : cette activité doit être couverte en priorité">
+                                        <i class="bi bi-x-circle"></i> Obligatoire
+                                    </span>
                                 <?php endif; ?>
                             </td>
                             <td><strong><?= h($r->offer->name ?? '') ?></strong></td>

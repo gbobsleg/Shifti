@@ -13,7 +13,14 @@
             <i class="bi bi-pencil text-primary"></i>
             <?= $rule->isNew() ? 'Nouvelle règle d\'activité fixe' : 'Éditer règle #' . h($rule->id) ?>
         </h3>
-        <div>
+        <div class="d-flex align-items-center">
+            <input type="hidden" name="active" value="0" form="rule-form">
+            <div class="custom-control custom-switch mr-3">
+                <input type="checkbox" class="custom-control-input" id="active-switch" name="active" value="1" form="rule-form" <?= $rule->active ? 'checked' : '' ?>>
+                <label class="custom-control-label" for="active-switch">
+                    <i class="bi bi-power"></i> Actif
+                </label>
+            </div>
             <?= $this->Html->link(
                 '<i class="bi bi-x-circle mr-1"></i> Annuler',
                 ['action' => 'index'],
@@ -22,14 +29,39 @@
         </div>
     </div>
     <div class="card-body">
-        <?= $this->Form->create($rule) ?>
-        
-        <?php // --- Section Informations générales --- ?>
-        <div class="card border-primary mb-4">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-info-circle"></i> Informations générales
-            </div>
-            <div class="card-body">
+        <?= $this->Form->create($rule, ['id' => 'rule-form']) ?>
+
+        <ul class="nav nav-tabs mb-4" id="rule-tabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="tab-scope-tab" data-toggle="tab" href="#tab-scope" role="tab" aria-controls="tab-scope" aria-selected="true">
+                    <i class="bi bi-info-circle"></i> Portée &amp; activité
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="tab-schedule-tab" data-toggle="tab" href="#tab-schedule" role="tab" aria-controls="tab-schedule" aria-selected="false">
+                    <i class="bi bi-clock"></i> Horaires &amp; fréquence
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="tab-equity-tab" data-toggle="tab" href="#tab-equity" role="tab" aria-controls="tab-equity" aria-selected="false">
+                    <i class="bi bi-people"></i> Couverture &amp; équité
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="tab-planning-tab" data-toggle="tab" href="#tab-planning" role="tab" aria-controls="tab-planning" aria-selected="false">
+                    <i class="bi bi-calendar2-range"></i> Planification &amp; repas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="tab-incompat-tab" data-toggle="tab" href="#tab-incompat" role="tab" aria-controls="tab-incompat" aria-selected="false">
+                    <i class="bi bi-x-octagon"></i> Incompatibilités
+                </a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <?php // --- Onglet 1 : Portée & activité --- ?>
+            <div class="tab-pane fade show active" id="tab-scope" role="tabpanel" aria-labelledby="tab-scope-tab">
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label"><i class="bi bi-tag"></i> Offre</label>
@@ -61,32 +93,52 @@
                         </div>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col-md-12 mb-3">
-                        <label class="form-label"><i class="bi bi-building"></i> Sites concernés</label>
-                        <?= $this->Form->control('sites._ids', [
-                            'type' => 'select',
-                            'multiple' => 'multiple',
-                            'options' => $sites,
-                            'label' => false,
-                            'class' => 'form-control',
-                            'id' => 'sitesSelect'
-                        ]) ?>
-                        <small class="text-muted">
-                            <i class="bi bi-info-circle"></i>
-                            Mode global: aucun site à sélectionner. Modes par site/mutualisé: sélectionner les sites.
-                        </small>
+                <div class="alert alert-warning mb-3">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Bon à savoir</strong> : l'offre sélectionnée sert aussi de critère d'équité.
+                    Les agents compétents sur cette offre seront répartis équitablement
+                    <strong>par site</strong> en mode « Par site », ou <strong>sur l'ensemble des sites</strong>
+                    en mode « Mutualisé » / « Global ».
+                    Si deux équipes traitent des flux réellement différents (compétences ou besoins distincts),
+                    créez deux offres et deux règles distinctes pour ne pas les mélanger.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label"><i class="bi bi-building"></i> Sites concernés</label>
+                    <div class="p-3 border rounded bg-light" style="max-height: 220px; overflow-y: auto;">
+                        <?php
+                            $selectedSiteIds = [];
+                            if (!empty($rule->sites)) {
+                                $selectedSiteIds = array_map(fn($s) => $s->id, (array)$rule->sites);
+                            }
+                        ?>
+                        <div class="row">
+                            <?php foreach ($sites as $id => $name): ?>
+                                <div class="col-md-3 col-sm-4 col-6">
+                                    <div class="form-check">
+                                        <input type="checkbox" 
+                                               name="sites[_ids][]" 
+                                               value="<?= h($id) ?>" 
+                                               class="form-check-input site-checkbox" 
+                                               id="site-<?= h($id) ?>"
+                                               <?= in_array($id, $selectedSiteIds) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="site-<?= h($id) ?>">
+                                            <?= h($name) ?>
+                                        </label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                            <input type="hidden" name="sites[_ids][]" value="">
+                        </div>
                     </div>
+                    <small class="text-muted mt-1 d-block">
+                        <i class="bi bi-info-circle"></i>
+                        Mode global: aucun site à sélectionner. Modes par site/mutualisé: sélectionner les sites.
+                    </small>
                 </div>
             </div>
-        </div>
 
-        <?php // --- Section Horaires et quantité --- ?>
-        <div class="card border-info mb-4">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-clock"></i> Horaires et quantité
-            </div>
-            <div class="card-body">
+            <?php // --- Onglet 2 : Horaires & fréquence --- ?>
+            <div class="tab-pane fade" id="tab-schedule" role="tabpanel" aria-labelledby="tab-schedule-tab">
                 <div class="row">
                     <div class="col-md-4 mb-3">
                         <label class="form-label"><i class="bi bi-clock-history"></i> Heure de début</label>
@@ -114,70 +166,39 @@
                         ]) ?>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <?php // --- Section Jours de la semaine --- ?>
-        <div class="card border-success mb-4">
-            <div class="card-header bg-success text-white">
-                <i class="bi bi-calendar-week"></i> Jours de la semaine
-            </div>
-            <div class="card-body">
-                <div class="d-flex flex-wrap" style="gap: 2rem;">
-                    <?php foreach ($daysOptions as $val => $label): ?>
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="days_of_week_selected[]" id="dow-<?= (int)$val ?>" value="<?= (int)$val ?>" <?= in_array($val, (array)$selectedDays, true) ? 'checked' : '' ?> style="margin-right: 0.5rem;">
-                            <label class="form-check-label" for="dow-<?= (int)$val ?>"><?= h($label) ?></label>
-                        </div>
-                    <?php endforeach; ?>
+                <div class="mb-3">
+                    <label class="form-label"><i class="bi bi-calendar-week"></i> Jours de la semaine</label>
+                    <div class="d-flex flex-wrap" style="gap: 2rem;">
+                        <?php foreach ($daysOptions as $val => $label): ?>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" name="days_of_week_selected[]" id="dow-<?= (int)$val ?>" value="<?= (int)$val ?>" <?= in_array($val, (array)$selectedDays, true) ? 'checked' : '' ?> style="margin-right: 0.5rem;">
+                                <label class="form-check-label" for="dow-<?= (int)$val ?>"><?= h($label) ?></label>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        <i class="bi bi-info-circle"></i>
+                        Si aucun jour n'est sélectionné, la règle s'appliquera tous les jours.
+                    </small>
                 </div>
-                <small class="text-muted mt-2 d-block">
-                    <i class="bi bi-info-circle"></i>
-                    Si aucun jour n'est sélectionné, la règle s'appliquera tous les jours.
-                </small>
             </div>
-        </div>
 
-        <?php // --- Section Options --- ?>
-        <div class="card border-secondary mb-4">
-            <div class="card-header bg-secondary text-white">
-                <i class="bi bi-sliders"></i> Options
-            </div>
-            <div class="card-body">
+            <?php // --- Onglet 3 : Couverture & équité --- ?>
+            <div class="tab-pane fade" id="tab-equity" role="tabpanel" aria-labelledby="tab-equity-tab">
                 <div class="row">
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label"><i class="bi bi-exclamation-triangle"></i> Priorité (Poids 0-100)</label>
-                        <?= $this->Form->control('priority', [
-                            'type' => 'number',
-                            'min' => 0,
-                            'max' => 100,
-                            'label' => false,
-                            'class' => 'form-control',
-                            'default' => 0
-                        ]) ?>
-                        <small class="text-muted d-block">Plus la valeur est élevée, plus cette règle sera traitée en priorité</small>
-                    </div>
-                    <div class="col-md-3 mb-3">
+                    <div class="col-md-6 mb-3">
                         <div class="form-check">
-                            <?= $this->Form->control('active', [
+                            <?= $this->Form->control('allow_shortfall', [
                                 'type' => 'checkbox',
-                                'label' => '<i class="bi bi-power"></i> Actif',
-                                'escape' => false
+                                'label' => '<i class="bi bi-exclamation-triangle"></i> Accepter le shortfall',
+                                'escape' => false,
                             ]) ?>
-                            <small class="text-muted d-block">Activer ou désactiver cette règle</small>
+                            <small class="text-muted d-block">
+                                Si coché, cette activité pourra ne pas être couverte pour préserver l'équité des activités prioritaires.
+                            </small>
                         </div>
                     </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="form-check">
-                            <?= $this->Form->control('is_splittable', [
-                                'type' => 'checkbox',
-                                'label' => '<i class="bi bi-scissors"></i> Scindable (relais autorisés)',
-                                'escape' => false
-                            ]) ?>
-                            <small class="text-muted d-block">Permet les relais entre agents au sein de la journée</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
+                    <div class="col-md-6 mb-3">
                         <label class="form-label"><i class="bi bi-people"></i> Équité (sur la période)</label>
                         <?php
                         $equityValue = '';
@@ -197,7 +218,9 @@
                         ]) ?>
                         <small class="text-muted d-block">“Hériter” utilise le paramètre de l’offre sélectionnée.</small>
                     </div>
-                    <div class="col-md-3 mb-3">
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
                         <label class="form-label"><i class="bi bi-diagram-2"></i> Groupe d'équité (ID partagé)</label>
                         <?= $this->Form->control('equity_group_id', [
                             'type' => 'text',
@@ -211,52 +234,30 @@
                         </small>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label"><i class="bi bi-speedometer2"></i> Force de l'équité (0-100%)</label>
-                        <div class="d-flex align-items-center">
-                            <input type="range" class="form-range flex-grow-1 mr-3" min="0" max="100" step="10" id="equity-strength-range" 
-                                   name="equity_strength" value="<?= $rule->equity_strength ?? 0 ?>">
-                            <span class="badge bg-primary" id="equity-strength-val"><?= $rule->equity_strength ?? 0 ?>%</span>
-                        </div>
-                        <small class="text-muted d-block">
-                            Plus cette valeur est élevée, plus le solveur cherchera à répartir cette activité équitablement, quitte à ne pas planifier d'autres activités moins prioritaires.
-                        </small>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="form-check">
-                            <?= $this->Form->control('lunch_overlap_allowed', [
-                                'type' => 'checkbox',
-                                'label' => '<i class="bi bi-cup-hot"></i> Autoriser le repas à recouvrir cette activité',
-                                'escape' => false,
-                                'default' => true,
-                            ]) ?>
-                            <small class="text-muted d-block">
-                                Si décoché, le repas devra être planifié en dehors de cette activité fixe.
-                            </small>
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">
-                            <i class="bi bi-arrow-left-right"></i> Préférence de position du repas
-                        </label>
-                        <?= $this->Form->control('lunch_attach_mode', [
-                            'type' => 'select',
+                        <label class="form-label"><i class="bi bi-sort-numeric-down"></i> Ordre de résolution</label>
+                        <?= $this->Form->control('sort_order', [
+                            'type' => 'number',
+                            'min' => 0,
                             'label' => false,
-                            'options' => [
-                                'none' => 'Aucune préférence particulière',
-                                'before' => 'De préférence juste AVANT cette activité',
-                                'after' => 'De préférence juste APRÈS cette activité',
-                            ],
-                            'empty' => false,
-                            'default' => 'none',
                             'class' => 'form-control',
                         ]) ?>
-                        <small class="text-muted d-block">
-                            Si activée, la préférence est traitée comme forte : le solveur collera le repas
-                            avant/après cette activité dès que la couverture le permet.
+                        <small class="text-muted d-block" title="Ordre de résolution : les activités de même groupe (même equity_group_id) sont résolues ensemble. 1 = priorité la plus haute, puis 2, 3…">
+                            <i class="bi bi-info-circle"></i>
+                            Ordre de résolution : les activités de même groupe (même equity_group_id) sont résolues ensemble. 1 = priorité la plus haute, puis 2, 3…
                         </small>
                     </div>
+                </div>
+            </div>
+
+            <?php // --- Onglet 4 : Planification & repas --- ?>
+            <div class="tab-pane fade" id="tab-planning" role="tabpanel" aria-labelledby="tab-planning-tab">
+                <div class="form-check mb-3">
+                    <?= $this->Form->control('is_splittable', [
+                        'type' => 'checkbox',
+                        'label' => '<i class="bi bi-scissors"></i> Scindable (relais autorisés)',
+                        'escape' => false
+                    ]) ?>
+                    <small class="text-muted d-block">Permet les relais entre agents au sein de la journée</small>
                 </div>
                 <div id="blocks-container" class="mt-3" style="display:none;" data-next-index="<?= isset($rule->fixed_activity_blocks) ? count($rule->fixed_activity_blocks) : 0 ?>">
                     <h6><i class="bi bi-layout-three-columns"></i> Blocs intra-journée (optionnels)</h6>
@@ -327,56 +328,86 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <?php // --- Section Incompatibilités --- ?>
-        <div class="card border-danger mb-4">
-            <div class="card-header bg-danger text-white">
-                <i class="bi bi-x-octagon"></i> Incompatibilités
-            </div>
-            <div class="card-body">
+                <hr>
                 <div class="row">
-                    <div class="col-md-12 mb-3">
-                        <label class="form-label"><i class="bi bi-slash-circle"></i> Offres incompatibles ce jour-là</label>
-                        <div class="p-3 border rounded bg-light" style="max-height: 250px; overflow-y: auto;">
-                            <?php 
-                                // On récupère les IDs déjà sélectionnés pour pré-cocher
-                                $selectedIds = [];
-                                if (!empty($rule->incompatible_offers)) {
-                                    $selectedIds = array_map(function($o) { return $o->id; }, $rule->incompatible_offers);
-                                }
-                            ?>
-                            <div class="row">
-                                <?php foreach ($offers as $id => $name): ?>
-                                    <div class="col-md-4 col-sm-6">
-                                        <div class="form-check">
-                                            <input type="checkbox" 
-                                                   name="incompatible_offers[_ids][]" 
-                                                   value="<?= h($id) ?>" 
-                                                   class="form-check-input" 
-                                                   id="inc-offer-<?= h($id) ?>"
-                                                   <?= in_array($id, $selectedIds) ? 'checked' : '' ?>>
-                                            <label class="form-check-label" for="inc-offer-<?= h($id) ?>">
-                                                <?= h($name) ?>
-                                            </label>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                                <input type="hidden" name="incompatible_offers[_ids][]" value="">
-                            </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="form-check">
+                            <?= $this->Form->control('lunch_overlap_allowed', [
+                                'type' => 'checkbox',
+                                'label' => '<i class="bi bi-cup-hot"></i> Autoriser le repas à recouvrir cette activité',
+                                'escape' => false,
+                                'default' => true,
+                            ]) ?>
+                            <small class="text-muted d-block">
+                                Si décoché, le repas devra être planifié en dehors de cette activité fixe.
+                            </small>
                         </div>
-                        <small class="text-muted mt-1 d-block">
-                            <i class="bi bi-info-circle"></i>
-                            Si un agent est planifié sur cette activité fixe, il ne pourra PAS être planifié sur les offres cochées le même jour.
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-arrow-left-right"></i> Préférence de position du repas
+                        </label>
+                        <?= $this->Form->control('lunch_attach_mode', [
+                            'type' => 'select',
+                            'label' => false,
+                            'options' => [
+                                'none' => 'Aucune préférence particulière',
+                                'before' => 'De préférence juste AVANT cette activité',
+                                'after' => 'De préférence juste APRÈS cette activité',
+                            ],
+                            'empty' => false,
+                            'default' => 'none',
+                            'class' => 'form-control',
+                        ]) ?>
+                        <small class="text-muted d-block">
+                            Si activée, la préférence est traitée comme forte : le solveur collera le repas
+                            avant/après cette activité dès que la couverture le permet.
                         </small>
                     </div>
                 </div>
             </div>
+
+            <?php // --- Onglet 5 : Incompatibilités --- ?>
+            <div class="tab-pane fade" id="tab-incompat" role="tabpanel" aria-labelledby="tab-incompat-tab">
+                <div class="mb-3">
+                    <label class="form-label"><i class="bi bi-slash-circle"></i> Offres incompatibles ce jour-là</label>
+                    <div class="p-3 border rounded bg-light" style="max-height: 250px; overflow-y: auto;">
+                        <?php 
+                            // On récupère les IDs déjà sélectionnés pour pré-cocher
+                            $selectedIds = [];
+                            if (!empty($rule->incompatible_offers)) {
+                                $selectedIds = array_map(function($o) { return $o->id; }, $rule->incompatible_offers);
+                            }
+                        ?>
+                        <div class="row">
+                            <?php foreach ($offers as $id => $name): ?>
+                                <div class="col-md-4 col-sm-6">
+                                    <div class="form-check">
+                                        <input type="checkbox" 
+                                               name="incompatible_offers[_ids][]" 
+                                               value="<?= h($id) ?>" 
+                                               class="form-check-input" 
+                                               id="inc-offer-<?= h($id) ?>"
+                                               <?= in_array($id, $selectedIds) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="inc-offer-<?= h($id) ?>">
+                                            <?= h($name) ?>
+                                        </label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                            <input type="hidden" name="incompatible_offers[_ids][]" value="">
+                        </div>
+                    </div>
+                    <small class="text-muted mt-1 d-block">
+                        <i class="bi bi-info-circle"></i>
+                        Si un agent est planifié sur cette activité fixe, il ne pourra PAS être planifié sur les offres cochées le même jour.
+                    </small>
+                </div>
+            </div>
         </div>
 
-        <?php // --- Boutons d'action --- ?>
-        <div class="mt-3">
+        <?php // --- Boutons d'action (barre sticky) --- ?>
+        <div class="mt-3 p-3 border-top" style="position: sticky; bottom: 0; background: #fff; z-index: 10;">
             <?= $this->Form->button('<i class="bi bi-save mr-2"></i> Enregistrer', [
                 'class' => 'btn btn-primary mr-3',
                 'escapeTitle' => false
@@ -387,7 +418,7 @@
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
-        
+
         <?= $this->Form->end() ?>
     </div>
 </div>
@@ -395,21 +426,20 @@
 <?php $this->Html->scriptStart(['block' => true]); ?>
 document.addEventListener('DOMContentLoaded', function() {
   const radios = document.querySelectorAll('input[name="site_mode"]');
-  const sel = document.getElementById('sitesSelect');
+  const siteCheckboxes = document.querySelectorAll('input.site-checkbox');
   const splitCheckbox = document.getElementById('is-splittable');
   const blocksContainer = document.getElementById('blocks-container');
   const blocksRows = document.getElementById('blocks-rows');
   const blockTemplate = document.getElementById('block-row-template');
   const addBlockBtn = document.getElementById('add-block-btn');
-  if (!sel || radios.length === 0) return;
+  if (radios.length === 0) return;
   
   const sync = () => {
     const mode = document.querySelector('input[name="site_mode"]:checked')?.value;
     if (mode === 'global') {
-      for (const opt of sel.options) opt.selected = false;
-      sel.setAttribute('disabled', 'disabled');
+      siteCheckboxes.forEach(cb => { cb.checked = false; cb.disabled = true; });
     } else {
-      sel.removeAttribute('disabled');
+      siteCheckboxes.forEach(cb => { cb.disabled = false; });
     }
   };
   
@@ -461,12 +491,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  const range = document.getElementById('equity-strength-range');
-  const valDisplay = document.getElementById('equity-strength-val');
-  if (range && valDisplay) {
-      range.addEventListener('input', function() {
-          valDisplay.textContent = this.value + '%';
-      });
+  // Ouverture automatique de l'onglet contenant une erreur de validation
+  const invalid = document.querySelector('.tab-pane .is-invalid, .tab-pane .invalid-feedback');
+  if (invalid) {
+    const pane = invalid.closest('.tab-pane');
+    if (pane) {
+      const id = pane.id;
+      document.querySelectorAll('.nav-tabs a').forEach(a => a.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('show', 'active'));
+      const link = document.querySelector('.nav-tabs a[href="#' + id + '"]');
+      if (link) link.classList.add('active');
+      pane.classList.add('show', 'active');
+    }
   }
 });
 <?php $this->Html->scriptEnd(); ?>
