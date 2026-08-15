@@ -9,7 +9,7 @@ use Cake\Log\Log;
 use Cake\ORM\Locator\LocatorAwareTrait;
 
 /**
- * Construit le payload pour le solveur activit�s fixes (ciblage global) : Global Targeting.
+ * Construit le payload pour le solveur activit�s fixes (ciblage global) : Global Targeting.
  * - Capacité nette par agent (contractuel moins absences / unavailable).
  * - Meta-groupes d'équité (equity_group_id).
  * - Cibles (target_quota_minutes) au prorata de la capacité.
@@ -112,7 +112,7 @@ class FixedActivitiesBuilderService
         }
 
         $totalCapacity = array_sum($capacityByAgentId);
-        $needByEquityGroup = $this->computeNeedByEquityGroupFromRules($rules, (int)$dateToCalc->format('N'));
+        [$needByPool, $sortOrderByPool] = $this->computeNeedByPoolFromRules($rules, (int)$dateToCalc->format('N'));
 
         // Offre(s) virtuelle(s) par groupe d'équité (pour savoir quels agents sont éligibles au groupe)
         $offerNamesByGroup = [];
@@ -127,60 +127,104 @@ class FixedActivitiesBuilderService
             }
         }
 
-        // Capacité totale par groupe d'équité (uniquement les agents qui ont le skill correspondant)
-        $capacityByGroup = [];
-        foreach ($needByEquityGroup as $groupKey => $needMinutes) {
-            $capacityByGroup[$groupKey] = 0.0;
-            $offerNames = $offerNamesByGroup[$groupKey] ?? [];
-            foreach ($agentsForJson as $ag) {
-                $aid = (int)($ag['id'] ?? 0);
-                $skills = (array)($ag['skills'] ?? []);
-                $eligible = false;
-                foreach ($offerNames as $on) {
-                    if (in_array($on, $skills, true)) {
-                        $eligible = true;
-                        break;
-                    }
-                }
-                if ($eligible) {
-                    $capacityByGroup[$groupKey] += $capacityByAgentId[$aid] ?? 0.0;
-                }
-            }
-        }
-
         /** @var array<int, array<string, float>> Cibles journalières (jour J uniquement) pour cumul côté boucle PHP */
         $dailyTargets = [];
+
+        // Pools triés par ordre croissant (1 = priorité la plus haute).
+        $poolOrder = array_keys($needByPool);
+        usort($poolOrder, fn($a, $b) =>
+            ($sortOrderByPool[$a] ?? PHP_INT_MAX) <=> ($sortOrderByPool[$b] ?? PHP_INT_MAX));
+
+        // Capacité résiduelle initiale = capacité nette du jour, convertie en minutes.
+        // computeCapacityHours renvoie des heures ; l'allocation se fait en minutes.
+        $residualByAgent = [];
+        foreach ($capacityByAgentId as $aid => $hours) {
+            $residualByAgent[$aid] = (float)$hours * 60.0;
+        }
+
+        // Index id => référence agent, pour répercuter les cibles dans $agentsForJson.
+        $agentsById = [];
         foreach ($agentsForJson as &$ag) {
             $aid = (int)($ag['id'] ?? 0);
             $cap = $capacityByAgentId[$aid] ?? 0.0;
-            $skills = (array)($ag['skills'] ?? []);
             $ag['capacity_hours'] = round($cap, 2);
             $ag['target_ratio'] = $totalCapacity > 0 ? round($cap / $totalCapacity, 6) : 0.0;
             $ag['target_quota_minutes'] = [];
+            $agentsById[$aid] = &$ag;
             $dailyTargets[$aid] = [];
-            foreach ($needByEquityGroup as $groupKey => $needMinutes) {
-                $totalCapacityForGroup = $capacityByGroup[$groupKey] ?? 0.0;
-                $offerNames = $offerNamesByGroup[$groupKey] ?? [];
-                $eligible = false;
-                foreach ($offerNames as $on) {
-                    if (in_array($on, $skills, true)) {
-                        $eligible = true;
-                        break;
-                    }
-                }
-                if (!$eligible || $totalCapacityForGroup <= 0) {
-                    $minutes = 0.0;
-                } else {
-                    $minutes = round($needMinutes * ($cap / $totalCapacityForGroup), 2);
-                }
-                $ag['target_quota_minutes'][$groupKey] = $minutes;
-                $dailyTargets[$aid][$groupKey] = $minutes;
-            }
             if ($currentRealization !== null && isset($currentRealization[$aid]) && is_array($currentRealization[$aid])) {
                 $ag['current_realization'] = $currentRealization[$aid];
             }
         }
         unset($ag);
+
+        // Initialisation : chaque agent reçoit 0.0 pour chaque pool de son scope
+        // (global, ou per_site de son site), même s'il n'est pas éligible.
+        // Garantit que target_quota_minutes reste un objet JSON non vide pour Pydantic.
+        foreach ($poolOrder as $pool) {
+            $parts = explode('::', $pool);
+            $poolSite = $parts[1] ?? null;
+            foreach ($agentsForJson as &$ag) {
+                $aid = (int)($ag['id'] ?? 0);
+                $agentSite = (string)($agentSiteById[$aid] ?? '');
+                if ($poolSite !== null && $agentSite !== $poolSite) {
+                    continue;
+                }
+                $ag['target_quota_minutes'][$pool] = 0.0;
+                $dailyTargets[$aid][$pool] = 0.0;
+            }
+            unset($ag);
+        }
+
+        foreach ($poolOrder as $pool) {
+            $needMinutes = (float)($needByPool[$pool] ?? 0.0);
+            $parts = explode('::', $pool);
+            $groupKey = $parts[0];
+            $poolSite = $parts[1] ?? null;
+            $offerNames = $offerNamesByGroup[$groupKey] ?? [];
+
+            // Agents éligibles sur ce pool (bon site + compétence).
+            $eligible = [];
+            foreach ($agentsForJson as $ag) {
+                $aid = (int)($ag['id'] ?? 0);
+                $agentSite = (string)($agentSiteById[$aid] ?? '');
+                if ($poolSite !== null && $agentSite !== $poolSite) {
+                    continue;
+                }
+                $skills = (array)($ag['skills'] ?? []);
+                $ok = false;
+                foreach ($offerNames as $on) {
+                    if (in_array($on, $skills, true)) {
+                        $ok = true;
+                        break;
+                    }
+                }
+                if ($ok) {
+                    $eligible[] = $aid;
+                }
+            }
+
+            // Capacité résiduelle totale des agents éligibles (minutes).
+            $poolCap = 0.0;
+            foreach ($eligible as $aid) {
+                $poolCap += $residualByAgent[$aid] ?? 0.0;
+            }
+            if ($poolCap <= 0.0) {
+                continue; // protection division par zéro
+            }
+
+            foreach ($eligible as $aid) {
+                $res = $residualByAgent[$aid] ?? 0.0;
+                if ($res <= 0.0) {
+                    continue;
+                }
+                $alloc = min($res, $needMinutes * ($res / $poolCap));
+                $minutes = round($alloc, 2);
+                $agentsById[$aid]['target_quota_minutes'][$pool] = $minutes;
+                $dailyTargets[$aid][$pool] = $minutes;
+                $residualByAgent[$aid] = $res - $alloc;
+            }
+        }
 
         $lunchWindow = [
             'start' => $this->normalizeTime($settings->lunch_start_time ?? null, '12:00:00'),
@@ -246,7 +290,7 @@ class FixedActivitiesBuilderService
     /**
      * Retourne la map offer_name (virtuel ou base) → equity_group pour agréger les réalisations (drafts).
      *
-     * @return array<string, string>
+     * @return array{offer_to_group: array<string, string>, group_mode: array<string, string>}
      */
     public function getOfferNameToEquityGroupMap(string $date): array
     {
@@ -260,6 +304,7 @@ class FixedActivitiesBuilderService
             ->toList();
         $siteSep = self::SITE_SEP;
         $map = [];
+        $groupMode = [];
         foreach ($rules as $r) {
             $days = $r->days_of_week ?? null;
             if ($days !== null && $days !== '') {
@@ -281,6 +326,7 @@ class FixedActivitiesBuilderService
             $sitesArr = (array)$r->sites;
             $siteMode = $r->site_mode ?? 'per_site';
             $map[$baseOffer] = $equityGroup;
+            $groupMode[$equityGroup] = (string)$siteMode;
             if ($siteMode === 'global') {
                 $map[$baseOffer . $siteSep . 'Global'] = $equityGroup;
             } elseif ($siteMode === 'pooled' && !empty($sitesArr)) {
@@ -295,7 +341,10 @@ class FixedActivitiesBuilderService
                 }
             }
         }
-        return $map;
+        return [
+            'offer_to_group' => $map,
+            'group_mode' => $groupMode,
+        ];
     }
 
     /**
@@ -363,16 +412,17 @@ class FixedActivitiesBuilderService
     }
 
     /**
-     * Besoin total en minutes par groupe d'équité (equity_group_id ou offer name).
-     * Une règle ne compte qu'une fois (pas de double compte par variante site).
-     * Seules les règles applicables au jour $dow sont prises en compte.
+     * Besoin total en minutes par pool d'équité.
+     * Une règle per_site applique sa quantité à CHAQUE site (un pool par site) ;
+     * pooled/global partagent un pool unique. Seules les règles applicables au jour $dow comptent.
      *
      * @param list<\Cake\ORM\Entity> $rules
-     * @return array<string, float>
+     * @return array{0: array<string, float>, 1: array<string, int>} [needByPool, sortOrderByPool]
      */
-    private function computeNeedByEquityGroupFromRules(array $rules, int $dow): array
+    private function computeNeedByPoolFromRules(array $rules, int $dow): array
     {
-        $needByGroup = [];
+        $needByPool = [];
+        $sortOrderByPool = [];
         foreach ($rules as $r) {
             $days = $r->days_of_week ?? null;
             if ($days !== null && $days !== '') {
@@ -397,14 +447,31 @@ class FixedActivitiesBuilderService
             $groupKey = $r->equity_group_id !== null && (string)$r->equity_group_id !== ''
                 ? (string)$r->equity_group_id
                 : $baseOffer;
+            $siteMode = (string)($r->site_mode ?? 'per_site');
             $durationMinutes = max(0, $this->timeToMinutes($end) - $this->timeToMinutes($start));
             $need = $durationMinutes * $qty;
-            if (!isset($needByGroup[$groupKey])) {
-                $needByGroup[$groupKey] = 0.0;
+            $order = (int)($r->sort_order ?? 0);
+
+            if ($siteMode === 'per_site') {
+                foreach ((array)$r->sites as $site) {
+                    $siteName = (string)$site->name;
+                    if ($siteName === '') {
+                        continue;
+                    }
+                    $pool = $groupKey . '::' . $siteName;
+                    $needByPool[$pool] = ($needByPool[$pool] ?? 0.0) + $need;
+                    $sortOrderByPool[$pool] = isset($sortOrderByPool[$pool])
+                        ? min($sortOrderByPool[$pool], $order)
+                        : $order;
+                }
+            } else {
+                $needByPool[$groupKey] = ($needByPool[$groupKey] ?? 0.0) + $need;
+                $sortOrderByPool[$groupKey] = isset($sortOrderByPool[$groupKey])
+                    ? min($sortOrderByPool[$groupKey], $order)
+                    : $order;
             }
-            $needByGroup[$groupKey] += $need;
         }
-        return $needByGroup;
+        return [$needByPool, $sortOrderByPool];
     }
 
     /**
@@ -481,10 +548,8 @@ class FixedActivitiesBuilderService
             }
             $isSplittable = isset($r->is_splittable) ? (bool)$r->is_splittable : true;
             $equityEnabledBool = (bool)$equityEnabled;
-            $equityStrengthForWeight = isset($r->equity_strength) ? (int)$r->equity_strength : 100;
-            $periodEquityWeight = $equityEnabledBool ? $equityStrengthForWeight : null;
-            $equityStrength = isset($r->equity_strength) ? (int)$r->equity_strength : 0;
-            $priority = isset($r->priority) ? (int)$r->priority : 0;
+            $periodEquityWeight = $equityEnabledBool ? 1 : null;
+            $allowShortfall = isset($r->allow_shortfall) ? (bool)$r->allow_shortfall : false;
             $active = isset($r->active) ? (bool)$r->active : true;
 
             $incompatibleBaseOffers = [];
@@ -497,7 +562,7 @@ class FixedActivitiesBuilderService
             $sitesArr = (array)$r->sites;
             $siteMode = $r->site_mode ?? 'per_site';
 
-            $pushFixed = function (string $virtualOffer) use (
+            $pushFixed = function (string $virtualOffer, string $poolSiteName = '') use (
                 &$fixedActivities,
                 $start,
                 $end,
@@ -505,8 +570,7 @@ class FixedActivitiesBuilderService
                 $isSplittable,
                 $equityEnabledBool,
                 $periodEquityWeight,
-                $equityStrength,
-                $priority,
+                $allowShortfall,
                 $active,
                 $blocks,
                 $lunchOverlapAllowed,
@@ -517,6 +581,11 @@ class FixedActivitiesBuilderService
                 $equityGroupId,
                 $siteMode,
             ): void {
+                $groupKey = $equityGroupId ?? $baseOffer;
+                $poolKey = $groupKey;
+                if ($siteMode === 'per_site' && $poolSiteName !== '') {
+                    $poolKey .= '::' . $poolSiteName;
+                }
                 $fixedActivities[] = [
                     'offer_name' => $virtualOffer,
                     'start_time' => $start,
@@ -525,8 +594,7 @@ class FixedActivitiesBuilderService
                     'is_splittable' => $isSplittable,
                     'equity_enabled' => $equityEnabledBool,
                     'period_equity_weight' => $periodEquityWeight,
-                    'equity_strength' => $equityStrength,
-                    'priority' => $priority,
+                    'allow_shortfall' => $allowShortfall,
                     'active' => $active,
                     'blocks' => $blocks,
                     'lunch_overlap_allowed' => $lunchOverlapAllowed,
@@ -534,7 +602,8 @@ class FixedActivitiesBuilderService
                     'is_remote_work_compatible' => $remoteWorkCompatible,
                     'base_offer_name' => $baseOffer,
                     'incompatible_base_offers' => $incompatibleBaseOffers,
-                    'equity_group' => $equityGroupId ?? $baseOffer,
+                    'equity_group' => $groupKey,
+                    'pool_key' => $poolKey,
                     'site_mode' => $siteMode,
                 ];
             };
@@ -548,7 +617,7 @@ class FixedActivitiesBuilderService
                 foreach ($sitesArr as $site) {
                     $siteName = (string)$site->name;
                     if ($siteName !== '') {
-                        $pushFixed($baseOffer . $siteSep . $siteName);
+                        $pushFixed($baseOffer . $siteSep . $siteName, $siteName);
                     }
                 }
             }

@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from ortools.sat.python import cp_model
 import collections
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from pydantic import BaseModel
 
 # --- MODELES PYDANTIC ---
@@ -28,12 +28,14 @@ class FixedActivity(BaseModel):
     start_time: str
     end_time: str
     quantity: int
-    priority: int
+    allow_shortfall: bool = False
+    equity_enabled: bool = True
     active: bool = True
     is_splittable: bool = True
     blocks: Optional[List[FixedActivityBlock]] = []
     incompatible_base_offers: Optional[List[str]] = []
     equity_group: Optional[str] = None
+    pool_key: Optional[str] = None
     lunch_attach_mode: Optional[str] = 'none'
     lunch_overlap_allowed: bool = True
     is_remote_work_compatible: bool = True
@@ -48,6 +50,10 @@ class Agent(BaseModel):
     skills: List[str]
     remote_work_intervals: Optional[List[Dict[str, str]]] = []
     current_realization: Optional[Dict[str, float]] = {}
+    # V2 équité : cible cumulative par equity_group (minutes)
+    target_quota_minutes: Optional[Dict[str, float]] = None
+    # V2 diversité inter-jours : historique cumulé en minutes par base_offer_name (ex: "RDV" -> 120)
+    current_offer_minutes: Optional[Dict[str, int]] = None
 
 class FixedActivityProblem(BaseModel):
     workday_start_time: str
@@ -117,12 +123,85 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 if current_mode in ['global', 'pooled']:
                     equity_group_modes[a.equity_group] = current_mode
 
-        if a.priority >= 100:
-            prio_acts.append(a)
-        else:
+        if a.is_splittable:
             sec_acts.append(a)
+        else:
+            prio_acts.append(a)
             
     enforce_remote = getattr(problem, 'enforce_remote_work_incompatibilities', False)
+
+    all_acts_combined = prio_acts + sec_acts
+
+    # NOUVEAU : Mapping pool -> [base_offer_names] distincts pour la diversité inter-jours
+    # Le pool scope par site (per_site = equity_group::site) ; base_offer_name ignore les suffixes de site.
+    equity_group_offers: Dict[str, List[str]] = {}
+    for a in all_acts_combined:
+        if a.equity_group and a.equity_enabled:
+            eqg = a.pool_key or a.equity_group
+            base = (a.base_offer_name or a.offer_name).strip()
+            if eqg not in equity_group_offers:
+                equity_group_offers[eqg] = []
+            if base not in equity_group_offers[eqg]:
+                equity_group_offers[eqg].append(base)
+
+    # V2 diversité : besoin total en minutes par pool et par sous-activité
+    offer_need_minutes: Dict[str, Dict[str, int]] = {}
+    for a in all_acts_combined:
+        if a.equity_group and a.equity_enabled:
+            base = (a.base_offer_name or a.offer_name).strip()
+            dur = (parse_t(a.end_time) - parse_t(a.start_time)) % 1440  # modulo 24h (vacations de nuit)
+            need = a.quantity * dur
+            eqg = a.pool_key or a.equity_group
+            if eqg not in offer_need_minutes:
+                offer_need_minutes[eqg] = {}
+            offer_need_minutes[eqg][base] = offer_need_minutes[eqg].get(base, 0) + need
+
+    # V2 diversité : cibles par sous-activité (proportionnel pur au besoin + redistribution du delta)
+    target_offer_minutes: Dict[Tuple[int, str], int] = {}
+    for eq_group, base_names in equity_group_offers.items():
+        if len(base_names) < 2:
+            continue
+        for a_idx in range(len(agents)):
+            agent_obj = agents[a_idx]
+            skills = set(agent_obj.skills)
+            target_quota = int((agent_obj.target_quota_minutes or {}).get(eq_group, 0))
+            if target_quota <= 0:
+                continue
+
+            feasible_names = [bn for bn in base_names if bn in skills]
+            k = len(feasible_names)
+            if k == 0:
+                continue
+
+            feasible_need = sum(offer_need_minutes[eq_group].get(bn, 0) for bn in feasible_names)
+            if feasible_need <= 0:
+                continue
+
+            targets = []
+            for base_name in feasible_names:
+                offer_need = offer_need_minutes[eq_group].get(base_name, 0)
+                share = offer_need / feasible_need
+                raw = round(target_quota * share)
+                targets.append((base_name, raw))
+
+            current_sum = sum(v for _, v in targets)
+            delta = target_quota - current_sum
+            if delta != 0:
+                targets.sort(key=lambda x: -x[1])
+                step = 1 if delta > 0 else -1
+                while delta != 0:
+                    valid_indices = [i for i, (_, val) in enumerate(targets) if step == 1 or val > 0]
+                    if not valid_indices:
+                        break
+                    for idx in valid_indices:
+                        if delta == 0:
+                            break
+                        bn, val = targets[idx]
+                        targets[idx] = (bn, val + step)
+                        delta -= step
+
+            for base_name, val in targets:
+                target_offer_minutes[(a_idx, base_name)] = val
 
     # FENÊTRES
     def get_valid_starts(window, duration):
@@ -157,8 +236,10 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
     
     p2_diversification_penalties = []
     
-    all_acts_combined = prio_acts + sec_acts
     pools = {}
+
+    # NOUVEAU : Accumulation des slots par base_offer_name pour la diversité inter-jours
+    agent_offer_slots: Dict[Tuple[int, str], List] = {}
 
     # --- 3. BOUCLE PRINCIPALE ---
     for a_idx, agent in enumerate(agents):
@@ -220,9 +301,15 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
 
                             model.Add(agent_active_on_group[a_idx, grp_key] >= v)
 
-                            if act.equity_group:
-                                if act.equity_group not in agent_equity_minutes[a_idx]: agent_equity_minutes[a_idx][act.equity_group] = []
-                                agent_equity_minutes[a_idx][act.equity_group].append(v)
+                            if act.equity_group and act.equity_enabled:
+                                if (act.pool_key or act.equity_group) not in agent_equity_minutes[a_idx]: agent_equity_minutes[a_idx][act.pool_key or act.equity_group] = []
+                                agent_equity_minutes[a_idx][act.pool_key or act.equity_group].append(v)
+                                # Diversité inter-jours : accumulation par base_offer_name
+                                base = (act.base_offer_name or act.offer_name).strip()
+                                key = (a_idx, base)
+                                if key not in agent_offer_slots:
+                                    agent_offer_slots[key] = []
+                                agent_offer_slots[key].append(v)
                             
                             # HARD CONSTRAINT TT
                             if enforce_remote and t_idx in tt_slots and not act.is_remote_work_compatible:
@@ -284,10 +371,16 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                                 model.Add(agent_active_on_group[a_idx, grp_key] >= v)
 
                                 # Equité P2
-                                if act.equity_group:
-                                    if act.equity_group not in agent_equity_minutes[a_idx]:
-                                        agent_equity_minutes[a_idx][act.equity_group] = []
-                                    agent_equity_minutes[a_idx][act.equity_group].append(v)
+                                if act.equity_group and act.equity_enabled:
+                                    if (act.pool_key or act.equity_group) not in agent_equity_minutes[a_idx]:
+                                        agent_equity_minutes[a_idx][act.pool_key or act.equity_group] = []
+                                    agent_equity_minutes[a_idx][act.pool_key or act.equity_group].append(v)
+                                    # Diversité inter-jours : accumulation par base_offer_name
+                                    base = (act.base_offer_name or act.offer_name).strip()
+                                    key = (a_idx, base)
+                                    if key not in agent_offer_slots:
+                                        agent_offer_slots[key] = []
+                                    agent_offer_slots[key].append(v)
 
                                 # HARD CONSTRAINT TT
                                 if enforce_remote and t_idx in tt_slots and not act.is_remote_work_compatible:
@@ -324,12 +417,18 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                             
                             model.Add(agent_active_on_group[a_idx, grp_key] >= v)
 
-                            if act.equity_group:
-                                if act.equity_group not in agent_equity_minutes[a_idx]:
-                                    agent_equity_minutes[a_idx][act.equity_group] = []
-                                agent_equity_minutes[a_idx][act.equity_group].append(v)
+                            if act.equity_group and act.equity_enabled:
+                                if (act.pool_key or act.equity_group) not in agent_equity_minutes[a_idx]:
+                                    agent_equity_minutes[a_idx][act.pool_key or act.equity_group] = []
+                                agent_equity_minutes[a_idx][act.pool_key or act.equity_group].append(v)
+                                # Diversité inter-jours : accumulation par base_offer_name
+                                base = (act.base_offer_name or act.offer_name).strip()
+                                key = (a_idx, base)
+                                if key not in agent_offer_slots:
+                                    agent_offer_slots[key] = []
+                                agent_offer_slots[key].append(v)
 
-                            # HARD CONSTRAINT TT
+                            # HARD CONSTRAINT TT (P2 non-scindable)
                             if enforce_remote and t_idx in tt_slots and not act.is_remote_work_compatible:
                                 model.Add(v == 0)
 
@@ -353,10 +452,16 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                             
                             model.Add(agent_active_on_group[a_idx, grp_key] >= v)
 
-                            if act.equity_group:
-                                if act.equity_group not in agent_equity_minutes[a_idx]:
-                                    agent_equity_minutes[a_idx][act.equity_group] = []
-                                agent_equity_minutes[a_idx][act.equity_group].append(v)
+                            if act.equity_group and act.equity_enabled:
+                                if (act.pool_key or act.equity_group) not in agent_equity_minutes[a_idx]:
+                                    agent_equity_minutes[a_idx][act.pool_key or act.equity_group] = []
+                                agent_equity_minutes[a_idx][act.pool_key or act.equity_group].append(v)
+                                # Diversité inter-jours : accumulation par base_offer_name
+                                base = (act.base_offer_name or act.offer_name).strip()
+                                key = (a_idx, base)
+                                if key not in agent_offer_slots:
+                                    agent_offer_slots[key] = []
+                                agent_offer_slots[key].append(v)
                             
                             # HARD CONSTRAINT TT
                             if enforce_remote and t_idx in tt_slots and not act.is_remote_work_compatible:
@@ -454,6 +559,34 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                     model.Add(conflict_v >= agent_active_on_group[a_idx, grp_a] + agent_active_on_group[a_idx, off_b] - 1)
                     agent_conflict_offers[a_idx].append(conflict_v)
 
+    # NOUVEAU : Variables projetées pour la diversité inter-jours (en MINUTES)
+    # Total projeté = historique PHP (current_offer_minutes) + slots assignés aujourd'hui
+    agent_projected_minutes: Dict[Tuple[int, str], cp_model.IntVar] = {}
+    for (a_idx, base_name), slot_vars in agent_offer_slots.items():
+        if not slot_vars:
+            continue
+        agent_obj = agents[a_idx]
+        historical_minutes = 0
+        if agent_obj.current_offer_minutes:
+            historical_minutes = agent_obj.current_offer_minutes.get(base_name, 0)
+
+        today_minutes_var = sum(slot_vars) * slot_min  # slots → minutes
+        max_possible = historical_minutes + (num_slots * slot_min)
+        proj_min = model.NewIntVar(historical_minutes, max_possible, f'proj_a{a_idx}_{base_name}')
+        model.Add(proj_min == historical_minutes + today_minutes_var)
+        agent_projected_minutes[(a_idx, base_name)] = proj_min
+
+    # NOUVEAU : Diversité V2 - pénalité d'écart à la cible par sous-activité
+    diversity_penalty_vars: List[cp_model.IntVar] = []
+    DIVERSITY_WEIGHT = 100
+
+    for (a_idx, base_name), proj_min in agent_projected_minutes.items():
+        target = target_offer_minutes.get((a_idx, base_name), 0)
+        diff = model.NewIntVar(0, num_slots * slot_min * len(agents) + 10000,
+                              f'diff_tgt_a{a_idx}_{base_name}')
+        model.AddAbsEquality(diff, proj_min - target)
+        diversity_penalty_vars.append(diff)
+
     # --- 4. CONTRAINTES GLOBALES ---
     is_eating = {}
     for a_idx in range(len(agents)):
@@ -517,79 +650,93 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 staggering_penalty_vars.append(surplus)
 
     # =================================================================
-    # EQUITÉ HYBRIDE : GLOBAL (Multi-sites) vs PER_SITE (Local)
+    # EQUITÉ : quota proportionnel (obligatoire) vs équilibrage normalisé (optionnel)
     # =================================================================
-    equity_gap_total = 0
-    
-    for group, mode in equity_group_modes.items():
-        
-        # MODE A: GLOBAL ou POOLED -> On compare tous les agents
-        if mode in ['global', 'pooled']:
-            comp_in_global_pool = []
-            for i in range(len(agents)):
-                if group in agent_equity_minutes[i]:
-                    comp_in_global_pool.append(i)
-            
-            if len(comp_in_global_pool) > 1:
-                cumuls = []
-                for i in comp_in_global_pool:
-                    h_val = int(float((agents[i].current_realization or {}).get(group, 0)))
-                    today = sum(agent_equity_minutes[i][group]) * slot_min
-                    c = model.NewIntVar(0, 2000000, f'c_glob_{i}_{group}')
-                    model.Add(c == h_val + today)
-                    cumuls.append(c)
-                
-                mx = model.NewIntVar(0, 2000000, f'mx_glob_{group}')
-                mn = model.NewIntVar(0, 2000000, f'mn_glob_{group}')
-                model.AddMaxEquality(mx, cumuls)
-                model.AddMinEquality(mn, cumuls)
-                equity_gap_total += (mx - mn)
-        
-        # MODE B: PER_SITE (Défaut) -> On compare site par site
+    # Règle de résolution stricte : si au moins une activité du pool est obligatoire,
+    # tout le pool devient obligatoire (le quota est plus fort que l'équilibrage).
+    pool_has_mandatory: Dict[str, bool] = {}
+    for a in all_acts_combined:
+        if a.equity_group and a.equity_enabled:
+            pool = a.pool_key or a.equity_group
+            if not a.allow_shortfall:
+                pool_has_mandatory[pool] = True
+    # Un pool est optionnel seulement si TOUTES ses activités sont optionnelles.
+    pool_is_optional: Dict[str, bool] = {}
+    for a in all_acts_combined:
+        if a.equity_group and a.equity_enabled:
+            pool = a.pool_key or a.equity_group
+            pool_is_optional[pool] = not pool_has_mandatory.get(pool, False)
+
+    pool_cumul: Dict[str, List[Tuple[int, cp_model.IntVar]]] = {}
+    pool_target: Dict[str, Dict[int, int]] = {}
+    for i in range(len(agents)):
+        for pool in agent_equity_minutes[i]:
+            h_val = int(float((agents[i].current_realization or {}).get(pool, 0)))
+            today_minutes = sum(agent_equity_minutes[i][pool]) * slot_min
+            cumul = model.NewIntVar(0, 2000000, f'cumul_{i}_{pool}')
+            model.Add(cumul == h_val + today_minutes)
+
+            target = int(float((agents[i].target_quota_minutes or {}).get(pool, 0)))
+            pool_cumul.setdefault(pool, []).append((i, cumul))
+            pool_target.setdefault(pool, {})[i] = target
+
+    equity_gap_weighted = 0
+    balance_terms = []
+    for pool, entries in pool_cumul.items():
+        if pool_is_optional.get(pool, False):
+            # Équilibrage normalisé : min-max sur cumul_i / target_i, exprimé en "pourcents".
+            # Facteur d'échelle 100 : M devient un pourcentage fin (ex: 25, 75, 120).
+            # Sans ce facteur, la division entière M*tgt >= cumul produit un effet
+            # "escalier" : 25% et 99% de charge donnent tous deux M=1, aucun équilibrage.
+            M = model.NewIntVar(0, 100000, f'balance_{pool}')
+            for i, cumul in entries:
+                tgt = pool_target[pool].get(i, 0)
+                if tgt > 0:
+                    model.Add(M * tgt >= cumul * 100)
+            balance_terms.append(M)
         else:
-            for site, a_indices in pools.items():
-                comp_in_local_pool = [i for i in a_indices if group in agent_equity_minutes[i]]
-                if len(comp_in_local_pool) > 1:
-                    cumuls = []
-                    for i in comp_in_local_pool:
-                        h_val = int(float((agents[i].current_realization or {}).get(group, 0)))
-                        today = sum(agent_equity_minutes[i][group]) * slot_min
-                        c = model.NewIntVar(0, 2000000, f'c_loc_{i}_{group}')
-                        model.Add(c == h_val + today)
-                        cumuls.append(c)
-                    
-                    mx = model.NewIntVar(0, 2000000, f'mx_loc_{site}_{group}')
-                    mn = model.NewIntVar(0, 2000000, f'mn_loc_{site}_{group}')
-                    model.AddMaxEquality(mx, cumuls)
-                    model.AddMinEquality(mn, cumuls)
-                    equity_gap_total += (mx - mn)
+            # Quota proportionnel : |cumul_i - cible_i|
+            for i, cumul in entries:
+                tgt = pool_target[pool].get(i, 0)
+                gap = model.NewIntVar(0, 2000000, f'gap_{i}_{pool}')
+                model.AddAbsEquality(gap, cumul - tgt)
+                equity_gap_weighted += gap
 
     # --- 6. OBJECTIFS ---
-    shortfall_vars_p1 = []
-    shortfall_vars_p2 = []
+    MANDATORY_COVERAGE_WEIGHT = 10**10
+    OPTIONAL_COVERAGE_WEIGHT = 10**4
+    EQUITY_WEIGHT = 10**6
+    BALANCE_WEIGHT = 10
+
+    def shortfall_weight(allow_shortfall: bool) -> int:
+        return OPTIONAL_COVERAGE_WEIGHT if allow_shortfall else MANDATORY_COVERAGE_WEIGHT
+
+    shortfall_weighted_terms = []
 
     for f_idx, act in enumerate(prio_acts):
+        w = shortfall_weight(act.allow_shortfall)
         for t_idx, tm in enumerate(grid):
             if parse_t(act.start_time) <= tm < parse_t(act.end_time):
                 sf = model.NewIntVar(0, act.quantity, f'sf_prio_{f_idx}_{t_idx}')
                 assigned = [x_prio[a_idx, f_idx, t_idx] for a_idx in range(len(agents)) if (a_idx, f_idx, t_idx) in x_prio]
                 model.Add(sum(assigned) == act.quantity - sf)
-                shortfall_vars_p1.append(sf)
+                shortfall_weighted_terms.append(sf * w)
 
     for s_idx, act in enumerate(sec_acts):
+        w = shortfall_weight(act.allow_shortfall)
         ranges_to_cover = []
         if act.blocks:
             ranges_to_cover = [(parse_t(b.start), parse_t(b.end)) for b in act.blocks]
         else:
             ranges_to_cover = [(parse_t(act.start_time), parse_t(act.end_time))]
-            
+
         for t_idx, tm in enumerate(grid):
             in_range = any(r[0] <= tm < r[1] for r in ranges_to_cover)
             if in_range:
                 sf = model.NewIntVar(0, act.quantity, f'sf_sec_{s_idx}_{t_idx}')
                 assigned = [x_sec[a_idx, s_idx, t_idx] for a_idx in range(len(agents)) if (a_idx, s_idx, t_idx) in x_sec]
                 model.Add(sum(assigned) == act.quantity - sf)
-                shortfall_vars_p2.append(sf)
+                shortfall_weighted_terms.append(sf * w)
 
     # UNICITE GLOBALE
     for a_idx in range(len(agents)):
@@ -604,16 +751,17 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
 
     # --- MINIMISATION (POIDS REAJUSTÉS) ---
     model.Minimize(
-        sum(shortfall_vars_p1) * 10**10 +        
-        sum(shortfall_vars_p2) * 10**6 +
+        sum(shortfall_weighted_terms) +
         sum(p2_diversification_penalties) * 10**5 +
-        sum(sum(c) for c in agent_conflict_offers.values()) * 10**7 + 
-        sum(staggering_penalty_vars) * 10**6 + 
-        equity_gap_total * 10**3 + 
-        sum(all_pauses) * -10**5 + 
-        sum(all_lunches) * -10**5 - 
-        sum(x_prio.values()) - 
-        sum(x_sec.values())
+        sum(sum(c) for c in agent_conflict_offers.values()) * 10**7 +
+        sum(staggering_penalty_vars) * 10**6 +
+        equity_gap_weighted * EQUITY_WEIGHT +
+        sum(balance_terms) * BALANCE_WEIGHT +
+        sum(all_pauses) * -10**5 +
+        sum(all_lunches) * -10**5 -
+        sum(x_prio.values()) -
+        sum(x_sec.values()) +
+        sum(diversity_penalty_vars) * DIVERSITY_WEIGHT
     )
 
     solver = cp_model.CpSolver()
@@ -716,4 +864,15 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 if not ass["breaks"]: del ass["breaks"]
                 final_assignments.append(ass)
 
-    return {"status": "FEASIBLE" if status in [cp_model.OPTIMAL, cp_model.FEASIBLE] else "INFEASIBLE", "assignments": final_assignments, "shortfalls": {}}
+    ok = status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+    status_str = ("OPTIMAL" if status == cp_model.OPTIMAL
+                  else "FEASIBLE" if status == cp_model.FEASIBLE
+                  else solver.StatusName(status))
+    return {
+        "status": status_str,
+        "assignments": final_assignments,
+        "shortfalls": {},
+        "wall_time_seconds": round(solver.WallTime(), 3),
+        "objective_value": solver.ObjectiveValue() if ok else None,
+        "best_bound": solver.BestObjectiveBound() if ok else None,
+    }

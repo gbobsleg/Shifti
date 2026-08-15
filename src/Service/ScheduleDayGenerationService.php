@@ -218,8 +218,17 @@ class ScheduleDayGenerationService
 
             // Ciblage global + rétroaction (currentRealization cumulé vs cible cumulée)
             $fixedBuilder = new FixedActivitiesBuilderService();
-            $offerNameToEquityGroup = $fixedBuilder->getOfferNameToEquityGroupMap($dateStr);
-            $globalRealization = $this->buildCurrentRealizationFromDrafts($jobId, $dateStr, $offerNameToEquityGroup);
+            $equityMeta = $fixedBuilder->getOfferNameToEquityGroupMap($dateStr);
+            $userSiteById = [];
+            foreach ($agentsForJson as $ag) {
+                $userSiteById[(int)($ag['id'] ?? 0)] = (string)($ag['site'] ?? '');
+            }
+            $globalRealization = $this->buildCurrentRealizationFromEquityState(
+                $equityStateActivities,
+                $equityMeta['offer_to_group'],
+                $equityMeta['group_mode'],
+                $userSiteById,
+            );
             $fixedOptions = [
                 'wfm_setting_id' => (int)$job->wfm_setting_id,
                 'scenario_id' => $scenarioId,
@@ -246,9 +255,26 @@ class ScheduleDayGenerationService
             foreach ($fixedPayload['agents'] as $ag) {
                 $agCopy = $ag;
                 $aid = (int)($agCopy['id'] ?? 0);
-                $agCopy['target_quota_minutes'] = $cumulativeTargets[$aid] ?? [];
+                $agCopy['target_quota_minutes'] = $cumulativeTargets[$aid] ?? (object)[];
                 $agentsForSolver[] = $agCopy;
             }
+
+            // Injecter l'historique des compteurs par base_offer_name pour la diversité inter-jours
+            // $equityStateActivities est déjà lu depuis equity_state_json (lignes 84-101)
+            foreach ($agentsForSolver as &$agCopy) {
+                $aid = (int)($agCopy['id'] ?? 0);
+                $counts = [];
+                foreach ($equityStateActivities as $offerName => $byAgent) {
+                    if (is_array($byAgent) && isset($byAgent[$aid])) {
+                        $counts[(string)$offerName] = (int)$byAgent[$aid];
+                    }
+                }
+                if (!empty($counts)) {
+                    $agCopy['current_offer_minutes'] = $counts;
+                }
+            }
+            unset($agCopy);
+
             $agentsForJson = $agentsForSolver;
             $fixedProblem = [
                 'agents' => $agentsForSolver,
@@ -286,7 +312,7 @@ class ScheduleDayGenerationService
                 // Passe 1 échoue: on continue quand même avec Passe 2 (sans indisponibilités fixes)
                 $fixedActivityAssignments = [];
                 $fixedActivityShortfalls = [];
-            } elseif (!$solutionPasse1 || ($solutionPasse1['status'] ?? '') !== 'FEASIBLE') {
+            } elseif (!$solutionPasse1 || !in_array($solutionPasse1['status'] ?? '', ['OPTIMAL', 'FEASIBLE'], true)) {
                 // Passe 1 échoue: on continue quand même avec Passe 2 (sans indisponibilités fixes)
                 $fixedActivityAssignments = [];
                 $fixedActivityShortfalls = [];
@@ -295,16 +321,38 @@ class ScheduleDayGenerationService
             } else {
                 $fixedActivityAssignments = $solutionPasse1['assignments'] ?? [];
                 $fixedActivityShortfalls = $solutionPasse1['shortfalls'] ?? [];
-                $fixedPass1['status'] = 'FEASIBLE';
+                $fixedPass1['status'] = (string)($solutionPasse1['status'] ?? 'FEASIBLE');
+                $fixedPass1['wall_time_seconds'] = $solutionPasse1['wall_time_seconds'] ?? null;
+                $fixedPass1['objective_value'] = $solutionPasse1['objective_value'] ?? null;
+                $fixedPass1['best_bound'] = $solutionPasse1['best_bound'] ?? null;
 
                 // Maj équité période (Option 1): incrémenter en demi-journées/blocs (pas par créneau).
                 // Pour chaque activité équitable, un agent prend +1 par bloc couvert ce jour.
+
+                // Mapping offer_name virtuel (ex: "RDV - Site A") -> base_offer_name (ex: "RDV")
+                // pour indexer equityStateActivities par le nom pur (sans suffixe de site)
+                $activityToBaseName = [];
+                foreach ($fixedActivities as $fa) {
+                    if (!empty($fa['offer_name'])) {
+                        $activityToBaseName[(string)$fa['offer_name']] = (string)($fa['base_offer_name'] ?? $fa['offer_name']);
+                    }
+                }
+
                 $equitableActivityBlocks = [];
+                // Durée globale (bornes start_time/end_time) par offer_name virtuel, en minutes.
+                // Sert de fallback pour les activités NON splittables (aucun sous-bloc) :
+                // sinon leur durée serait 0 et elles ne seraient jamais comptabilisées.
+                $activityDurations = [];
                 foreach ($fixedActivities as $fa) {
                     if (!empty($fa['period_equity_weight']) && !empty($fa['offer_name'])) {
                         $offerName = (string)$fa['offer_name'];
                         $blocks = $fa['blocks'] ?? null;
                         $equitableActivityBlocks[$offerName] = is_array($blocks) ? $blocks : null;
+                    }
+                    if (!empty($fa['offer_name']) && !empty($fa['start_time']) && !empty($fa['end_time'])) {
+                        $s = $this->timeToMinutes((string)$fa['start_time']);
+                        $e = $this->timeToMinutes((string)$fa['end_time']);
+                        $activityDurations[(string)$fa['offer_name']] = ($e - $s + 1440) % 1440;
                     }
                 }
 
@@ -333,92 +381,44 @@ class ScheduleDayGenerationService
                             }
                         }
                     }
-                    $covered[$activity][$aid][$blockKey] = true;
-                }
-
-                // Calcul de la moyenne d'incrément par activité pour les agents présents
-                // Format: [activity => average_inc] (arrondi au supérieur)
-                $activityAverageInc = [];
-                foreach ($covered as $activity => $byAgent) {
-                    $totalInc = 0;
-                    $agentCount = 0;
-                    
-                    foreach ($byAgent as $aid => $blocksSet) {
-                        $inc = is_array($blocksSet) ? count($blocksSet) : 0;
-                        if ($inc > 0) {
-                            $totalInc += $inc;
-                            $agentCount++;
+                    // Calculer la durée du bloc en minutes (modulo 24h pour vacations de nuit)
+                    $blockDuration = 0;
+                    if ($blockKey !== 'full' && is_array($blocks) && isset($blocks[(int)$blockKey])) {
+                        $bStart = $this->timeToMinutes((string)$blocks[(int)$blockKey]['start']);
+                        $bEnd   = $this->timeToMinutes((string)$blocks[(int)$blockKey]['end']);
+                        $blockDuration = ($bEnd - $bStart + 1440) % 1440;
+                    } else {
+                        // Cas 'full' ou non-match : sommer la durée de tous les blocs
+                        if (is_array($blocks)) {
+                            foreach ($blocks as $b) {
+                                if (!empty($b['start']) && !empty($b['end'])) {
+                                    $bStart = $this->timeToMinutes((string)$b['start']);
+                                    $bEnd   = $this->timeToMinutes((string)$b['end']);
+                                    $blockDuration += ($bEnd - $bStart + 1440) % 1440;
+                                }
+                            }
+                        }
+                        // Activité non splittable (aucun sous-bloc) : fallback sur la durée globale
+                        // de l'activité, sinon la durée resterait 0 et l'activité serait ignorée.
+                        if ($blockDuration <= 0) {
+                            $blockDuration = $activityDurations[$activity] ?? 0;
                         }
                     }
-                    
-                    // Calcul de la moyenne (arrondi supérieur) seulement si des agents ont travaillé
-                    if ($agentCount > 0) {
-                        $activityAverageInc[$activity] = (int)ceil($totalInc / $agentCount);
-                    }
+                    $covered[$activity][$aid][$blockKey] = $blockDuration;
                 }
-
-                // Récupération des agents absents pour ce jour
-                // Une seule requête optimisée pour tous les absents
-                $dayStart = $dateToCalc->startOfDay();
-                $dayEnd = $dateToCalc->endOfDay();
-                
-                $absenceOfferIds = $Offers->find()
-                    ->select(['id'])
-                    ->where(['offer_type IN' => ['absence', 'meeting']])
-                    ->all()
-                    ->extract('id')
-                    ->toList();
-                
-                $absentAgentIds = [];
-                if (!empty($absenceOfferIds)) {
-                    $absenceRanges = $Ranges->find()
-                        ->contain(['Offers'])
-                        ->where([
-                            'Ranges.offer_id IN' => $absenceOfferIds,
-                            'Ranges.date_start <=' => $dayEnd,
-                            'Ranges.date_end >=' => $dayStart,
-                        ])
-                        ->all();
-                    
-                    foreach ($absenceRanges as $range) {
-                        $userId = (int)$range->user_id;
-                        if ($userId > 0) {
-                            $absentAgentIds[$userId] = true;
-                        }
-                    }
-                }
-                $absentAgentIds = array_keys($absentAgentIds);
 
                 // Mise à jour des compteurs d'équité pour les agents présents
                 foreach ($covered as $activity => $byAgent) {
+                    $baseName = $activityToBaseName[$activity] ?? $activity;
                     foreach ($byAgent as $aid => $blocksSet) {
-                        $inc = is_array($blocksSet) ? count($blocksSet) : 0;
+                        $inc = is_array($blocksSet) ? array_sum($blocksSet) : 0;
                         if ($inc <= 0) {
                             continue;
                         }
-                        if (!isset($equityStateActivities[$activity]) || !is_array($equityStateActivities[$activity])) {
-                            $equityStateActivities[$activity] = [];
+                        if (!isset($equityStateActivities[$baseName]) || !is_array($equityStateActivities[$baseName])) {
+                            $equityStateActivities[$baseName] = [];
                         }
-                        $equityStateActivities[$activity][$aid] = (int)($equityStateActivities[$activity][$aid] ?? 0) + $inc;
-                    }
-                }
-
-                // Application de la neutralisation aux agents absents
-                // Pour chaque activité où des agents ont travaillé, créditer les absents de la moyenne
-                foreach ($activityAverageInc as $activity => $averageInc) {
-                    // Initialiser le tableau pour cette activité si nécessaire
-                    if (!isset($equityStateActivities[$activity]) || !is_array($equityStateActivities[$activity])) {
-                        $equityStateActivities[$activity] = [];
-                    }
-                    
-                    // Pour chaque agent absent qui n'a pas travaillé sur cette activité
-                    foreach ($absentAgentIds as $absentAgentId) {
-                        // Vérifier que l'agent n'a pas travaillé (n'est pas dans $covered)
-                        if (!isset($covered[$activity][$absentAgentId])) {
-                            // Créditer la moyenne pour neutraliser l'absence
-                            $equityStateActivities[$activity][$absentAgentId] = 
-                                (int)($equityStateActivities[$activity][$absentAgentId] ?? 0) + $averageInc;
-                        }
+                        $equityStateActivities[$baseName][$aid] = (int)($equityStateActivities[$baseName][$aid] ?? 0) + $inc;
                     }
                 }
 
@@ -427,6 +427,13 @@ class ScheduleDayGenerationService
                 
                 // Enrichir les agents avec les absences manuelles et corriger window_end
                 $updatedAgentsForPasse2 = $this->enrichAgentsWithManualAbsences($updatedAgentsForPasse2, $dateToCalc);
+
+                // Nettoyer current_offer_minutes (utilisé uniquement par la Passe 1)
+                // sinon rejeté par le modèle Pydantic strict de /api/v1/solve-schedule
+                foreach ($updatedAgentsForPasse2 as &$agP2) {
+                    unset($agP2['current_offer_minutes']);
+                }
+                unset($agP2);
             }
             } // fin activités fixes non vides
         } else {
@@ -1624,7 +1631,7 @@ class ScheduleDayGenerationService
         $finalStatus = 'ok';
         $errorMessage = null;
 
-        if ($fixedPass1['attempted'] && $fixedPass1['status'] !== null && $fixedPass1['status'] !== 'FEASIBLE') {
+        if ($fixedPass1['attempted'] && $fixedPass1['status'] !== null && !in_array($fixedPass1['status'], ['OPTIMAL', 'FEASIBLE'], true)) {
             $finalStatus = str_starts_with((string)$fixedPass1['status'], 'HTTP_') || $fixedPass1['status'] === 'INVALID'
                 ? 'error' : 'infeasible';
             $errorMessage = 'Passe 1 (activités fixes) : ' . $fixedPass1['status']
@@ -1859,59 +1866,40 @@ class ScheduleDayGenerationService
     }
 
     /**
-     * Construit currentRealization (agent_id => equity_group => minutes) à partir des drafts déjà sauvegardés
-     * pour les jours précédents (boucle de rétroaction V2).
+     * Construit currentRealization (agent_id => pool => minutes) à partir de
+     * equity_state.activities (comptabilité brute, pauses incluses), qui est la
+     * même unité que les cibles d'équité. Aligne ainsi cible et réalisé pour le solveur.
      *
-     * @param array<string, string> $offerNameToEquityGroup map offer_name → equity_group (from FixedActivitiesBuilderService)
+     * @param array<string, array<int, float>> $equityStateActivities base_offer_name => agent_id => minutes (brut)
+     * @param array<string, string> $offerNameToEquityGroup map base_offer_name → equity_group
+     * @param array<string, string> $groupMode map equity_group → site_mode (per_site|pooled|global)
+     * @param array<int, string> $userSiteById map user_id → nom de site
      * @return array<int, array<string, float>>
      */
-    private function buildCurrentRealizationFromDrafts(int $jobId, string $beforeDateExclusive, array $offerNameToEquityGroup): array
-    {
-        $DraftRanges = $this->fetchTable('DraftRanges');
-        $Offers = $this->fetchTable('Offers');
-        $drafts = $DraftRanges->find()
-            ->where([
-                'DraftRanges.job_id' => $jobId,
-                'DATE(DraftRanges.date_start) <' => $beforeDateExclusive,
-            ])
-            ->all();
-        $offerIdToName = $Offers->find('list', ['keyField' => 'id', 'valueField' => 'name'])->toArray();
+    private function buildCurrentRealizationFromEquityState(
+        array $equityStateActivities,
+        array $offerNameToEquityGroup,
+        array $groupMode,
+        array $userSiteById,
+    ): array {
         $realization = [];
-        foreach ($drafts as $d) {
-            $userId = (int)$d->user_id;
-            $offerId = (int)$d->offer_id;
-            $offerName = $offerIdToName[$offerId] ?? null;
-            if ($offerName === null || $offerName === '') {
+        foreach ($equityStateActivities as $baseName => $byAgent) {
+            $equityGroup = $offerNameToEquityGroup[$baseName] ?? null;
+            if ($equityGroup === null || !is_array($byAgent)) {
                 continue;
             }
-            $equityGroup = $offerNameToEquityGroup[$offerName] ?? $offerNameToEquityGroup[explode(' - ', $offerName, 2)[0] ?? ''] ?? $offerName;
-            $start = $d->date_start instanceof \DateTimeInterface ? $d->date_start->format('Y-m-d H:i:s') : (string)$d->date_start;
-            $end = $d->date_end instanceof \DateTimeInterface ? $d->date_end->format('Y-m-d H:i:s') : (string)$d->date_end;
-            $min = max(0, $this->timeToMinutesFromDatetime($end) - $this->timeToMinutesFromDatetime($start));
-            if ($min <= 0) {
-                continue;
+            $mode = $groupMode[$equityGroup] ?? 'per_site';
+            foreach ($byAgent as $userId => $minutes) {
+                $userId = (int)$userId;
+                $pool = $equityGroup;
+                if ($mode === 'per_site') {
+                    $pool = $equityGroup . '::' . ($userSiteById[$userId] ?? '');
+                }
+                $realization[$userId] ??= [];
+                $realization[$userId][$pool] = ($realization[$userId][$pool] ?? 0.0) + (float)$minutes;
             }
-            if (!isset($realization[$userId])) {
-                $realization[$userId] = [];
-            }
-            if (!isset($realization[$userId][$equityGroup])) {
-                $realization[$userId][$equityGroup] = 0.0;
-            }
-            $realization[$userId][$equityGroup] += $min;
         }
         return $realization;
-    }
-
-    private function timeToMinutesFromDatetime(string $datetime): int
-    {
-        $t = substr($datetime, 11, 8);
-        if ($t === false || $t === '') {
-            return 0;
-        }
-        $parts = explode(':', $t);
-        $h = isset($parts[0]) ? (int)$parts[0] : 0;
-        $m = isset($parts[1]) ? (int)$parts[1] : 0;
-        return ($h * 60) + $m;
     }
 
     private function truncateForLog(?string $value, int $maxLen = 500): string

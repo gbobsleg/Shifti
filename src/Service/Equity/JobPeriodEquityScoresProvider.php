@@ -30,14 +30,26 @@ class JobPeriodEquityScoresProvider implements EquityScoresProviderInterface
             return [];
         }
 
+        // Construire un mapping offer_name → base_offer_name à partir des $fixedActivities
+        $offerToBaseName = [];
+        foreach ($fixedActivities as $fa) {
+            if (!empty($fa['offer_name'])) {
+                $offerToBaseName[(string)$fa['offer_name']] = $fa['base_offer_name'] ?? (string)$fa['offer_name'];
+            }
+        }
+
+        // Lookup avec base_offer_name (et fallback offer_name si absent du mapping)
         $scores = [];
         foreach ($equitableOfferNames as $offerName) {
+            $baseName = $offerToBaseName[$offerName] ?? $offerName;
             foreach ($agentsForJson as $ag) {
                 $aid = (int)($ag['id'] ?? 0);
                 if ($aid <= 0) {
                     continue;
                 }
-                $scores[$offerName][$aid] = (int)($equityStateActivities[$offerName][$aid] ?? $legacyGlobal[$aid] ?? 0);
+                $scores[$offerName][$aid] = (int)(
+                    $equityStateActivities[$baseName][$aid] ?? $legacyGlobal[$aid] ?? 0
+                );
             }
         }
 
