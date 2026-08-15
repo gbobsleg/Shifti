@@ -184,6 +184,10 @@ class PlanningGenerationJobsController extends AppController
         $job->current_day = null;
         $job->eta_seconds = null;
         $job->error_message = null;
+        // Purge de l'état d'équité accumulé : il doit être reconstruit de zéro à chaque run.
+        // Sinon les anciennes clés (indexées par offer_name virtuel) polluent le payload
+        // et faussent current_offer_minutes / target_quota_minutes.
+        $job->equity_state_json = json_encode([]);
         $job->started_at = new \Cake\I18n\FrozenTime();
         $job->finished_at = null;
         $Jobs->saveOrFail($job);
@@ -199,7 +203,11 @@ class PlanningGenerationJobsController extends AppController
             ['job_id' => $id]
         );
 
-        $this->Flash->success('Job relancé. Il sera traité par le worker dès qu\'il sera disponible.');
+        $this->Flash->success('Job relancé. Il sera traité par le worker dès qu\'il sera disponible.', [
+            'params' => [
+                'auto-dismiss' => 5000
+            ]
+        ]);
 
         // Rediriger vers l'index si on vient de là, sinon vers la page view
         $referer = $this->request->getHeaderLine('Referer');
@@ -446,6 +454,8 @@ class PlanningGenerationJobsController extends AppController
                     'current_step' => null,
                     'eta_seconds' => null,
                     'error_message' => null,
+                    // Purge de l'état d'équité : reconstruit de zéro (cf. retry()).
+                    'equity_state_json' => json_encode([]),
                     'started_at' => new \Cake\I18n\FrozenTime(),
                     'finished_at' => null,
                 ]);
@@ -570,7 +580,7 @@ class PlanningGenerationJobsController extends AppController
 
         $status = (string)$job->status;
         $tab = (string)($this->request->getQuery('tab') ?? '');
-        if (!in_array($tab, ['planning', 'qualite', 'technique', 'conflits'], true)) {
+        if (!in_array($tab, ['planning', 'qualite', 'equite', 'technique', 'conflits'], true)) {
             if (in_array($status, ['queued', 'running'], true)) {
                 $tab = 'planning';
             } elseif ($status === 'finished_with_errors') {
@@ -588,8 +598,8 @@ class PlanningGenerationJobsController extends AppController
             $this->loadReportViewVars($id);
         }
 
-        // Équité uniquement sur l'onglet Qualité
-        if ($tab === 'qualite') {
+        // Équité : onglet dédié ou onglet Qualité (rétro-compat)
+        if (in_array($tab, ['qualite', 'equite'], true)) {
             $this->loadEquityViewVars($id);
         }
 
@@ -1064,7 +1074,7 @@ class PlanningGenerationJobsController extends AppController
     {
         $this->Authorization->authorize(new \App\Resource\PlanningGenerationJobsResource(), 'equityReport');
 
-        return $this->redirect(['action' => 'view', $id, '?' => ['tab' => 'qualite', 'section' => 'equity']]);
+        return $this->redirect(['action' => 'view', $id, '?' => ['tab' => 'equite']]);
     }
 
     /**
@@ -1153,7 +1163,7 @@ class PlanningGenerationJobsController extends AppController
         $offerIds = array_values(array_unique(array_map(fn($r) => (int)$r->offer_id, $draftRows)));
         $offersById = $Offers->find()
             ->where(['Offers.id IN' => $offerIds])
-            ->select(['id', 'name', 'offer_type'])
+            ->select(['id', 'name', 'offer_type', 'display_order'])
             ->all()
             ->indexBy('id')
             ->toArray();
@@ -1410,13 +1420,31 @@ class PlanningGenerationJobsController extends AppController
             $g = $offerIdToEquityGroup[$oid] ?? (string)($offersById[$oid]->name ?? '#' . $oid);
             $groupToOfferIds[$g][] = $oid;
         }
+        // display_order d'une offre (0 par défaut si absent)
+        $displayOrder = fn(int $oid): int => (int)($offersById[$oid]->display_order ?? 0);
+        // Ordonner les offres de chaque groupe par display_order (label et tooltip stables)
+        foreach ($groupToOfferIds as $g => $oids) {
+            usort($oids, fn($a, $b) => [$displayOrder($a), (string)($offersById[$a]->name ?? '')] <=> [$displayOrder($b), (string)($offersById[$b]->name ?? '')]);
+            $groupToOfferIds[$g] = $oids;
+        }
         $equityGroupsColumns = [];
         foreach ($groupToOfferIds as $groupKey => $oids) {
             $labels = array_map(fn($id) => (string)($offersById[$id]->name ?? '#' . $id), $oids);
             $label = count($labels) > 1 ? $groupKey . ' (' . implode(', ', $labels) . ')' : ($labels[0] ?? $groupKey);
             $equityGroupsColumns[] = ['key' => $groupKey, 'label' => $label, 'offer_ids' => $oids];
         }
-        usort($equityGroupsColumns, fn($a, $b) => strcasecmp($a['key'], $b['key']));
+        // Tri des colonnes par display_order minimal des offres du groupe (tie-breaker alphabétique sur la clé)
+        usort($equityGroupsColumns, function ($a, $b) use ($displayOrder) {
+            $minA = PHP_INT_MAX;
+            foreach ($a['offer_ids'] as $oid) {
+                $minA = min($minA, $displayOrder($oid));
+            }
+            $minB = PHP_INT_MAX;
+            foreach ($b['offer_ids'] as $oid) {
+                $minB = min($minB, $displayOrder($oid));
+            }
+            return [$minA, strcasecmp($a['label'], $b['label'])] <=> [$minB, 0];
+        });
 
         // Filtre par offre planifiée (groupe d'équité) : ne garder que les agents avec au moins une minute sur ce groupe
         if ($filterEquityGroup !== '') {
@@ -1449,7 +1477,12 @@ class PlanningGenerationJobsController extends AppController
         // Recharger $users pour la liste restreinte (après filtre offre)
         $users = $Users->find()
             ->where(['Users.id IN' => $userIds])
-            ->contain(['Sites'])
+            ->contain([
+                'Sites',
+                'UserAvailabilities' => function ($q) {
+                    return $q->select(['user_id', 'day_of_week', 'availability_start_time', 'availability_end_time']);
+                },
+            ])
             ->select(['Users.id', 'Users.first_name', 'Users.last_name', 'Users.site_id', 'Sites.id', 'Sites.name'])
             ->orderAsc('Users.last_name')
             ->orderAsc('Users.first_name')
@@ -1458,6 +1491,53 @@ class PlanningGenerationJobsController extends AppController
             ->toArray();
 
         $userIds = array_keys($users);
+
+        // Cibles cumulées d'équité (persistées dans equity_state_json.cumulative_targets[user_id][pool_key])
+        $equityState = json_decode((string)$job->equity_state_json, true);
+        $cumulativeTargets = is_array($equityState['cumulative_targets'] ?? null)
+            ? $equityState['cumulative_targets']
+            : [];
+
+        // Réalisé cumulé en BRUT (durée nominale des créneaux, pauses incluses),
+        // indexé par base_offer_name (nom pur, ex: "Accueil physique").
+        // C'est la même comptabilité que le solveur utilise pour l'équité, donc la
+        // seule comparable à la cible (également brute). Le réalisé "net" des
+        // DraftRanges (pauses exclues) mélangeait deux conventions.
+        $equityActivities = is_array($equityState['activities'] ?? null)
+            ? $equityState['activities']
+            : [];
+
+        // Mappings de réconciliation base_offer_name -> clé de groupe d'équité et -> offer_id.
+        // DraftRanges stocke l'offer_id de base (nom pur), donc offersById a les noms purs.
+        $baseNameToGroup = [];
+        $offerIdByName = [];
+        foreach ($offersById as $oid => $offer) {
+            $name = (string)($offer->name ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $oidInt = (int)$oid;
+            $offerIdByName[$name] = $oidInt;
+            $baseNameToGroup[$name] = $offerIdToEquityGroup[$oidInt] ?? $name;
+        }
+
+        // Disponibilités contractuelles brutes par agent et jour de semaine (minutes).
+        // Brut = availability_end - availability_start, pauses/repas inclus.
+        $contractMinutesByDow = [];
+        foreach ($userIds as $uid) {
+            $u = $users[$uid] ?? null;
+            $contractMinutesByDow[$uid] = [];
+            if ($u && !empty($u->user_availabilities)) {
+                foreach ($u->user_availabilities as $av) {
+                    $dow = (int)$av->day_of_week;
+                    $start = $this->timeToMinutes($this->normalizeTime($av->availability_start_time));
+                    $end = $this->timeToMinutes($this->normalizeTime($av->availability_end_time));
+                    if ($end > $start) {
+                        $contractMinutesByDow[$uid][$dow] = (int)($contractMinutesByDow[$uid][$dow] ?? 0) + ($end - $start);
+                    }
+                }
+            }
+        }
 
         // Construire les lignes du tableau (avec minutes par groupe d'équité)
         $rows = [];
@@ -1469,6 +1549,17 @@ class PlanningGenerationJobsController extends AppController
             $remoteMin = (int)($remoteMinutesByUser[$uid] ?? 0);
             // Disponible = temps théorique - absences (le télétravail n'est pas une indisponibilité)
             $availableMin = max(0, $theoreticalMinutesTotal - $absenceMin);
+
+            // Contrat brut sur la période : somme des disponibilités par jour de semaine sur les jours OK
+            $contractMin = 0;
+            foreach ($okDates as $dateStr) {
+                try {
+                    $dow = (int)(new FrozenDate($dateStr))->format('N'); // 1=Lundi..7=Dimanche
+                } catch (\Throwable $e) {
+                    continue;
+                }
+                $contractMin += (int)($contractMinutesByDow[$uid][$dow] ?? 0);
+            }
 
             $offersMin = $workMinutes[$uid] ?? [];
             $totalWork = 0;
@@ -1485,6 +1576,55 @@ class PlanningGenerationJobsController extends AppController
                 $groupMinutes[$col['key']] = $sum;
             }
 
+            // Réconciliation BRUT : la cible d'équité est en durée nominale (pauses
+            // incluses). On remplace donc le réalisé net des groupes d'équité par la
+            // comptabilité brute du solveur, pour comparer cible et réalisé dans la
+            // même unité (le manager raisonne en créneaux complets, ex: 2 accueils = 7h).
+            $brutByGroup = [];
+            $brutOffersMin = [];
+            foreach ($equityActivities as $baseName => $byAgent) {
+                if (!is_array($byAgent)) {
+                    continue;
+                }
+                $v = (int)($byAgent[$uid] ?? 0);
+                if ($v <= 0) {
+                    continue;
+                }
+                $g = $baseNameToGroup[$baseName] ?? null;
+                if ($g !== null) {
+                    $brutByGroup[$g] = (int)($brutByGroup[$g] ?? 0) + $v;
+                }
+                $oid = $offerIdByName[$baseName] ?? null;
+                if ($oid !== null) {
+                    $brutOffersMin[$oid] = $v;
+                }
+            }
+            foreach ($brutByGroup as $g => $v) {
+                if (isset($groupMinutes[$g])) {
+                    $groupMinutes[$g] = $v;
+                }
+            }
+            foreach ($brutOffersMin as $oid => $v) {
+                $offersMin[$oid] = $v;
+            }
+
+            // Cible cumulée par groupe : les clés de pool per_site ("PILIER_FIXE::Caen")
+            // sont regroupées sur leur groupe parent ("PILIER_FIXE").
+            $targetByGroup = [];
+            $targetPools = $cumulativeTargets[$uid] ?? [];
+            if (is_array($targetPools)) {
+                foreach ($targetPools as $poolKey => $minutes) {
+                    $groupKey = explode('::', (string)$poolKey)[0];
+                    $targetByGroup[$groupKey] = (float)($targetByGroup[$groupKey] ?? 0) + (float)$minutes;
+                }
+            }
+            $gapByGroup = [];
+            foreach ($equityGroupsColumns as $col) {
+                $real = (int)($groupMinutes[$col['key']] ?? 0);
+                $target = (int)($targetByGroup[$col['key']] ?? 0);
+                $gapByGroup[$col['key']] = $real - $target;
+            }
+
             $rows[] = [
                 'user_id' => $uid,
                 'name' => $name,
@@ -1493,10 +1633,13 @@ class PlanningGenerationJobsController extends AppController
                 'pause_minutes' => (int)($pauseMinutesByUser[$uid] ?? 0),
                 'lunch_minutes' => (int)($lunchMinutesByUser[$uid] ?? 0),
                 'theoretical_minutes' => $theoreticalMinutesTotal,
+                'contract_minutes' => $contractMin,
                 'available_minutes' => $availableMin,
                 'work_minutes_total' => $totalWork,
                 'offers_minutes' => $offersMin,
                 'group_minutes' => $groupMinutes,
+                'target_minutes_by_group' => $targetByGroup,
+                'gap_minutes_by_group' => $gapByGroup,
             ];
         }
 

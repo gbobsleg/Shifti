@@ -1,6 +1,6 @@
 <?php
 /**
- * Onglet Qualité : KPI, timeline, détail par jour, équité.
+ * Onglet Qualité : KPI, timeline, détail par jour, conformité.
  *
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\PlanningGenerationJob $job
@@ -52,6 +52,22 @@ if (!function_exists('fmtPctWs')) {
         return number_format($pct, 1, ',', ' ') . ' %';
     }
 }
+
+$equityHeatClass = function (float $gapMin, float $targetMin): string {
+    if ($targetMin <= 0) {
+        return 'text-muted';
+    }
+    $ratio = abs($gapMin) / $targetMin;
+    if ($ratio <= 0.10) {
+        return 'text-success';
+    }
+    if ($gapMin < 0) {
+        // Déficit (en dessous de la cible)
+        return $ratio <= 0.25 ? 'text-warning' : 'text-danger';
+    }
+    // Excédent (au-dessus de la cible)
+    return $ratio <= 0.25 ? 'text-info' : 'text-primary';
+};
 
 $healthColor = 'success';
 if ($healthScore < 50) {
@@ -695,150 +711,4 @@ $statusLabel = static function (string $status): array {
         </div>
     </div>
     </div><!-- /#ws-quality-days -->
-</div>
-
-<?php
-$equityOpen = (($workspaceSection ?? '') === 'equity');
-?>
-<!-- Section équité (repliée par défaut, ouverte si section=equity) -->
-<div class="card shadow mb-3" id="equity">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center cursor-pointer"
-         data-toggle="collapse"
-         data-target="#ws-quality-equity"
-         aria-expanded="<?= $equityOpen ? 'true' : 'false' ?>"
-         aria-controls="ws-quality-equity"
-         role="button">
-        <h5 class="mb-0"><i class="bi bi-graph-up"></i> Équité</h5>
-        <i class="bi bi-chevron-down"></i>
-    </div>
-    <div class="collapse<?= $equityOpen ? ' show' : '' ?>" id="ws-quality-equity">
-    <div class="card-body">
-        <?php if (!$equityAvailable): ?>
-            <div class="alert alert-warning mb-0">
-                <i class="bi bi-exclamation-triangle"></i>
-                Rapport d'équité indisponible (aucun jour OK, aucun brouillon, ou filtres trop restrictifs).
-            </div>
-        <?php else: ?>
-            <div class="mb-3">
-                <div><strong>Jours pris en compte :</strong> <?= count($okDates) ?> (jours OK uniquement)</div>
-                <div><strong>Temps théorique / jour :</strong> <?= fmtMinutesWs((int)$minutesPerDay) ?></div>
-                <div><strong>Temps théorique total :</strong> <?= fmtMinutesWs((int)$theoreticalMinutesTotal) ?></div>
-            </div>
-
-            <?php
-            $equityGroupOptions = ['' => 'Toutes'];
-            foreach ($equityGroupsColumns as $col) {
-                $equityGroupOptions[$col['key']] = $col['label'];
-            }
-            ?>
-            <?= $this->Form->create(null, [
-                'type' => 'get',
-                'url' => ['action' => 'view', (int)$job->id],
-                'class' => 'mb-3',
-            ]) ?>
-            <?= $this->Form->hidden('tab', ['value' => 'qualite']) ?>
-            <?= $this->Form->hidden('section', ['value' => 'equity']) ?>
-            <div class="row g-2 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label">Site</label>
-                    <?= $this->Form->select('site_id', $sitesList, [
-                        'empty' => 'Tous',
-                        'class' => 'form-control',
-                        'value' => $filterSiteId > 0 ? $filterSiteId : '',
-                    ]) ?>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Agent</label>
-                    <?= $this->Form->select('user_id', $usersList, [
-                        'empty' => 'Tous',
-                        'class' => 'form-control',
-                        'value' => $filterUserId > 0 ? $filterUserId : '',
-                    ]) ?>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Offre planifiée</label>
-                    <?= $this->Form->select('equity_group', $equityGroupOptions, [
-                        'class' => 'form-control',
-                        'value' => $filterEquityGroup,
-                    ]) ?>
-                </div>
-                <div class="col-md-3 d-flex">
-                    <?= $this->Form->button('<i class="bi bi-funnel"></i> Filtrer', [
-                        'class' => 'btn btn-primary w-100 align-self-end',
-                        'escapeTitle' => false,
-                    ]) ?>
-                </div>
-            </div>
-            <?= $this->Form->end() ?>
-
-            <div class="mb-2 d-flex justify-content-end">
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="equity-copy-csv" title="Copie le tableau au format CSV">
-                    <i class="bi bi-clipboard"></i> Copier en CSV
-                </button>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-sm table-striped table-hover align-middle equity-report-table" id="equity-report-table">
-                    <thead>
-                        <tr>
-                            <th>Id</th>
-                            <th>Agent</th>
-                            <th class="text-end">Absences</th>
-                            <th class="text-end">Télétravail</th>
-                            <th class="text-end">Pause</th>
-                            <th class="text-end">Repas</th>
-                            <th class="text-end">Work total</th>
-                            <th class="text-end"><span class="pct-dispo">% disponible</span></th>
-                            <?php foreach ($equityGroupsColumns as $col): ?>
-                                <th class="text-end equity-col" title="<?= h($col['label']) ?>"><?= h($col['label']) ?></th>
-                            <?php endforeach; ?>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($rows as $r): ?>
-                            <?php
-                            $theo = (int)$r['theoretical_minutes'];
-                            $avail = (int)$r['available_minutes'];
-                            $workTotal = (int)$r['work_minutes_total'];
-                            $pctTheo = $theo > 0 ? ($workTotal * 100.0 / $theo) : null;
-                            $pctAvail = $avail > 0 ? ($workTotal * 100.0 / $avail) : null;
-                            $groupMinutes = (array)($r['group_minutes'] ?? []);
-                            ?>
-                            <tr>
-                                <td><?= (int)$r['user_id'] ?></td>
-                                <td><strong><?= h((string)$r['name']) ?></strong></td>
-                                <td class="text-end"><?= fmtMinutesWs((int)($r['absence_minutes'] ?? 0)) ?></td>
-                                <td class="text-end"><?= fmtMinutesWs((int)($r['remote_minutes'] ?? 0)) ?></td>
-                                <td class="text-end"><?= fmtMinutesWs((int)($r['pause_minutes'] ?? 0)) ?></td>
-                                <td class="text-end"><?= fmtMinutesWs((int)($r['lunch_minutes'] ?? 0)) ?></td>
-                                <td class="text-end"><?= fmtMinutesWs($workTotal) ?></td>
-                                <?php
-                                $pctDispoTooltip = '% disponible : ' . fmtPctWs($pctAvail) . ' | % théorique : ' . fmtPctWs($pctTheo);
-                                $pctDispoCsv = '% disponible : ' . fmtPctWs($pctAvail) . ' ; % théorique : ' . fmtPctWs($pctTheo);
-                                ?>
-                                <td class="text-end" title="<?= h($pctDispoTooltip) ?>" data-csv-content="<?= h($pctDispoCsv) ?>">
-                                    <span class="pct-dispo"><?= fmtPctWs($pctAvail) ?></span>
-                                </td>
-                                <?php foreach ($equityGroupsColumns as $col): ?>
-                                    <?php
-                                    $m = (int)($groupMinutes[$col['key']] ?? 0);
-                                    $pctTheoOff = $theo > 0 && $m > 0 ? ($m * 100.0 / $theo) : null;
-                                    $pctAvailOff = $avail > 0 && $m > 0 ? ($m * 100.0 / $avail) : null;
-                                    $tooltip = $m > 0 ? ('% disponible : ' . fmtPctWs($pctAvailOff) . ' | Durée : ' . fmtMinutesWs($m) . ' | % théorique : ' . fmtPctWs($pctTheoOff)) : '';
-                                    $csvContent = $m > 0 ? ('% disponible : ' . fmtPctWs($pctAvailOff) . ' ; Durée : ' . fmtMinutesWs($m) . ' ; % théorique : ' . fmtPctWs($pctTheoOff)) : '—';
-                                    ?>
-                                    <td class="text-end" <?= $m > 0 ? ' title="' . h($tooltip) . '" data-csv-content="' . h($csvContent) . '"' : '' ?>>
-                                        <?= $m > 0 ? '<span class="pct-dispo">' . fmtPctWs($pctAvailOff) . '</span>' : '—' ?>
-                                    </td>
-                                <?php endforeach; ?>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <div class="alert alert-info mb-0 mt-3">
-                Lecture : une répartition « équitable » implique des <strong>% disponible</strong> proches entre agents pour une même activité ou groupe d’activités couplées.
-            </div>
-        <?php endif; ?>
-    </div>
-    </div><!-- /#ws-quality-equity -->
 </div>

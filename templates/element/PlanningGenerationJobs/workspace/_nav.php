@@ -38,6 +38,7 @@ if (is_array($complianceSummaryNav)) {
 $tabs = [
     'planning' => ['label' => 'Planning', 'icon' => 'calendar3'],
     'qualite' => ['label' => 'Qualité', 'icon' => 'clipboard-check', 'badge' => $qualityBadge, 'badgeClass' => 'danger'],
+    'equite' => ['label' => 'Équité', 'icon' => 'scale'],
     'technique' => ['label' => 'Technique', 'icon' => 'bug', 'badge' => $techBadge, 'badgeClass' => 'warning'],
     'conflits' => [
         'label' => "Conflits d'absences",

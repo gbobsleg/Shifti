@@ -79,9 +79,25 @@ $workspaceSection = $workspaceSection ?? '';
     padding: 0.2rem 0.4rem;
     margin-left: 0.25rem;
 }
-.equity-report-table { font-size: 0.85rem; }
+.equity-report-table { font-size: 0.8rem; white-space: nowrap; }
+.equity-report-table th,
+.equity-report-table td { padding: 0.3rem 0.5rem; }
+.equity-report-table th { cursor: pointer; user-select: none; }
+.equity-report-table th.sort-asc::after { content: ' ▲'; font-size: 0.7em; }
+.equity-report-table th.sort-desc::after { content: ' ▼'; font-size: 0.7em; }
 .equity-report-table .pct-dispo { font-weight: 600; }
-.equity-report-table th.equity-col { max-width: 10rem; }
+.equity-report-table th.equity-col { max-width: 10rem; white-space: normal; }
+.equity-table-responsive { max-height: 70vh; overflow-y: auto; }
+.equity-report-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #f8f9fa;
+    box-shadow: inset 0 -2px 0 #dee2e6;
+}
+#equity-cols-menu { font-size: 0.85rem; }
+#equity-cols-menu .form-check { margin-bottom: 0.1rem; }
+#equity-cols-menu .form-check-label { cursor: pointer; white-space: normal; }
 .cursor-pointer { cursor: pointer; }
 .card-header .bi-chevron-down {
     transition: transform 0.2s ease;
@@ -149,6 +165,8 @@ $workspaceSection = $workspaceSection ?? '';
 
         <?php if ($workspaceTab === 'qualite'): ?>
             <?= $this->element('PlanningGenerationJobs/workspace/_tab_quality') ?>
+        <?php elseif ($workspaceTab === 'equite'): ?>
+            <?= $this->element('PlanningGenerationJobs/workspace/_tab_equity') ?>
         <?php elseif ($workspaceTab === 'technique'): ?>
             <?= $this->element('PlanningGenerationJobs/workspace/_tab_tech') ?>
         <?php elseif ($workspaceTab === 'conflits'): ?>

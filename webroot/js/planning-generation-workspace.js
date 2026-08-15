@@ -10,26 +10,9 @@
     }
 
     var csrfToken = root.getAttribute('data-csrf-token') || '';
-    var section = root.getAttribute('data-workspace-section') || '';
 
-    // Ouvre + scroll vers #equity si demandé (deep-link / filtre)
-    if (section === 'equity') {
-        var equityEl = document.getElementById('equity');
-        var equityCollapse = document.getElementById('ws-quality-equity');
-        if (equityCollapse && typeof window.jQuery !== 'undefined') {
-            window.jQuery(equityCollapse).collapse('show');
-        } else if (equityCollapse) {
-            equityCollapse.classList.add('show');
-        }
-        if (equityEl) {
-            setTimeout(function () {
-                equityEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 200);
-        }
-    }
-
-    // Tooltips Bootstrap 4
-    if (typeof window.jQuery !== 'undefined') {
+    // Tooltips Bootstrap 4 (si le plugin jQuery est disponible)
+    if (typeof window.jQuery !== 'undefined' && typeof window.jQuery.fn.tooltip === 'function') {
         window.jQuery(function () {
             window.jQuery('[data-toggle="tooltip"]').tooltip();
         });
@@ -58,15 +41,24 @@
             }
             var rows = [];
             var thead = table.querySelector('thead tr');
+            var visibleIndexes = [];
             if (thead) {
-                rows.push(Array.from(thead.querySelectorAll('th')).map(function (th) {
-                    return escapeCsv(th.textContent);
+                var ths = Array.from(thead.querySelectorAll('th'));
+                ths.forEach(function (th, i) {
+                    if (th.style.display !== 'none') {
+                        visibleIndexes.push(i);
+                    }
+                });
+                rows.push(visibleIndexes.map(function (i) {
+                    return escapeCsv(ths[i].textContent);
                 }).join(','));
             }
             table.querySelectorAll('tbody tr').forEach(function (tr) {
-                rows.push(Array.from(tr.querySelectorAll('td')).map(function (td) {
-                    var content = td.getAttribute('data-csv-content');
-                    return escapeCsv(content != null ? content : td.textContent);
+                var tds = Array.from(tr.querySelectorAll('td'));
+                rows.push(visibleIndexes.map(function (i) {
+                    var td = tds[i];
+                    var content = td ? td.getAttribute('data-csv-content') : null;
+                    return escapeCsv(content != null ? content : (td ? td.textContent : ''));
                 }).join(','));
             });
             navigator.clipboard.writeText(rows.join('\r\n')).then(function () {
@@ -84,6 +76,114 @@
             });
         });
     }
+
+    // Tri au clic du tableau d'équité
+    (function initEquitySort() {
+        var table = document.getElementById('equity-report-table');
+        if (!table) {
+            return;
+        }
+        var headers = table.querySelectorAll('thead th[data-sort]');
+        headers.forEach(function (th) {
+            th.addEventListener('click', function () {
+                var column = Array.prototype.indexOf.call(th.parentNode.children, th);
+                var sortType = th.getAttribute('data-sort') || 'text';
+                var isAsc = th.classList.contains('sort-asc');
+
+                headers.forEach(function (h) {
+                    h.classList.remove('sort-asc', 'sort-desc');
+                });
+                th.classList.add(isAsc ? 'sort-desc' : 'sort-asc');
+
+                var tbody = table.querySelector('tbody');
+                var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+
+                rows.sort(function (a, b) {
+                    var aCell = a.querySelectorAll('td')[column];
+                    var bCell = b.querySelectorAll('td')[column];
+                    var aVal, bVal;
+
+                    if (sortType === 'number') {
+                        var aRaw = aCell ? aCell.getAttribute('data-sort-value') : null;
+                        var bRaw = bCell ? bCell.getAttribute('data-sort-value') : null;
+                        aVal = aRaw !== null ? (parseFloat(aRaw) || 0) : 0;
+                        bVal = bRaw !== null ? (parseFloat(bRaw) || 0) : 0;
+                    } else {
+                        aVal = (aCell ? aCell.textContent.trim() : '').toLowerCase();
+                        bVal = (bCell ? bCell.textContent.trim() : '').toLowerCase();
+                    }
+
+                    if (aVal < bVal) {
+                        return isAsc ? 1 : -1;
+                    }
+                    if (aVal > bVal) {
+                        return isAsc ? -1 : 1;
+                    }
+                    return 0;
+                });
+
+                rows.forEach(function (row) {
+                    tbody.appendChild(row);
+                });
+            });
+        });
+    })();
+
+    // Visibilité des colonnes du tableau d'équité
+    (function initEquityColumns() {
+        var table = document.getElementById('equity-report-table');
+        var menu = document.getElementById('equity-cols-menu');
+        if (!table || !menu) {
+            return;
+        }
+        var STORAGE_KEY = 'shifti.equity.cols';
+        var checkboxes = Array.prototype.slice.call(menu.querySelectorAll('.equity-col-toggle'));
+        var headerCells = Array.prototype.slice.call(table.querySelectorAll('thead tr th'));
+
+        function apply() {
+            var hidden = {};
+            checkboxes.forEach(function (cb) {
+                hidden[cb.getAttribute('data-col')] = !cb.checked;
+            });
+            headerCells.forEach(function (th, i) {
+                var key = th.getAttribute('data-col');
+                var isHidden = hidden[key] === true;
+                th.style.display = isHidden ? 'none' : '';
+                table.querySelectorAll('tbody tr').forEach(function (tr) {
+                    var td = tr.querySelectorAll('td')[i];
+                    if (td) {
+                        td.style.display = isHidden ? 'none' : '';
+                    }
+                });
+            });
+            var saved = {};
+            checkboxes.forEach(function (cb) {
+                saved[cb.getAttribute('data-col')] = cb.checked ? 1 : 0;
+            });
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+            } catch (e) { /* ignore */ }
+        }
+
+        var saved = null;
+        try {
+            saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        } catch (e) { saved = null; }
+        if (saved && typeof saved === 'object') {
+            checkboxes.forEach(function (cb) {
+                var key = cb.getAttribute('data-col');
+                if (Object.prototype.hasOwnProperty.call(saved, key)) {
+                    cb.checked = saved[key] === 1;
+                }
+            });
+        }
+
+        checkboxes.forEach(function (cb) {
+            cb.addEventListener('change', apply);
+        });
+
+        apply();
+    })();
 
     // Actions retry / delete
     document.addEventListener('click', function (e) {
@@ -123,10 +223,12 @@
         var ko = parseInt(panel.getAttribute('data-compliance-ko') || '0', 10);
         if (ko > 0) {
             var collapseEl = document.getElementById('ws-quality-compliance');
-            if (collapseEl && typeof window.jQuery !== 'undefined') {
-                window.jQuery(collapseEl).collapse('show');
-            } else if (collapseEl) {
-                collapseEl.classList.add('show');
+            if (collapseEl) {
+                if (typeof window.jQuery !== 'undefined' && typeof window.jQuery.fn.collapse === 'function') {
+                    window.jQuery(collapseEl).collapse('show');
+                } else {
+                    collapseEl.classList.add('show');
+                }
             }
         }
     })();
