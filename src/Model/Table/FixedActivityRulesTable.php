@@ -39,10 +39,6 @@ class FixedActivityRulesTable extends Table
             // des blocs existants par ceux envoyés depuis le formulaire.
             'saveStrategy' => 'replace',
         ]);
-        
-        // Forcer le type de colonne priority à 'integer' au lieu de 'boolean'
-        // (CakePHP mappe automatiquement TINYINT(1) en boolean, mais nous voulons un entier)
-        $this->getSchema()->setColumnType('priority', 'integer');
     }
 
     public function validationDefault(Validator $validator): Validator
@@ -52,17 +48,13 @@ class FixedActivityRulesTable extends Table
             ->time('start_time')->notEmptyTime('start_time')
             ->time('end_time')->notEmptyTime('end_time')
             ->integer('quantity')->greaterThanOrEqual('quantity', 1)->notEmptyString('quantity')
-            ->allowEmptyString('priority')
-            ->integer('priority')
-            ->range('priority', [0, 100], 'La priorité doit être comprise entre 0 et 100.')
+            ->boolean('allow_shortfall')->allowEmptyString('allow_shortfall')
             ->boolean('active')->allowEmptyString('active')
             ->boolean('is_splittable')->allowEmptyString('is_splittable')
             ->boolean('equity_enabled')->allowEmptyString('equity_enabled')
             ->scalar('site_mode')->inList('site_mode', ['per_site', 'pooled', 'global'])->notEmptyString('site_mode')
             ->scalar('lunch_attach_mode')->inList('lunch_attach_mode', ['none', 'before', 'after'])->allowEmptyString('lunch_attach_mode')
-            ->integer('equity_strength')
-            ->range('equity_strength', [0, 100], 'La force d\'équité doit être comprise entre 0 et 100.')
-            ->allowEmptyString('equity_strength')
+            ->integer('sort_order')->allowEmptyString('sort_order')
             ->allowEmptyString('equity_group_id')
             ->maxLength('equity_group_id', 64);
 
