@@ -1,0 +1,16 @@
+---
+description: Discipline CakePHP Migrations et Seeds
+globs:
+  - "config/Migrations/**/*"
+  - "config/Seeds/**/*"
+---
+
+# Migrations et Seeds
+
+- Migrations CakePHP sous `config/Migrations/` avec le style timestamp du dépôt.
+- Préférer les changements de schéma additifs ; documenter les étapes destructives et backfills **en français** dans les commentaires.
+- Index sur FK et colonnes utilisées par la génération / les jobs.
+- Appliquer avec : `docker compose exec app bin/cake migrations migrate`
+- Statut : `docker compose exec app bin/cake migrations status`
+- Jamais de secrets dans les Seeds.
+- Coordonner le follow-up Table/Entity avec php-backend après le schéma.

@@ -1,0 +1,21 @@
+---
+description: Docker Compose, Supervisord, deploy, CI et scripts/dev comme workflow canonique
+globs:
+  - "Dockerfile"
+  - "docker-compose.yml"
+  - "docker/**/*"
+  - "deploy/**/*"
+  - ".github/workflows/**/*"
+  - "scripts/dev/**/*"
+---
+
+# Docker et outillage
+
+- **Docker Compose est le workflow local/prod-like canonique.** Ne pas inventer Make/npm comme interface primaire.
+- Un conteneur `app` : nginx + php-fpm + solveurs/workers Python via Supervisord.
+- Aligner les programmes Supervisord sur `solver-python/README_SERVICES.md` et les workers/tickers Cake.
+- Pas de secrets dans le dépôt ; `.env` / secrets GitHub Actions.
+- Production : `.github/workflows` + `deploy/production.sh`.
+- Si la topologie des process change, mettre à jour aussi les lanceurs Windows `scripts/dev/`.
+- Préférer : `docker compose up -d --build` et `docker compose exec app bin/cake …`.
+- Commentaires / notes ops ajoutés **en français**.

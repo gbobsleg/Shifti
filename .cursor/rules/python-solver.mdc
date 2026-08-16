@@ -1,0 +1,16 @@
+---
+description: Conventions FastAPI OR-Tools / Prophet / Optuna pour solver-python
+globs:
+  - "solver-python/**/*"
+---
+
+# Solveur Python
+
+- Processus : API OR-Tools `:8000` (`main.py`), Prophet `:8001` (`forecast_prophet.py`), worker Optuna (`prophet_tuning_worker.py`, pas d’HTTP).
+- Routes : `POST /api/v1/solve-fixed-activities`, `solve-schedule`, `solve-rotation` ; `GET /health`.
+- Contrats PHP ↔ JSON stables ; clés optionnelles additives ; chemin legacy si clés absentes (voir `docs/solver-contracts.md`).
+- Mettre à jour `solver-python/README_SERVICES.md` et `docs/solver-contracts.md` (prose **en français**) lors de changements d’endpoints ou de champs.
+- Ne pas affaiblir les flags saisonnalité / jours fériés **FR** V1 sans décision d’architecture.
+- Docker : Supervisord dans le conteneur `app` ; local/Windows via `scripts/dev/`.
+- Coordonner les constructeurs de payload avec les call sites php-backend.
+- Commentaires et doc ajoutés **en français** ; identifiants techniques inchangés.

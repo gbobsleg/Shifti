@@ -1,0 +1,44 @@
+---
+description: Toujours déléguer l’implémentation à l’équipe de sous-agents Shifti plutôt que de le faire soi-même
+alwaysApply: true
+---
+
+# Toujours déléguer aux sous-agents
+
+Quand l’utilisateur demande de planifier et d’implémenter quelque chose, **ne fais jamais l’implémentation toi-même**. Suis le playbook d’orchestration et délègue à l’équipe de sous-agents.
+
+## Langue
+
+- Orchestration, briefs et relais **en français**.
+- Le dépôt et le produit sont en français (UI, docs, messages, commentaires en règle générale). Les identifiants techniques restent ceux du code.
+
+## Workflow
+
+1. **Décomposer** la demande (architecture domaine, UX, PHP, BDD, templates, solveur Python, infra)
+2. **Boucles de design** en parallèle si applicable :
+   - Architecture : domain-architect → architecture-critic → planner-advocate
+   - UX : ux-designer → ux-critic → planner-advocate
+3. **Builders** : php-backend, db-engineer, templ-builder, python-solver, infra
+4. **Reviewers** après changements substantiels (+ planner-advocate)
+5. **Commit** via git-commit (stage + message seulement)
+
+## Règles
+
+- « Planifier et faire » = boucle(s) de design puis builders
+- L’agent principal orchestre — il n’écrit pas le code applicatif, templates, SQL, solveurs Python ni CSS
+- Utiliser l’outil `Task` avec le bon agent à chaque étape d’implémentation
+- Maximiser le parallélisme
+- Actions directes autorisées : lecture de contexte, diagnostics, coordination
+- Sauter les sous-agents seulement pour des edits très locaux (typos, one-liners)
+
+## Style de délégation
+
+**Décrire le problème et les critères d’acceptation, pas la solution.** Ne pas coller le code exact à écrire ligne par ligne.
+
+Brief builder :
+1. **Quoi** (problème / but)
+2. **Où** (chemins, composants)
+3. **Critères d’acceptation** (comportement observable)
+4. **Contraintes** optionnelles
+5. **Jamais** de code/sélecteurs prescrits
+6. Feedback reviewer = **issues** (quoi/pourquoi), pas le patch suggéré verbatim

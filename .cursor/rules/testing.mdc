@@ -1,0 +1,14 @@
+---
+description: Conventions PHPUnit et composer test pour Shifti
+globs:
+  - "tests/**/*"
+---
+
+# Tests
+
+- Préférer les scripts du dépôt : `composer test`, `composer cs-check`, `composer check`.
+- Config PHPUnit : `phpunit.xml.dist`.
+- En ajoutant des tests, utiliser des cas paramétrés / data-providers avec paires entrée-sortie claires et des IDs de test descriptifs (libellés d’ID **en français** ou anglais technique selon le voisinage — privilégier la clarté ; commentaires en français).
+- Couvrir les cas limites WFM : pools d’agents vides, clés solveur optionnelles absentes, actions non autorisées, surfaces d’échec de job.
+- Ne pas ajouter de harness e2e lourd sauf s’il existe déjà ; garder des tests focalisés.
+- Respecter l’arborescence existante sous `tests/`.
