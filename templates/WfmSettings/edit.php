@@ -477,7 +477,7 @@
                                 <label class="font-weight-bold">Sensibilité aux Changements (changepoint_prior_scale)</label>
                                 <?= $this->Form->control('prophet_defaults.changepoint_prior_scale', [
                                     'type' => 'number',
-                                    'step' => '0.001',
+                                    'step' => 'any',
                                     'min' => 0.001,
                                     'max' => 0.5,
                                     'value' => $prophetDefaults['changepoint_prior_scale'] ?? 0.1,
@@ -494,9 +494,9 @@
                                 <label class="font-weight-bold">Force de la Saisonnalité (seasonality_prior_scale)</label>
                                 <?= $this->Form->control('prophet_defaults.seasonality_prior_scale', [
                                     'type' => 'number',
-                                    'step' => '0.1',
-                                    'min' => 0,
-                                    'max' => 50,
+                                    'step' => 'any',
+                                    'min' => 0.01,
+                                    'max' => 100,
                                     'value' => $prophetDefaults['seasonality_prior_scale'] ?? 10.0,
                                     'label' => false,
                                     'class' => 'form-control form-control-sm',
