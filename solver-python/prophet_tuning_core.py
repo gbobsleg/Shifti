@@ -6,7 +6,7 @@ Cœur Optuna : backtest walk-forward, baseline, optimisation, persistance résul
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, time as dt_time
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -210,15 +210,36 @@ def build_cutoffs(
     return sorted(cutoffs)
 
 
+def wape_percent(abs_err_sum: float, y_sum: float) -> float:
+    """WAPE en % : 100 * sum(|e|) / sum(y). Refus si dénominateur nul."""
+    if y_sum <= 0:
+        raise ValueError(
+            "Somme des volumes réels nulle sur les fenêtres de test — WAPE indéfini"
+        )
+    return round(100.0 * float(abs_err_sum) / float(y_sum), 2)
+
+
+def _open_hours_mask(
+    ds: pd.Series,
+    open_start: dt_time,
+    open_end: dt_time,
+) -> pd.Series:
+    slot_times = ds.dt.time
+    return (slot_times >= open_start) & (slot_times < open_end)
+
+
 def _window_scores(
     df: pd.DataFrame,
     params: Dict[str, Any],
     cutoff: pd.Timestamp,
     horizon_days: int,
-) -> Optional[Tuple[float, float]]:
+    *,
+    open_start: Optional[dt_time] = None,
+    open_end: Optional[dt_time] = None,
+) -> Optional[Dict[str, float]]:
     """
     Train avant cutoff, score sur [cutoff, cutoff+horizon).
-    Returns (mae, mape) ou None si fenêtre invalide.
+    Returns dict mae/mape/abs_err_sum/y_sum (+ open si plage fournie), ou None.
     """
     cutoff_ts = pd.Timestamp(cutoff)
     horizon_end = cutoff_ts + pd.Timedelta(days=horizon_days)
@@ -245,7 +266,8 @@ def _window_scores(
 
         y_true = comparison["y"]
         y_pred = comparison["yhat"].clip(lower=0)
-        mae = float(abs(y_true - y_pred).mean())
+        abs_err = (y_true - y_pred).abs()
+        mae = float(abs_err.mean())
 
         mask = y_true >= 3
         if mask.sum() > 0:
@@ -253,7 +275,19 @@ def _window_scores(
         else:
             mape = 0.0
 
-        return mae, mape
+        out: Dict[str, float] = {
+            "mae": mae,
+            "mape": mape,
+            "abs_err_sum": float(abs_err.sum()),
+            "y_sum": float(y_true.sum()),
+        }
+
+        if open_start is not None and open_end is not None:
+            open_mask = _open_hours_mask(comparison["ds"], open_start, open_end)
+            out["abs_err_sum_open"] = float(abs_err[open_mask].sum())
+            out["y_sum_open"] = float(y_true[open_mask].sum())
+
+        return out
     finally:
         del model
 
@@ -263,21 +297,42 @@ def evaluate_params_walk_forward(
     params: Dict[str, Any],
     horizon_days: int,
     n_cutoffs: int = 3,
+    *,
+    open_start: Optional[dt_time] = None,
+    open_end: Optional[dt_time] = None,
 ) -> Dict[str, float]:
     """
-    Évalue des params sur N cutoffs. Objectif = MAE volume moyen.
+    Évalue des params sur N cutoffs.
+    Objectif Optuna = WAPE global (somme des |e| / somme des y, en %).
+    MAE / MAPE restent en diagnostic.
     """
     cutoffs = build_cutoffs(df, horizon_days, n_cutoffs)
     maes: List[float] = []
     mapes: List[float] = []
+    abs_err_total = 0.0
+    y_total = 0.0
+    abs_err_open = 0.0
+    y_open = 0.0
+    has_open = open_start is not None and open_end is not None
 
     for cutoff in cutoffs:
-        result = _window_scores(df, params, cutoff, horizon_days)
+        result = _window_scores(
+            df,
+            params,
+            cutoff,
+            horizon_days,
+            open_start=open_start,
+            open_end=open_end,
+        )
         if result is None:
             continue
-        mae, mape = result
-        maes.append(mae)
-        mapes.append(mape)
+        maes.append(result["mae"])
+        mapes.append(result["mape"])
+        abs_err_total += result["abs_err_sum"]
+        y_total += result["y_sum"]
+        if has_open:
+            abs_err_open += result.get("abs_err_sum_open", 0.0)
+            y_open += result.get("y_sum_open", 0.0)
 
     if not maes:
         raise ValueError(
@@ -285,22 +340,37 @@ def evaluate_params_walk_forward(
             f"horizon={horizon_days}j × {n_cutoffs} cutoffs)"
         )
 
-    return {
+    scores: Dict[str, float] = {
         "mae_volume": round(float(sum(maes) / len(maes)), 4),
         "mape_volume": round(float(sum(mapes) / len(mapes)), 2),
+        "wape_volume": wape_percent(abs_err_total, y_total),
         "n_cutoffs": float(len(maes)),
         "horizon_days": float(horizon_days),
     }
+    if has_open and y_open > 0:
+        scores["wape_open_hours"] = wape_percent(abs_err_open, y_open)
+    return scores
 
 
 def scores_for_storage(scores: Dict[str, float], horizon_days: int, n_cutoffs: int) -> Dict[str, Any]:
     """Shape JSON scores du plan."""
-    return {
+    out: Dict[str, Any] = {
+        "wape_volume": round(float(scores["wape_volume"]), 2),
         "mae_volume": round(float(scores["mae_volume"]), 4),
         "mape_volume": round(float(scores["mape_volume"]), 2),
         "n_cutoffs": int(scores.get("n_cutoffs", n_cutoffs)),
         "horizon_days": int(horizon_days),
     }
+    if "wape_open_hours" in scores:
+        out["wape_open_hours"] = round(float(scores["wape_open_hours"]), 2)
+    return out
+
+
+def improvement_pct(baseline: float, proposed: float) -> Optional[float]:
+    """Amélioration relative en % (plus bas = mieux). None si baseline <= 0."""
+    if baseline <= 0:
+        return None
+    return round((1.0 - float(proposed) / float(baseline)) * 100.0, 2)
 
 
 ProgressCallback = Callable[[int, int, Optional[float]], None]
@@ -309,6 +379,39 @@ CancelCheck = Callable[[], bool]
 
 class JobCancelled(Exception):
     """Levée quand le job a été annulé côté BDD pendant Optuna."""
+
+
+def clamp_tunable_for_search_space(
+    params: Dict[str, Any],
+    optuna_cfg: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """
+    Tunables officiels bornés à l'espace Optuna, pour enqueue_trial.
+    None si une clé manque ou n'est pas numérique.
+    """
+    try:
+        cps_min = float(optuna_cfg["changepoint_prior_scale_min"])
+        cps_max = float(optuna_cfg["changepoint_prior_scale_max"])
+        sps_min = float(optuna_cfg["seasonality_prior_scale_min"])
+        sps_max = float(optuna_cfg["seasonality_prior_scale_max"])
+        ncp_min = int(optuna_cfg["n_changepoints_min"])
+        ncp_max = int(optuna_cfg["n_changepoints_max"])
+        mfo_min = int(optuna_cfg["monthly_fourier_order_min"])
+        mfo_max = int(optuna_cfg["monthly_fourier_order_max"])
+        cps = float(params["changepoint_prior_scale"])
+        sps = float(params["seasonality_prior_scale"])
+        ncp = int(params["n_changepoints"])
+        mfo = int(params["monthly_fourier_order"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if cps_min > cps_max or sps_min > sps_max or ncp_min > ncp_max or mfo_min > mfo_max:
+        return None
+    return {
+        "changepoint_prior_scale": min(max(cps, cps_min), cps_max),
+        "seasonality_prior_scale": min(max(sps, sps_min), sps_max),
+        "n_changepoints": min(max(ncp, ncp_min), ncp_max),
+        "monthly_fourier_order": min(max(mfo, mfo_min), mfo_max),
+    }
 
 
 def run_optuna_search(
@@ -322,6 +425,10 @@ def run_optuna_search(
     Lance Optuna (TPE). Retourne (best_params, best_scores, study).
     L'appelant DOIT supprimer la study et appeler gc.collect().
     Si cancel_check() devient True, study.stop() après le trial courant puis JobCancelled.
+
+    1er essai = tunables du profil officiel (enqueue sans values : réévalués
+    sur les cutoffs du job). optimize(n_trials=N) compte cet essai : N fits
+    au total (pas N+1).
     """
     horizon = int(optuna_cfg["test_horizon_days"])
     n_cutoffs = int(optuna_cfg.get("n_cutoffs", 3))
@@ -357,9 +464,10 @@ def run_optuna_search(
             offer_profile, tunable, history_span_days=span_days
         )
         scores = evaluate_params_walk_forward(df, params, horizon, n_cutoffs)
+        trial.set_user_attr("wape_volume", scores["wape_volume"])
         trial.set_user_attr("mape_volume", scores["mape_volume"])
         trial.set_user_attr("mae_volume", scores["mae_volume"])
-        return float(scores["mae_volume"])
+        return float(scores["wape_volume"])
 
     study = optuna.create_study(
         direction="minimize",
@@ -367,12 +475,26 @@ def run_optuna_search(
         study_name=f"prophet_tune_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
     )
 
+    official = build_prophet_params_from_offer(offer_profile, history_span_days=span_days)
+    seed = clamp_tunable_for_search_space(official, optuna_cfg)
+    if seed is not None:
+        try:
+            study.enqueue_trial(seed)
+            print(
+                "[Optuna] Warm-start : profil officiel en 1er essai "
+                "(réévaluation sur les cutoffs du job, sans ancien score)"
+            )
+        except Exception as exc:
+            print(f"[Optuna] Warm-start ignoré ({exc})")
+    else:
+        print("[Optuna] Warm-start ignoré (tunables officiels incomplets)")
+
     def _callback(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
         if progress_callback is not None:
-            best_mae = None
+            best_wape = None
             if study.best_trial is not None:
-                best_mae = float(study.best_value)
-            progress_callback(len(study.trials), n_trials, best_mae)
+                best_wape = float(study.best_value)
+            progress_callback(len(study.trials), n_trials, best_wape)
         if cancel_check is not None and cancel_check():
             study.stop()
 
@@ -395,7 +517,8 @@ def run_optuna_search(
         offer_profile, best_tunable, history_span_days=span_days
     )
     best_scores = {
-        "mae_volume": float(study.best_value),
+        "wape_volume": float(study.best_value),
+        "mae_volume": float(study.best_trial.user_attrs.get("mae_volume", 0.0)),
         "mape_volume": float(study.best_trial.user_attrs.get("mape_volume", 0.0)),
         "n_cutoffs": float(n_cutoffs),
         "horizon_days": float(horizon),
@@ -405,18 +528,21 @@ def run_optuna_search(
 
 
 def should_auto_apply(
-    baseline_mae: float,
-    proposed_mae: float,
+    baseline_score: float,
+    proposed_score: float,
     optuna_cfg: Dict[str, Any],
 ) -> bool:
-    """Auto-apply si activé et amélioration MAE >= seuil %."""
+    """Auto-apply si activé et amélioration (WAPE) >= seuil %.
+
+    Clé JSON inchangée : auto_apply_min_mae_improvement_pct (compat wfm_settings).
+    """
     if not optuna_cfg.get("auto_apply"):
         return False
-    if baseline_mae <= 0:
-        return proposed_mae < baseline_mae
+    if baseline_score <= 0:
+        return proposed_score < baseline_score
     threshold_pct = float(optuna_cfg.get("auto_apply_min_mae_improvement_pct", 5))
-    max_allowed = baseline_mae * (1.0 - threshold_pct / 100.0)
-    return proposed_mae <= max_allowed
+    max_allowed = baseline_score * (1.0 - threshold_pct / 100.0)
+    return proposed_score <= max_allowed
 
 
 def load_offer_history_df(offer_id: int, offer_profile: Dict[str, Any]) -> pd.DataFrame:

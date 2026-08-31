@@ -165,6 +165,23 @@ def load_historical_data(
     return df
 
 
+def _parse_daily_fourier_order(settings: Any) -> Optional[int]:
+    """
+    Si settings.daily_fourier_order est un entier > 0, on remplace le daily
+    natif Prophet par add_seasonality(period=1). Sinon None = comportement actuel.
+    """
+    raw = getattr(settings, "daily_fourier_order", None)
+    if raw is None:
+        return None
+    try:
+        order = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if order <= 0:
+        return None
+    return order
+
+
 def train_prophet_model(
     df: pd.DataFrame,
     settings: Any,
@@ -176,10 +193,15 @@ def train_prophet_model(
 
     Args:
         df: DataFrame avec colonnes ds, y
-        settings: objet duck-typed (ProphetSettings Pydantic ou SimpleNamespace)
+        settings: objet duck-typed (ProphetSettings Pydantic ou SimpleNamespace).
+            Si `daily_fourier_order` > 0 : daily natif OFF + add_seasonality(period=1).
+            Absent / None : comportement actuel (`settings.daily_seasonality`).
         verbose: logs détaillés (désactiver pendant Optuna)
     """
     df_to_use = df.copy()
+
+    daily_fourier_order = _parse_daily_fourier_order(settings)
+    use_custom_daily = daily_fourier_order is not None
 
     if verbose:
         print(f"[Prophet] Entraînement: {len(df_to_use)} points de 15min")
@@ -201,7 +223,7 @@ def train_prophet_model(
         seasonality_mode=settings.seasonality_mode,
         yearly_seasonality=settings.yearly_seasonality,
         weekly_seasonality=settings.weekly_seasonality,
-        daily_seasonality=settings.daily_seasonality,
+        daily_seasonality=False if use_custom_daily else settings.daily_seasonality,
         changepoint_prior_scale=settings.changepoint_prior_scale,
         seasonality_prior_scale=settings.seasonality_prior_scale,
         growth=settings.growth,
@@ -217,6 +239,19 @@ def train_prophet_model(
         model.add_country_holidays(country_name="FR")
         if verbose:
             print("[Prophet] Jours fériés français ajoutés")
+
+    if use_custom_daily:
+        model.add_seasonality(
+            name="daily",
+            period=1,
+            fourier_order=daily_fourier_order,
+            prior_scale=settings.seasonality_prior_scale,
+        )
+        if verbose:
+            print(
+                f"[Prophet] Saisonnalité journalière custom "
+                f"(period=1, fourier_order={daily_fourier_order})"
+            )
 
     if settings.monthly_seasonality:
         model.add_seasonality(

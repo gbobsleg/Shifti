@@ -765,7 +765,7 @@
                                     <strong>Auto-écriture du profil si amélioration</strong>
                                 </label>
                             </div>
-                            <label class="small font-weight-bold">Seuil d’amélioration MAE minimale (%)</label>
+                            <label class="small font-weight-bold">Seuil d’amélioration WAPE minimale (%)</label>
                             <?= $this->Form->control('optuna_settings.auto_apply_min_mae_improvement_pct', [
                                 'type' => 'number',
                                 'step' => 'any',
@@ -776,7 +776,11 @@
                                 'class' => 'form-control form-control-sm',
                                 'style' => 'max-width: 120px;',
                             ]) ?>
-                            <small class="form-text text-muted">Défaut OFF. Seuil défaut 5 %.</small>
+                            <small class="form-text text-muted">
+                                Défaut OFF. Le % s’applique au WAPE 15 min (walk-forward 3×14 j),
+                                pas à la MAE. Clé JSON inchangée. Recalibrer après rétro-analyse ;
+                                ne pas recopier 5 % MAE tel quel.
+                            </small>
                         </div>
                     </div>
                     <div class="col-md-6">

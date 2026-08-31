@@ -331,10 +331,11 @@ $formatDateFr = function (?string $date): ?string {
                 if (!$s) {
                     return '—';
                 }
+                $wape = isset($s['wape_volume']) ? number_format((float)$s['wape_volume'], 2, '.', '') : '—';
                 $mae = isset($s['mae_volume']) ? number_format((float)$s['mae_volume'], 2, '.', '') : '—';
                 $mape = isset($s['mape_volume']) ? number_format((float)$s['mape_volume'], 2, '.', '') : '—';
 
-                return "MAE {$mae} · MAPE {$mape}%";
+                return "WAPE {$wape}% · MAE {$mae} · MAPE {$mape}%";
             };
             $fmtSeasonalityAdapt = function ($a) {
                 if (!is_array($a) || empty($a['notes']) || !is_array($a['notes'])) {
@@ -392,8 +393,13 @@ $formatDateFr = function (?string $date): ?string {
                             <div class="small text-muted">Proposé</div>
                             <div data-pt-proposed><?= h($fmtScore($proposedScores)) ?></div>
                             <div class="small text-muted" data-pt-improvement>
-                                <?php if (isset($draftScores['mae_improvement_pct'])): ?>
-                                    <?= h(number_format((float)$draftScores['mae_improvement_pct'], 1)) ?> % MAE
+                                <?php
+                                $impPct = is_array($draftScores)
+                                    ? ($draftScores['wape_improvement_pct'] ?? $draftScores['mae_improvement_pct'] ?? null)
+                                    : null;
+                                ?>
+                                <?php if ($impPct !== null): ?>
+                                    <?= h(number_format((float)$impPct, 1)) ?> % WAPE
                                 <?php else: ?>
                                     —
                                 <?php endif; ?>

@@ -78,6 +78,7 @@ final class ProphetOptunaConfig
         $m = self::MONTHLY_MIN_HISTORY_DAYS;
 
         return '<strong>Règles pendant le tuning (V1) :</strong> '
+            . 'Objectif Optuna : minimiser le <strong>WAPE</strong> (15 min, 3 cutoffs × 14 j). '
             . 'mode <em>multiplicatif</em>, jours fériés FR, '
             . 'saisonnalités <strong>hebdomadaire</strong> et <strong>journalière</strong> toujours ON. '
             . "Saisonnalité <strong>annuelle</strong> : ON seulement si historique utile ≥ {$y} j "
@@ -89,7 +90,8 @@ final class ProphetOptunaConfig
             . '<code>changepoint_prior_scale</code>, '
             . '<code>seasonality_prior_scale</code>, '
             . '<code>n_changepoints</code>, '
-            . '<code>monthly_fourier_order</code>.';
+            . '<code>monthly_fourier_order</code>. '
+            . '1er essai Optuna = profil officiel, réévalué sur les fenêtres de test du job.';
     }
 
     /**

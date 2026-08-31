@@ -34,9 +34,10 @@
         if (!scores) {
             return '—';
         }
+        var wape = scores.wape_volume != null ? Number(scores.wape_volume).toFixed(2) : '—';
         var mae = scores.mae_volume != null ? Number(scores.mae_volume).toFixed(2) : '—';
         var mape = scores.mape_volume != null ? Number(scores.mape_volume).toFixed(2) : '—';
-        return 'MAE ' + mae + ' · MAPE ' + mape + '%';
+        return 'WAPE ' + wape + '% · MAE ' + mae + ' · MAPE ' + mape + '%';
     }
 
     function init(root) {
@@ -159,7 +160,7 @@
                 setText(
                     elProgressLabel,
                     done + ' / ' + total + ' essais' +
-                    (job.best_mae_so_far != null ? ' · meilleur MAE ' + Number(job.best_mae_so_far).toFixed(2) : '')
+                    (job.best_mae_so_far != null ? ' · meilleur WAPE ' + Number(job.best_mae_so_far).toFixed(2) + '%' : '')
                 );
             }
 
@@ -182,16 +183,19 @@
             setText(elBaseline, formatScores(baseline));
             setText(elProposed, formatScores(proposed));
 
-            // Pendant le run : afficher le best MAE du job dans "Proposé" si pas encore de brouillon
+            // Pendant le run : best WAPE (colonne SQL best_mae_so_far)
             if (!proposed && job && job.best_mae_so_far != null && (status === 'running' || status === 'queued')) {
-                setText(elProposed, 'meilleur MAE ' + Number(job.best_mae_so_far).toFixed(2) + ' (en cours)');
+                setText(elProposed, 'meilleur WAPE ' + Number(job.best_mae_so_far).toFixed(2) + '% (en cours)');
             }
 
-            var improv = draftScores && draftScores.mae_improvement_pct != null
-                ? draftScores.mae_improvement_pct
-                : null;
+            var improv = null;
+            if (draftScores && draftScores.wape_improvement_pct != null) {
+                improv = draftScores.wape_improvement_pct;
+            } else if (draftScores && draftScores.mae_improvement_pct != null) {
+                improv = draftScores.mae_improvement_pct;
+            }
             if (improv != null) {
-                setText(elImprovement, (improv >= 0 ? '−' : '+') + Math.abs(Number(improv)).toFixed(1) + ' % MAE');
+                setText(elImprovement, (improv >= 0 ? '−' : '+') + Math.abs(Number(improv)).toFixed(1) + ' % WAPE');
             } else {
                 setText(elImprovement, '—');
             }

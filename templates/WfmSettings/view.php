@@ -438,7 +438,7 @@ if (is_string($rawProphet) && $rawProphet !== '') {
                                 (périodicité <?= (int)$optunaSettings['cron_period_days'] ?> j/offre)
                             </li>
                             <li><strong>Auto-apply:</strong> <?= !empty($optunaSettings['auto_apply']) ? 'ON' : 'OFF' ?>
-                                (seuil <?= h((string)$optunaSettings['auto_apply_min_mae_improvement_pct']) ?> %)</li>
+                                (seuil WAPE <?= h((string)$optunaSettings['auto_apply_min_mae_improvement_pct']) ?> %)</li>
                         </ul>
                     </div>
                 </div>

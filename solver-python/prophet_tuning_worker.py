@@ -29,6 +29,7 @@ from prophet_tuning_core import (
     describe_seasonality_adaptation,
     evaluate_params_walk_forward,
     history_span_days,
+    improvement_pct,
     load_offer_history_df,
     merge_optuna_settings,
     parse_json_field,
@@ -356,19 +357,20 @@ def process_job(job_id: int) -> None:
             {"baseline_scores_json": _json_dumps(baseline_scores)},
         )
         print(
-            f"[OptunaWorker] Baseline MAE={baseline_scores['mae_volume']} "
+            f"[OptunaWorker] Baseline WAPE={baseline_scores['wape_volume']}% "
+            f"MAE={baseline_scores['mae_volume']} "
             f"MAPE={baseline_scores['mape_volume']}%"
         )
 
-        def on_progress(done: int, total: int, best_mae: Optional[float]) -> None:
+        def on_progress(done: int, total: int, best_wape: Optional[float]) -> None:
             fields: Dict[str, Any] = {
                 "progress_trials_done": done,
                 "progress_trials_total": total,
             }
-            if best_mae is not None:
-                fields["best_mae_so_far"] = float(best_mae)
-            best_txt = f"{best_mae:.4f}" if best_mae is not None else "—"
-            print(f"[OptunaWorker] trial {done}/{total} (best MAE={best_txt})")
+            if best_wape is not None:
+                fields["best_mae_so_far"] = float(best_wape)
+            best_txt = f"{best_wape:.2f}%" if best_wape is not None else "—"
+            print(f"[OptunaWorker] trial {done}/{total} (best WAPE={best_txt})")
             # Reconnexion courte pour ne pas tenir la conn pendant des heures
             progress_conn = get_db_connection()
             try:
@@ -407,23 +409,25 @@ def process_job(job_id: int) -> None:
             return
 
         best_scores = scores_for_storage(best_scores_raw, horizon, n_cutoffs)
+        wape_imp = improvement_pct(
+            float(baseline_scores["wape_volume"]),
+            float(best_scores["wape_volume"]),
+        )
+        mae_imp = improvement_pct(
+            float(baseline_scores["mae_volume"]),
+            float(best_scores["mae_volume"]),
+        )
         draft_scores = {
             "baseline": baseline_scores,
             "proposed": best_scores,
-            "mae_improvement_pct": (
-                round(
-                    (1.0 - best_scores["mae_volume"] / baseline_scores["mae_volume"]) * 100,
-                    2,
-                )
-                if baseline_scores["mae_volume"] > 0
-                else None
-            ),
+            "wape_improvement_pct": wape_imp,
+            "mae_improvement_pct": mae_imp,
             "seasonality_adaptation": seasonality_adapt,
         }
 
         auto_applied = should_auto_apply(
-            float(baseline_scores["mae_volume"]),
-            float(best_scores["mae_volume"]),
+            float(baseline_scores["wape_volume"]),
+            float(best_scores["wape_volume"]),
             optuna_cfg,
         )
 
@@ -445,7 +449,7 @@ def process_job(job_id: int) -> None:
                 "status": "completed",
                 "best_params_json": _json_dumps(best_params),
                 "best_scores_json": _json_dumps(best_scores),
-                "best_mae_so_far": float(best_scores["mae_volume"]),
+                "best_mae_so_far": float(best_scores["wape_volume"]),
                 "progress_trials_done": n_trials,
                 "progress_trials_total": n_trials,
                 "auto_applied": 1 if auto_applied else 0,
@@ -463,7 +467,7 @@ def process_job(job_id: int) -> None:
         _touch_offer_last_run(conn, job_id)
         print(
             f"[OptunaWorker] Job #{job_id} completed — "
-            f"MAE {baseline_scores['mae_volume']} → {best_scores['mae_volume']}"
+            f"WAPE {baseline_scores['wape_volume']}% → {best_scores['wape_volume']}%"
         )
 
     except Exception as e:
