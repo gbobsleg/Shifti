@@ -96,7 +96,7 @@ function buildGridData($groupedRanges, $usersById, $offersById, $contextMonth, $
         // Utiliser la valeur par défaut
     }
     
-    $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $contextMonth, $contextYear);
+    $daysInMonth = (int)date('t', mktime(0, 0, 0, $contextMonth, 1, $contextYear));
     
     foreach ($groupedRanges as $rangeIndex => $range) {
         $userId = $range['user_id'];
@@ -232,7 +232,7 @@ function getDayName($dayOfWeek) {
 
 // Préparer les données de la grille
 $gridData = buildGridData($groupedRanges, $usersById, $offersById, $contextMonth, $contextYear);
-$daysInMonth = cal_days_in_month(CAL_GREGORIAN, $contextMonth, $contextYear);
+$daysInMonth = (int)date('t', mktime(0, 0, 0, $contextMonth, 1, $contextYear));
 $monthNames = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
 // Collecter les offres présentes dans les données pour la légende

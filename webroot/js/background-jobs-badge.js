@@ -74,7 +74,7 @@
         }
         html += '<div class="dropdown-divider"></div>';
         html +=
-            '<a class="dropdown-item text-primary" href="' + esc(seeAllUrl || '/background-jobs') + '">' +
+            '<a class="dropdown-item text-primary" href="' + esc(seeAllUrl || '#') + '">' +
                 '<i class="bi bi-arrow-right-circle mr-1"></i> Voir tout' +
             '</a>';
         return html;
@@ -105,16 +105,35 @@
         return (
             '<span class="dropdown-item-text text-danger small">' + esc(message || 'Chargement impossible') + '</span>' +
             '<div class="dropdown-divider"></div>' +
-            '<a class="dropdown-item text-primary" href="' + esc(seeAllUrl || '/background-jobs') + '">' +
+            '<a class="dropdown-item text-primary" href="' + esc(seeAllUrl || '#') + '">' +
                 '<i class="bi bi-arrow-right-circle mr-1"></i> Voir tout' +
             '</a>'
         );
     }
 
-    function isBackgroundJobsPage() {
+    function indexPathFromUrl(indexUrl) {
+        var path = String(indexUrl || '').split('?')[0];
+        if (!path) {
+            return '';
+        }
+        if (/^https?:\/\//i.test(path)) {
+            try {
+                path = new URL(path).pathname;
+            } catch (e) {
+                return '';
+            }
+        }
+        return path.replace(/\/+$/, '') || '/';
+    }
+
+    function isBackgroundJobsPage(indexUrl) {
         var path = window.location.pathname || '';
+        var indexPath = indexPathFromUrl(indexUrl);
+        if (!indexPath || indexPath === '/') {
+            return false;
+        }
         // Sur la page Jobs, la page poll déjà : on hydrate le badge une fois, sans intervalle.
-        return path === '/background-jobs' || path.indexOf('/background-jobs/') === 0;
+        return path === indexPath || path.indexOf(indexPath + '/') === 0;
     }
 
     function init(root) {
@@ -122,7 +141,7 @@
             return;
         }
         var url = root.getAttribute('data-url-status');
-        var seeAllUrl = root.getAttribute('data-url-index') || '/background-jobs';
+        var seeAllUrl = root.getAttribute('data-url-index') || '';
         if (!url) {
             return;
         }
@@ -132,7 +151,7 @@
         var timer = null;
         var lastPayload = null;
         var menuReady = false;
-        var skipInterval = isBackgroundJobsPage();
+        var skipInterval = isBackgroundJobsPage(seeAllUrl);
 
         function updateCount(n) {
             var count = Number(n) || 0;

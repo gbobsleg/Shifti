@@ -6,6 +6,7 @@ namespace App\Service;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\FrozenTime;
 use Cake\ORM\Locator\LocatorAwareTrait;
+use Cake\Routing\Router;
 
 /**
  * Agrège Optuna / prévisions / plannings pour la console Jobs.
@@ -232,7 +233,7 @@ final class BackgroundJobsStatusService
                 'started_at' => $this->fmtDateTime($row->started_at),
                 'finished_at' => $this->fmtDateTime($row->finished_at),
                 'error_message' => $this->truncateError($row->error_message),
-                'url' => sprintf('/offers/edit/%d#prophet-tuning-section', (int)$row->offer_id),
+                'url' => $this->jobUrl('optuna', (int)$row->id, (int)$row->offer_id),
                 'can_cancel' => true,
             ];
         }
@@ -282,7 +283,7 @@ final class BackgroundJobsStatusService
                 'started_at' => $this->fmtDateTime($row->started_at),
                 'finished_at' => $this->fmtDateTime($row->finished_at),
                 'error_message' => $this->truncateError($row->error_message),
-                'url' => sprintf('/forecast-scenarios/view/%d', (int)$row->id),
+                'url' => $this->jobUrl('forecast', (int)$row->id, (int)$row->id),
                 'can_cancel' => false,
             ];
         }
@@ -335,7 +336,7 @@ final class BackgroundJobsStatusService
                 'started_at' => $this->fmtDateTime($row->started_at),
                 'finished_at' => $this->fmtDateTime($row->finished_at),
                 'error_message' => $this->truncateError($row->error_message),
-                'url' => sprintf('/planning-generation-jobs/view/%d', (int)$row->id),
+                'url' => $this->jobUrl('planning', (int)$row->id, (int)$row->id),
                 'can_cancel' => false,
             ];
         }
@@ -540,12 +541,7 @@ SQL;
             $err .= '…';
         }
 
-        $url = match ($type) {
-            'optuna' => sprintf('/offers/edit/%d#prophet-tuning-section', $refId),
-            'forecast' => sprintf('/forecast-scenarios/view/%d', $id),
-            'planning' => sprintf('/planning-generation-jobs/view/%d', $id),
-            default => '#',
-        };
+        $url = $this->jobUrl($type, $id, $refId);
 
         return [
             'type' => $type,
@@ -607,5 +603,19 @@ SQL;
         }
 
         return $text;
+    }
+
+    /**
+     * URL applicative (respecte App.base, ex. /shifti en local).
+     */
+    private function jobUrl(string $type, int $id, int $refId): string
+    {
+        return match ($type) {
+            'optuna' => Router::url(['controller' => 'Offers', 'action' => 'edit', $refId])
+                . '#prophet-tuning-section',
+            'forecast' => Router::url(['controller' => 'ForecastScenarios', 'action' => 'view', $id]),
+            'planning' => Router::url(['controller' => 'PlanningGenerationJobs', 'action' => 'view', $id]),
+            default => '#',
+        };
     }
 }

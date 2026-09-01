@@ -102,7 +102,7 @@ class ExcelPlanningParserService
 
     private function analyzeCalendar(array $cells, array &$agentData, array $stylesMap, int $month, int $year): void
     {
-        $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+        $daysInMonth = (int)date('t', mktime(0, 0, 0, $month, 1, $year));
         
         for ($day = 1; $day <= $daysInMonth; $day++) {
             
