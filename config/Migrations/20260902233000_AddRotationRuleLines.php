@@ -19,12 +19,24 @@ class AddRotationRuleLines extends BaseMigration
             }
         }
 
+        $this->dropIncompleteRotationLineTables();
+
         if (!$this->hasTable('rotation_rule_lines')) {
-            $lines = $this->table('rotation_rule_lines');
+            $ruleIdCol = $this->quotedColumnOptions('rotation_rules', 'id');
+            $offerIdSigned = $this->columnIsSigned('offers', 'id');
+            $tableCollation = $this->tableCollation('rotation_rules') ?? 'utf8mb4_unicode_ci';
+
+            $lines = $this->table('rotation_rule_lines', [
+                'collation' => $tableCollation,
+            ]);
             $lines
-                ->addColumn('rotation_rule_id', 'uuid', ['null' => false])
+                ->addColumn('rotation_rule_id', 'char', $ruleIdCol + ['null' => false])
                 ->addColumn('line_type', 'string', ['limit' => 20, 'null' => false])
-                ->addColumn('offer_id', 'integer', ['null' => true, 'default' => null])
+                ->addColumn('offer_id', 'integer', [
+                    'null' => true,
+                    'default' => null,
+                    'signed' => $offerIdSigned,
+                ])
                 ->addColumn('sort_order', 'integer', ['null' => false, 'default' => 1])
                 ->addColumn('target_count', 'integer', ['null' => true, 'default' => null])
                 ->addColumn('shift_duration', 'integer', ['null' => true, 'default' => null])
@@ -51,18 +63,26 @@ class AddRotationRuleLines extends BaseMigration
                 ->addForeignKey('rotation_rule_id', 'rotation_rules', 'id', [
                     'delete' => 'CASCADE',
                     'update' => 'CASCADE',
+                    'constraint' => 'FK_RRL_RULE',
                 ])
                 ->addForeignKey('offer_id', 'offers', 'id', [
                     'delete' => 'SET_NULL',
                     'update' => 'CASCADE',
+                    'constraint' => 'FK_RRL_OFFER',
                 ])
                 ->create();
         }
 
         if (!$this->hasTable('rotation_rule_line_slots')) {
-            $slots = $this->table('rotation_rule_line_slots');
+            $lineIdSigned = $this->columnIsSigned('rotation_rule_lines', 'id');
+            $slots = $this->table('rotation_rule_line_slots', [
+                'collation' => $this->tableCollation('rotation_rule_lines') ?? 'utf8mb4_unicode_ci',
+            ]);
             $slots
-                ->addColumn('rotation_rule_line_id', 'integer', ['null' => false])
+                ->addColumn('rotation_rule_line_id', 'integer', [
+                    'null' => false,
+                    'signed' => $lineIdSigned,
+                ])
                 ->addColumn('start_time', 'time', ['null' => false])
                 ->addColumn('end_time', 'time', ['null' => false])
                 ->addColumn('position', 'integer', ['null' => true, 'default' => null])
@@ -72,6 +92,7 @@ class AddRotationRuleLines extends BaseMigration
                 ->addForeignKey('rotation_rule_line_id', 'rotation_rule_lines', 'id', [
                     'delete' => 'CASCADE',
                     'update' => 'CASCADE',
+                    'constraint' => 'FK_RRLS_LINE',
                 ])
                 ->create();
         }
@@ -145,5 +166,90 @@ class AddRotationRuleLines extends BaseMigration
                 $rules->update();
             }
         }
+    }
+
+    /**
+     * DDL MySQL n’est pas transactionnel : un ALTER FK raté laisse la table sans contraintes.
+     * Au retry, on la jette pour la recréer avec les bons types/collations.
+     */
+    private function dropIncompleteRotationLineTables(): void
+    {
+        if ($this->hasTable('rotation_rule_lines') && !$this->tableHasForeignKeys('rotation_rule_lines')) {
+            if ($this->hasTable('rotation_rule_line_slots')) {
+                $this->table('rotation_rule_line_slots')->drop()->save();
+            }
+            $this->table('rotation_rule_lines')->drop()->save();
+        }
+    }
+
+    private function tableHasForeignKeys(string $table): bool
+    {
+        $rows = $this->fetchAll(sprintf(
+            "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = '%s'
+               AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
+            $table
+        ));
+
+        return is_array($rows) && $rows !== [];
+    }
+
+    /**
+     * @return array{limit: int, collation?: string, encoding?: string}
+     */
+    private function quotedColumnOptions(string $table, string $column): array
+    {
+        $row = $this->fetchRow(sprintf(
+            "SELECT CHARACTER_MAXIMUM_LENGTH, CHARACTER_SET_NAME, COLLATION_NAME
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = '%s'
+               AND COLUMN_NAME = '%s'",
+            $table,
+            $column
+        ));
+        $options = ['limit' => 36];
+        if (!is_array($row)) {
+            return $options;
+        }
+        $len = (int)($row['CHARACTER_MAXIMUM_LENGTH'] ?? 36);
+        if ($len > 0) {
+            $options['limit'] = $len;
+        }
+        $collation = (string)($row['COLLATION_NAME'] ?? '');
+        if ($collation !== '') {
+            $options['collation'] = $collation;
+        }
+        $charset = (string)($row['CHARACTER_SET_NAME'] ?? '');
+        if ($charset !== '') {
+            $options['encoding'] = $charset;
+        }
+
+        return $options;
+    }
+
+    private function columnIsSigned(string $table, string $column): bool
+    {
+        $row = $this->fetchRow(sprintf(
+            "SHOW COLUMNS FROM `%s` LIKE '%s'",
+            $table,
+            $column
+        ));
+        $type = strtolower((string)($row['Type'] ?? $row['type'] ?? ''));
+
+        return !str_contains($type, 'unsigned');
+    }
+
+    private function tableCollation(string $table): ?string
+    {
+        $row = $this->fetchRow(sprintf(
+            "SELECT TABLE_COLLATION FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '%s'",
+            $table
+        ));
+        $collation = (string)($row['TABLE_COLLATION'] ?? '');
+
+        return $collation !== '' ? $collation : null;
     }
 }
