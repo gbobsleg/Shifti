@@ -59,11 +59,9 @@
                                     </span>
                                 <?php endif; ?>
                             </dd>
-                            
-                            <dt class="col-sm-4">Cible :</dt>
+                            <dt class="col-sm-4">Exclusivité jour :</dt>
                             <dd class="col-sm-8">
-                                <span class="badge badge-primary"><?= h($rule->target_count) ?></span>
-                                <small class="text-muted">occurrences par période</small>
+                                <?= !empty($rule->exclusive_day) ? 'Un duty par jour' : 'Cumul autorisé (non-chevauchement)' ?>
                             </dd>
                         </dl>
                     </div>
@@ -94,6 +92,48 @@
                 </div>
             </div>
         </div>
+
+        <?php if (!empty($rule->rotation_rule_lines)): ?>
+            <div class="card border-info mb-3">
+                <div class="card-header bg-info text-white">
+                    <i class="bi bi-layers"></i> Lignes
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Rang</th>
+                                <th>Type</th>
+                                <th>Offre</th>
+                                <th>Paramètres</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($rule->rotation_rule_lines as $line): ?>
+                                <tr>
+                                    <td><?= (int)$line->sort_order ?></td>
+                                    <td>
+                                        <?= $line->line_type === 'quota' ? 'Quota' : 'Couverture' ?>
+                                    </td>
+                                    <td><?= h($line->offer->name ?? '—') ?></td>
+                                    <td>
+                                        <?php if ($line->line_type === 'quota'): ?>
+                                            <?= (int)$line->target_count ?> × <?= (int)$line->shift_duration ?> min
+                                            (<?= h(substr((string)$line->time_window_start, 0, 5)) ?>–<?= h(substr((string)$line->time_window_end, 0, 5)) ?>)
+                                        <?php else: ?>
+                                            <?= (int)($line->quantity ?? 1) ?> / plage
+                                            <?php foreach ($line->rotation_rule_line_slots ?? [] as $sl): ?>
+                                                <span class="badge badge-light"><?= h(substr((string)$sl->start_time, 0, 5)) ?>–<?= h(substr((string)$sl->end_time, 0, 5)) ?></span>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <?php if (!empty($rule->users_rotation_rules)): ?>
             <div class="card border-success mb-3">

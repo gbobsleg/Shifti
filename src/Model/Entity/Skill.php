@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace App\Model\Entity;
 
+use Cake\I18n\Date;
 use Cake\ORM\Entity;
+use DateTimeInterface;
 
 /**
  * Skill Entity
@@ -38,12 +40,14 @@ class Skill extends Entity
     ];
 
     /**
-     * Vérifie si cette compétence est valide pour une date donnée
-     * 
-     * @param \DateTimeInterface $date La date à vérifier
+     * Vérifie si cette compétence est valide pour une date donnée.
+     *
+     * CakePHP 5 : Cake\I18n\Date / FrozenDate n’implémentent pas DateTimeInterface.
+     *
+     * @param \DateTimeInterface|\Cake\I18n\Date $date La date à vérifier
      * @return bool True si la compétence est valide pour cette date
      */
-    public function isValidForDate(\DateTimeInterface $date): bool
+    public function isValidForDate(DateTimeInterface|Date $date): bool
     {
         $dateOnly = $date->format('Y-m-d');
         

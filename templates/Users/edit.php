@@ -135,7 +135,7 @@
                             'value' => $selectedRotationRuleId,
                             'empty' => false
                         ]) ?>
-                        <small class="text-muted">Assigner une règle de rotation à cet agent (1-1)</small>
+                        <small class="text-muted">Modèle de rotation (1-1). L’éligibilité de chaque ligne (tel, livechat…) dépend des compétences (offres) de l’agent.</small>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label"><i class="bi bi-123"></i> Cible override (optionnel)</label>
@@ -147,7 +147,7 @@
                             'value' => $rotationTargetOverride,
                             'placeholder' => 'Laisser vide pour utiliser la cible par défaut'
                         ]) ?>
-                        <small class="text-muted">Pour gérer les temps partiels (ex: 2 au lieu de 3)</small>
+                        <small class="text-muted">Surcharge la cible de la ligne quota du modèle (ex: 2 au lieu de 3). Sans effet sur les lignes couverture.</small>
                     </div>
                 </div>
             </div>

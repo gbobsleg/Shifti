@@ -10,6 +10,7 @@ use Cake\I18n\FrozenTime;
 use Cake\ORM\Locator\LocatorAwareTrait;
 use App\Service\Equity\JobPeriodEquityScoresProvider;
 use App\Service\OfferGroups\EquityBucketsMigrator;
+use App\Service\Rotation\RotationProblemBuilderService;
 use App\Service\Rotation\RotationTargetCalculatorService;
 
 /**
@@ -512,7 +513,8 @@ class ScheduleDayGenerationService
             ])
             ->contain([
                 'UsersRotationRule',
-                'UserContracts'
+                'UserContracts',
+                'Skills',
             ])
             ->where(['Users.id IN' => $userIds]);
 
@@ -552,6 +554,7 @@ class ScheduleDayGenerationService
             'status' => null,
             'nb_blocks' => 0,
             'error' => null,
+            'shortfalls' => [],
         ];
 
         if ($shouldRunRotationSolver && !$ignoreRotation) {
@@ -578,6 +581,34 @@ class ScheduleDayGenerationService
                 ));
             }
 
+            $rotationLines = [];
+            $rotationExclusiveDay = true;
+            $usersForRotationArray = $usersForRotation->toArray();
+            $builtRotation = (new RotationProblemBuilderService())->build(
+                $usersForRotationArray,
+                $weekStart,
+                $weekEnd,
+                $jobId,
+                [],
+                $rotationCalculator,
+                is_array($lunchWindow) ? $lunchWindow : ['start' => null, 'end' => null],
+                (int)($lunchDurationMinutes ?? 0),
+                $Ranges,
+                $DraftRanges,
+                $fixedActivityAssignments,
+                $date instanceof FrozenDate ? $date : new FrozenDate($date->format('Y-m-d')),
+                $debugSolvers,
+                fn($s) => $this->truncateForLog((string)$s),
+                fn($t) => $this->timeToMinutes((string)$t),
+            );
+            $rotationLines = $builtRotation['lines'];
+            $rotationExclusiveDay = (bool)$builtRotation['exclusive_day'];
+            if (!empty($rotationLines)) {
+                $rotationAgents = $builtRotation['agents'];
+                \Cake\Log\Log::info('[ROTATION] Payload multi-lignes : ' . count($rotationLines) . ' lignes, ' . count($rotationAgents) . ' agents.');
+            }
+
+            if (empty($rotationLines)) {
             // --- SHUFFLE : Mélanger l'ordre des agents pour éviter les biais systématiques ---
             // Convertir la collection en tableau pour pouvoir utiliser shuffle()
             $usersForRotationArray = $usersForRotation->toArray();
@@ -794,6 +825,7 @@ class ScheduleDayGenerationService
                     }
                 }
             }
+            } // fin fallback sans lignes
 
             \Cake\Log\Log::info("[ROTATION] 🚀 Envoi de " . count($rotationAgents) . " agents au solveur...");
 
@@ -816,7 +848,11 @@ class ScheduleDayGenerationService
                     'slot_minutes' => 15,
                     'need_curve' => $needCurveById, // Courbe de besoin indexée par ID d'offre
                     'timeout_seconds' => $solverTimeoutPass1_5,
+                    'exclusive_day' => $rotationExclusiveDay ?? true,
                 ];
+                if (!empty($rotationLines)) {
+                    $rotationPayload['lines'] = $rotationLines;
+                }
 
                 if ($debugSolvers) {
                     \Cake\Log\Log::debug(sprintf(
@@ -907,6 +943,7 @@ class ScheduleDayGenerationService
                         
                         if (($result['status'] ?? 'ERROR') === 'FEASIBLE') {
                             $rotationPass['status'] = 'FEASIBLE';
+                            $rotationPass['shortfalls'] = $result['shortfalls'] ?? [];
                             if ($debugSolvers) {
                                 \Cake\Log\Log::debug("[ROTATION] Solution FEASIBLE trouvée, nombre de blocs: " . count($result['blocks'] ?? []));
                             }
@@ -1614,6 +1651,7 @@ class ScheduleDayGenerationService
                 'status' => $rotationPass['status'],
                 'nb_blocks' => $rotationPass['nb_blocks'],
                 'error' => $rotationPass['error'],
+                'shortfalls' => $rotationPass['shortfalls'] ?? [],
             ],
             'pass2' => [
                 'label' => 'Passe 2 : planning prévisionnel',

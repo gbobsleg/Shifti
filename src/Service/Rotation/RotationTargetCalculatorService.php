@@ -51,6 +51,7 @@ class RotationTargetCalculatorService
      * @param string $rotationRuleId UUID de la règle de rotation
      * @param FrozenDate $periodStart Date de début de la période de génération
      * @param FrozenDate $periodEnd Date de fin de la période de génération
+     * @param int|null $lineTargetCount Cible de la ligne quota (sinon rotation_rules.target_count)
      * @return int Nombre de blocs à planifier (arrondi)
      */
     public function calculateTargetForUser(
@@ -59,7 +60,8 @@ class RotationTargetCalculatorService
         FrozenDate $periodStart,
         FrozenDate $periodEnd,
         ?FrozenDate $contractStart = null,
-        ?FrozenDate $contractEnd = null
+        ?FrozenDate $contractEnd = null,
+        ?int $lineTargetCount = null
     ): int {
         $RotationRules = $this->fetchTable('RotationRules');
         $UsersRotationRules = $this->fetchTable('UsersRotationRules');
@@ -81,7 +83,7 @@ class RotationTargetCalculatorService
         // Déterminer la cible (override ou valeur par défaut)
         $target = $userRule && $userRule->target_count_override !== null
             ? (int)$userRule->target_count_override
-            : (int)$rule->target_count;
+            : (int)($lineTargetCount ?? $rule->target_count);
 
         if ($target <= 0) {
             return 0;

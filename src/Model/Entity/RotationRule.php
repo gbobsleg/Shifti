@@ -18,9 +18,11 @@ use Cake\ORM\Entity;
  * @property \Cake\I18n\FrozenTime $time_window_end
  * @property \Cake\I18n\FrozenTime|null $created
  * @property \Cake\I18n\FrozenTime|null $modified
+ * @property bool $exclusive_day
  *
  * @property \App\Model\Entity\Offer|null $offer
  * @property \App\Model\Entity\UsersRotationRule[] $users_rotation_rules
+ * @property \App\Model\Entity\RotationRuleLine[] $rotation_rule_lines
  */
 class RotationRule extends Entity
 {
@@ -38,9 +40,11 @@ class RotationRule extends Entity
         'shift_duration' => true,
         'time_window_start' => true,
         'time_window_end' => true,
+        'exclusive_day' => true,
         'created' => true,
         'modified' => true,
         'offer' => true,
         'users_rotation_rules' => true,
+        'rotation_rule_lines' => true,
     ];
 }

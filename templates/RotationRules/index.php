@@ -109,18 +109,17 @@
                 <thead>
                     <tr>
                         <th scope="col"><?= $this->Paginator->sort('name', 'Nom') ?></th>
-                        <th scope="col"><?= $this->Paginator->sort('offer_id', 'Offre') ?></th>
+                        <th scope="col">Lignes</th>
+                        <th scope="col">Agents</th>
                         <th scope="col"><?= $this->Paginator->sort('period_type', 'Période') ?></th>
-                        <th scope="col">Cible</th>
-                        <th scope="col">Durée</th>
-                        <th scope="col">Fenêtre horaire</th>
+                        <th scope="col">Exclusivité</th>
                         <th scope="col" class="actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (count($rules) === 0): ?>
                         <tr>
-                            <td colspan="7" class="text-center py-5">
+                            <td colspan="6" class="text-center py-5">
                                 <div class="empty-state">
                                     <i class="bi bi-arrow-repeat" style="font-size: 4rem; color: #dee2e6;"></i>
                                     <h4 class="mt-3 text-muted">Aucune règle trouvée</h4>
@@ -146,11 +145,25 @@
                         <tr>
                             <td><strong><?= h($r->name) ?></strong></td>
                             <td>
-                                <?php if ($r->offer): ?>
-                                    <span class="badge badge-info"><?= h($r->offer->name) ?></span>
-                                <?php else: ?>
-                                    <span class="badge badge-secondary">Générique</span>
-                                <?php endif; ?>
+                                <?php
+                                $nLines = is_countable($r->rotation_rule_lines) ? count($r->rotation_rule_lines) : 0;
+                                $nQuota = 0;
+                                $nCov = 0;
+                                foreach ($r->rotation_rule_lines ?? [] as $ln) {
+                                    if (($ln->line_type ?? '') === 'quota') {
+                                        $nQuota++;
+                                    } else {
+                                        $nCov++;
+                                    }
+                                }
+                                ?>
+                                <span class="badge badge-primary"><?= (int)$nLines ?> ligne(s)</span>
+                                <?php if ($nQuota): ?><span class="badge badge-info">Quota ×<?= (int)$nQuota ?></span><?php endif; ?>
+                                <?php if ($nCov): ?><span class="badge badge-success">Couverture ×<?= (int)$nCov ?></span><?php endif; ?>
+                            </td>
+                            <td>
+                                <?php $nAgents = is_countable($r->users_rotation_rules) ? count($r->users_rotation_rules) : 0; ?>
+                                <span class="badge badge-secondary"><?= (int)$nAgents ?></span>
                             </td>
                             <td>
                                 <?php if ($r->period_type === 'WEEKLY'): ?>
@@ -164,16 +177,11 @@
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <span class="badge badge-primary"><?= h($r->target_count) ?></span>
-                            </td>
-                            <td>
-                                <small><?= h($r->shift_duration) ?> min</small>
-                            </td>
-                            <td>
-                                <small>
-                                    <i class="bi bi-clock"></i> 
-                                    <?= h(substr($r->time_window_start ?? '', 0, 5)) ?> – <?= h(substr($r->time_window_end ?? '', 0, 5)) ?>
-                                </small>
+                                <?php if (!empty($r->exclusive_day)): ?>
+                                    <span class="badge badge-dark">1 duty / jour</span>
+                                <?php else: ?>
+                                    <span class="badge badge-light">Cumul possible</span>
+                                <?php endif; ?>
                             </td>
                             <td class="actions">
                                 <div class="dropdown actions-dropdown" data-entity-id="<?= (int)$r->id ?>">

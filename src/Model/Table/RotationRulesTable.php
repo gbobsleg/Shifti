@@ -52,6 +52,14 @@ class RotationRulesTable extends Table
             'dependent' => true,
             'cascadeCallbacks' => true,
         ]);
+
+        $this->hasMany('RotationRuleLines', [
+            'foreignKey' => 'rotation_rule_id',
+            'dependent' => true,
+            'cascadeCallbacks' => true,
+            'saveStrategy' => 'replace',
+            'sort' => ['sort_order' => 'ASC'],
+        ]);
     }
 
     public function validationDefault(Validator $validator): Validator
@@ -104,7 +112,28 @@ class RotationRulesTable extends Table
 
     public function buildRules(RulesChecker $rules): RulesChecker
     {
-        $rules->add($rules->existsIn(['offer_id'], 'Offers'), ['errorField' => 'offer_id']);
+        $rules->add($rules->existsIn(['offer_id'], 'Offers'), [
+            'errorField' => 'offer_id',
+            'allowNullable' => true,
+        ]);
+
+        $rules->add(function ($entity) {
+            $lines = $entity->rotation_rule_lines;
+            if ($lines === null) {
+                return true;
+            }
+            $quota = 0;
+            foreach ($lines as $line) {
+                if ((string)($line->line_type ?? '') === 'quota' && !$line->get('deleted')) {
+                    $quota++;
+                }
+            }
+
+            return $quota <= 1;
+        }, 'oneQuotaLine', [
+            'errorField' => 'rotation_rule_lines',
+            'message' => 'Un modèle de rotation ne peut avoir qu\'une seule ligne quota.',
+        ]);
 
         return $rules;
     }

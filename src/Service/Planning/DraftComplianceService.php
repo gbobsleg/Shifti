@@ -319,7 +319,13 @@ class DraftComplianceService
         $weeksCount = count($weeks);
 
         $userRules = $UsersRotationRules->find()
-            ->contain(['Users' => ['UserContracts'], 'RotationRules' => ['Offers']])
+            ->contain([
+                'Users' => ['UserContracts'],
+                'RotationRules' => [
+                    'Offers',
+                    'RotationRuleLines' => ['Offers', 'RotationRuleLineSlots'],
+                ],
+            ])
             ->where(['UsersRotationRules.user_id IN' => $userIds])
             ->all()
             ->toList();
@@ -340,14 +346,25 @@ class DraftComplianceService
             }
             $user = $ur->user;
             $userId = (int)$ur->user_id;
-            $offerId = (int)($rule->offer_id ?? 0);
+            $quotaLines = [];
+            foreach ($rule->rotation_rule_lines ?? [] as $line) {
+                if ((string)$line->line_type === 'quota') {
+                    $quotaLines[] = $line;
+                }
+            }
+            if ($quotaLines === []) {
+                continue;
+            }
+
+            foreach ($quotaLines as $line) {
+            $offerId = (int)($line->offer_id ?? 0);
             if ($offerId <= 0) {
                 continue;
             }
 
             $targetBase = $ur->target_count_override !== null
                 ? (int)$ur->target_count_override
-                : (int)($rule->target_count ?? 0);
+                : (int)($line->target_count ?? 0);
             if ($targetBase <= 0) {
                 continue;
             }
@@ -369,17 +386,17 @@ class DraftComplianceService
                     $weekEnd,
                     $contractStart,
                     $contractEnd,
+                    (int)($line->target_count ?? 0) ?: null,
                 );
-                // Aligné génération : override sans prorata si présent
                 if ($ur->target_count_override !== null) {
                     $weekly = (int)$ur->target_count_override;
                 }
                 $requiredProrated += max(0, $weekly);
             }
 
-            $shiftDuration = max(1, (int)$rule->shift_duration);
-            $winStart = $this->normalizeTime($rule->time_window_start ?? null, '00:00:00');
-            $winEnd = $this->normalizeTime($rule->time_window_end ?? null, '23:59:59');
+            $shiftDuration = max(1, (int)($line->shift_duration ?? $rule->shift_duration ?? 1));
+            $winStart = $this->normalizeTime($line->time_window_start ?? $rule->time_window_start ?? null, '00:00:00');
+            $winEnd = $this->normalizeTime($line->time_window_end ?? $rule->time_window_end ?? null, '23:59:59');
 
             $userOfferDrafts = $byUserOffer[$userId][$offerId] ?? [];
             $plages = $this->countRotationPlages(
@@ -410,22 +427,112 @@ class DraftComplianceService
                 ? sprintf('%d / mois · nominal %d (%d sem.)', $targetBase, $targetNominal, $weeksCount)
                 : sprintf('%d / sem. × %d sem.', $targetBase, $weeksCount);
 
+            $offerName = (string)($line->offer->name ?? $rule->offer->name ?? '');
             $rows[] = [
                 'user_id' => $userId,
                 'name' => $userName,
                 'rule_id' => (string)$rule->id,
                 'rule_name' => (string)($rule->name ?? ''),
-                'offer' => (string)($rule->offer->name ?? ''),
+                'offer' => $offerName,
+                'offer_id' => $offerId,
+                'line_type' => 'quota',
                 'period_label' => $periodLabel,
                 'target_base' => $targetBase,
                 'target_nominal' => $targetNominal,
                 'target_label' => $targetLabel,
+                'target_minutes' => $requiredProrated * $shiftDuration,
                 'weeks_count' => $weeksCount,
                 'required' => $requiredProrated,
                 'actual' => $actual,
                 'status' => $status,
                 'plages' => $plages,
             ];
+            }
+        }
+
+        $seenCoverageRules = [];
+        foreach ($userRules as $ur) {
+            $rule = $ur->rotation_rule;
+            if (!$rule) {
+                continue;
+            }
+            $rid = (string)$rule->id;
+            if (isset($seenCoverageRules[$rid])) {
+                continue;
+            }
+            $seenCoverageRules[$rid] = true;
+            foreach ($rule->rotation_rule_lines ?? [] as $line) {
+                if ((string)$line->line_type !== 'coverage') {
+                    continue;
+                }
+                $offerId = (int)($line->offer_id ?? 0);
+                if ($offerId <= 0) {
+                    continue;
+                }
+                $qty = max(1, (int)($line->quantity ?? 1));
+                $offerName = (string)($line->offer->name ?? '');
+                foreach ($okDates as $dateStr) {
+                    $dow = (int)(new FrozenDate($dateStr))->format('N');
+                    if (!$this->ruleAppliesOnDow($line, $dow)) {
+                        continue;
+                    }
+                    $slots = $line->rotation_rule_line_slots ?? [];
+                    if ($slots === [] || $slots === null) {
+                        continue;
+                    }
+                    foreach ($slots as $slot) {
+                        $winStart = $this->normalizeTime($slot->start_time ?? null, '');
+                        $winEnd = $this->normalizeTime($slot->end_time ?? null, '');
+                        if ($winStart === '' || $winEnd === '' || $winStart >= $winEnd) {
+                            continue;
+                        }
+                        $actualUsers = [];
+                        foreach ($draftRows as $dr) {
+                            if ((int)$dr->offer_id !== $offerId) {
+                                continue;
+                            }
+                            $ds = $dr->date_start instanceof \DateTimeInterface
+                                ? new FrozenTime($dr->date_start->format('Y-m-d H:i:s'))
+                                : new FrozenTime((string)$dr->date_start);
+                            $de = $dr->date_end instanceof \DateTimeInterface
+                                ? new FrozenTime($dr->date_end->format('Y-m-d H:i:s'))
+                                : new FrozenTime((string)$dr->date_end);
+                            if ($ds->format('Y-m-d') !== $dateStr) {
+                                continue;
+                            }
+                            $s = $ds->format('H:i:s');
+                            $e = $de->format('H:i:s');
+                            if ($s < $winEnd && $e > $winStart) {
+                                $actualUsers[(int)$dr->user_id] = true;
+                            }
+                        }
+                        $actual = count($actualUsers);
+                        $status = $this->compareStatus($qty, $actual);
+                        $rows[] = [
+                            'user_id' => 0,
+                            'name' => sprintf(
+                                'Couverture %s %s %s–%s',
+                                $offerName,
+                                $dateStr,
+                                substr($winStart, 0, 5),
+                                substr($winEnd, 0, 5)
+                            ),
+                            'rule_id' => $rid,
+                            'rule_name' => (string)($rule->name ?? ''),
+                            'offer' => $offerName,
+                            'period_label' => $dateStr,
+                            'target_base' => $qty,
+                            'target_nominal' => $qty,
+                            'target_label' => sprintf('%d agent(s)', $qty),
+                            'weeks_count' => 1,
+                            'required' => $qty,
+                            'actual' => $actual,
+                            'status' => $status,
+                            'plages' => [],
+                        ];
+                    }
+                }
+            }
         }
 
         usort($rows, static function (array $a, array $b): int {

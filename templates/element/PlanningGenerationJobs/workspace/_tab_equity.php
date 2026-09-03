@@ -238,7 +238,7 @@ $equityHeatClass = function (float $gapMin, float $targetMin): string {
         </table>
     </div>
     <div class="alert alert-info mb-0 mt-3">
-        <div class="mb-1">Lecture des colonnes de groupe : la valeur affichée est le <strong>temps réalisé</strong>, comparé à la <strong>cible</strong> d'équité (visible en info-bulle au survol). Les deux valeurs sont exprimées en <strong>créneaux complets (pauses incluses)</strong>. L'écart est signé (<code>+</code> = au-dessus de la cible, <code>-</code> = en dessous). La colonne <strong>Contrat</strong> est la somme des disponibilités de l'agent sur la période (brut, pauses incluses). La colonne <strong>Planifié net</strong> est le temps de production effectif (pauses et repas déduits).</div>
+        <div class="mb-1">Lecture des colonnes de groupe : la valeur affichée est le <strong>temps réalisé</strong>, comparé à la <strong>cible</strong> d'équité (visible en info-bulle au survol). Les deux valeurs sont exprimées en <strong>créneaux complets (pauses incluses)</strong>. L'écart est signé (<code>+</code> = au-dessus de la cible, <code>-</code> = en dessous). Les offres de <strong>rotation quota</strong> (ex. AE 2×3 h) prennent la cible proratisée × durée de shift — la même que l’onglet Qualité. Les lignes de <strong>couverture</strong> (ex. livechat) n’ont pas de cible individuelle : c’est un need par plage. La colonne <strong>Contrat</strong> est la somme des disponibilités de l'agent sur la période (brut, pauses incluses). La colonne <strong>Planifié net</strong> est le temps de production effectif (pauses et repas déduits).</div>
         <div class="mb-0">
             <i class="bi bi-circle-fill text-success"></i> proche de la cible (≤ 10 % d'écart)
             &nbsp;&nbsp;

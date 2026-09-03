@@ -14,6 +14,11 @@ use Throwable;
 
 class PlanningGenerationJobsController extends AppController
 {
+    /** @var array<string, mixed>|null */
+    private ?array $complianceAnalyzeCache = null;
+
+    private ?int $complianceAnalyzeJobId = null;
+
     public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
@@ -626,8 +631,7 @@ class PlanningGenerationJobsController extends AppController
     private function loadComplianceViewVars(int $id): void
     {
         try {
-            $service = new \App\Service\Planning\DraftComplianceService();
-            $result = $service->analyze($id);
+            $result = $this->analyzeCompliance($id);
             $complianceFixed = $result['fixed'] ?? [];
             $complianceRotation = $result['rotation'] ?? [];
             $complianceSummary = $result['summary'] ?? [
@@ -1497,6 +1501,7 @@ class PlanningGenerationJobsController extends AppController
         $cumulativeTargets = is_array($equityState['cumulative_targets'] ?? null)
             ? $equityState['cumulative_targets']
             : [];
+        $rotationQuotaMinutes = $this->rotationQuotaTargetMinutesByUserOffer($id);
 
         // Réalisé cumulé en BRUT (durée nominale des créneaux, pauses incluses),
         // indexé par base_offer_name (nom pur, ex: "Accueil physique").
@@ -1618,6 +1623,16 @@ class PlanningGenerationJobsController extends AppController
                     $targetByGroup[$groupKey] = (float)($targetByGroup[$groupKey] ?? 0) + (float)$minutes;
                 }
             }
+            foreach ($rotationQuotaMinutes[$uid] ?? [] as $oid => $minutes) {
+                $groupKey = $offerIdToEquityGroup[$oid]
+                    ?? (string)($offersById[$oid]->name ?? '');
+                if ($groupKey === '') {
+                    continue;
+                }
+                if ((float)($targetByGroup[$groupKey] ?? 0) <= 0) {
+                    $targetByGroup[$groupKey] = (float)$minutes;
+                }
+            }
             $gapByGroup = [];
             foreach ($equityGroupsColumns as $col) {
                 $real = (int)($groupMinutes[$col['key']] ?? 0);
@@ -1660,6 +1675,49 @@ class PlanningGenerationJobsController extends AppController
             'filterEquityGroup',
             'equityAvailable',
         ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function analyzeCompliance(int $jobId): array
+    {
+        if ($this->complianceAnalyzeCache !== null && $this->complianceAnalyzeJobId === $jobId) {
+            return $this->complianceAnalyzeCache;
+        }
+        $this->complianceAnalyzeJobId = $jobId;
+        $this->complianceAnalyzeCache = (new \App\Service\Planning\DraftComplianceService())->analyze($jobId);
+
+        return $this->complianceAnalyzeCache;
+    }
+
+    /**
+     * Cible quota rotation en minutes (plages proratisées × durée de shift), par agent et offre.
+     *
+     * @return array<int, array<int, int>>
+     */
+    private function rotationQuotaTargetMinutesByUserOffer(int $jobId): array
+    {
+        try {
+            $result = $this->analyzeCompliance($jobId);
+        } catch (\Throwable $e) {
+            return [];
+        }
+        $out = [];
+        foreach ($result['rotation'] ?? [] as $row) {
+            if (($row['line_type'] ?? '') === 'coverage') {
+                continue;
+            }
+            $uid = (int)($row['user_id'] ?? 0);
+            $oid = (int)($row['offer_id'] ?? 0);
+            $minutes = (int)($row['target_minutes'] ?? 0);
+            if ($uid <= 0 || $oid <= 0 || $minutes <= 0) {
+                continue;
+            }
+            $out[$uid][$oid] = $minutes;
+        }
+
+        return $out;
     }
 
     /**

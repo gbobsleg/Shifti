@@ -66,59 +66,22 @@
                         ]) ?>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label"><i class="bi bi-123"></i> Cible (nombre d'occurrences)</label>
-                        <?= $this->Form->control('target_count', [
-                            'type' => 'number',
-                            'label' => false,
-                            'class' => 'form-control',
-                            'min' => 1
+                        <?= $this->Form->control('exclusive_day', [
+                            'type' => 'checkbox',
+                            'checked' => $rule->exclusive_day ?? true,
+                            'label' => 'Un seul shift (duty) par agent et par jour',
                         ]) ?>
-                        <small class="text-muted">Nombre d'occurrences par période (ex: 3 par semaine, 12 par mois)</small>
+                        <small class="text-muted d-block">Décochez pour autoriser livechat + téléphonie le même jour s’ils ne se chevauchent pas.</small>
                     </div>
                 </div>
+                <?= $this->Form->hidden('target_count') ?>
+                <?= $this->Form->hidden('shift_duration') ?>
+                <?= $this->Form->hidden('time_window_start') ?>
+                <?= $this->Form->hidden('time_window_end') ?>
             </div>
         </div>
 
-        <?php // --- Section Paramètres du shift --- ?>
-        <div class="card border-info mb-4">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-clock"></i> Paramètres du shift
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label"><i class="bi bi-hourglass-split"></i> Durée (minutes)</label>
-                        <?= $this->Form->control('shift_duration', [
-                            'type' => 'number',
-                            'label' => false,
-                            'class' => 'form-control',
-                            'min' => 1
-                        ]) ?>
-                        <small class="text-muted">Durée d'un shift en minutes (ex: 180 pour 3h)</small>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label"><i class="bi bi-clock-history"></i> Début fenêtre</label>
-                        <?= $this->Form->control('time_window_start', [
-                            'type' => 'time',
-                            'label' => false,
-                            'class' => 'form-control'
-                        ]) ?>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label"><i class="bi bi-clock"></i> Fin fenêtre</label>
-                        <?= $this->Form->control('time_window_end', [
-                            'type' => 'time',
-                            'label' => false,
-                            'class' => 'form-control'
-                        ]) ?>
-                    </div>
-                </div>
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i>
-                    <strong>Fenêtre horaire :</strong> Les shifts doivent commencer entre ces heures pour être comptabilisés.
-                </div>
-            </div>
-        </div>
+        <?= $this->element('RotationRules/lines', compact('rule', 'offers', 'defaultTimeWindowStart', 'defaultTimeWindowEnd')) ?>
 
         <?= $this->Form->button('<i class="bi bi-check-circle mr-1"></i> Enregistrer', [
             'class' => 'btn btn-primary btn-lg',
