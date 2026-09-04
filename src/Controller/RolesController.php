@@ -19,28 +19,10 @@ class RolesController extends AppController
     public function index()
     {
         $this->Authorization->authorize(new \App\Resource\RolesResource(), 'index');
-        $roles = $this->paginate($this->Roles);
+        $query = $this->Roles->find()->contain(['Users']);
+        $roles = $this->paginate($query);
 
-        // Statistiques
-        $allRoles = $this->Roles->find('all')->contain(['Users']);
-        $stats = [
-            'total' => $allRoles->count(),
-            'with_users' => 0,
-            'without_users' => 0,
-            'total_users' => 0
-        ];
-        
-        foreach ($allRoles as $role) {
-            $userCount = count($role->users);
-            $stats['total_users'] += $userCount;
-            if ($userCount > 0) {
-                $stats['with_users']++;
-            } else {
-                $stats['without_users']++;
-            }
-        }
-
-        $this->set(compact('roles', 'stats'));
+        $this->set(compact('roles'));
     }
 
     /**

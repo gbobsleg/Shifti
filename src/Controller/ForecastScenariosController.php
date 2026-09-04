@@ -35,38 +35,8 @@ class ForecastScenariosController extends AppController
         // Pagination normale
         $this->paginate = ['limit' => 25];
         $scenarios = $this->paginate($query);
-        
-        // Calculer les statistiques (sur TOUS les scénarios, pas seulement la page courante)
-        $Scenarios = $this->fetchTable('ForecastScenarios');
-        $stats = [
-            'total' => $Scenarios->find()->count(),
-            'draft' => $Scenarios->find()->where(['status' => 'draft'])->count(),
-            'queued' => $Scenarios->find()->where(['status' => ForecastScenario::STATUS_QUEUED])->count(),
-            'running' => $Scenarios->find()->where(['status' => 'running'])->count(),
-            'completed' => $Scenarios->find()->where(['status' => 'completed'])->count(),
-            'failed' => $Scenarios->find()->where(['status' => 'failed'])->count(),
-            'published' => 0,
-            'prophet' => 0,
-        ];
 
-        $allScenarios = $Scenarios->find()->contain(['ForecastScenarioPublications']);
-        
-        // Compter les scénarios publiés
-        foreach ($allScenarios as $s) {
-            if (!empty($s->forecast_scenario_publications)) {
-                $stats['published']++;
-            }
-        }
-
-        // Compter les scénarios qui utilisent au moins une offre en Prophet
-        $Links = $this->fetchTable('ForecastScenariosOffers');
-        $stats['prophet'] = $Links->find()
-            ->select('scenario_id')
-            ->where(['forecast_method' => 'prophet'])
-            ->distinct()
-            ->count();
-        
-        $this->set(compact('scenarios', 'stats'));
+        $this->set(compact('scenarios'));
     }
 
     public function add()

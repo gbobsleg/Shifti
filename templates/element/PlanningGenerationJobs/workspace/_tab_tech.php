@@ -38,51 +38,45 @@ $sectionsCount = ($hasExcludedAgents ? 1 : 0) + ($hasWarnings ? 1 : 0);
 $useCollapse = $sectionsCount > 1;
 $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($allWarnings);
 ?>
-<div class="card shadow mb-3">
-    <div class="card-header bg-white border-bottom">
-        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+<section class="crud-section">
+    <ul class="nav nav-tabs crud-tabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <a class="nav-link active" id="ws-diagnostics-tab" data-toggle="tab" href="#ws-diagnostics" role="tab">
-                    <i class="bi bi-bug"></i> Diagnostics
+                <a class="nav-link active" id="ws-diagnostics-tab" data-bs-toggle="tab" href="#ws-diagnostics" role="tab">
+                    Diagnostics
                     <?php if ($diagBadgeCount > 0): ?>
-                        <span class="badge badge-warning badge-count ml-1">
+                        <span class="badge bg-warning badge-count ms-1">
                             <?= $diagBadgeCount ?>
                         </span>
                     <?php endif; ?>
                 </a>
             </li>
             <li class="nav-item" role="presentation">
-                <a class="nav-link" id="ws-performance-tab" data-toggle="tab" href="#ws-performance" role="tab">
-                    <i class="bi bi-graph-up-arrow"></i> Performance
+                <a class="nav-link" id="ws-performance-tab" data-bs-toggle="tab" href="#ws-performance" role="tab">
+                    Performance
                 </a>
             </li>
         </ul>
-    </div>
-    <div class="card-body">
-        <div class="tab-content">
+        <div class="tab-content pt-3">
             <div class="tab-pane fade show active" id="ws-diagnostics" role="tabpanel">
                 <?php if ($hasExcludedAgents): ?>
-                    <div class="card mb-4" id="excluded-agents-panel">
-                        <div class="card-header bg-light d-flex justify-content-between align-items-center<?= $useCollapse ? ' cursor-pointer' : '' ?>"
+                    <section class="crud-section" id="excluded-agents-panel">
+                        <h2 class="crud-section-title<?= $useCollapse ? ' workspace-collapse-toggle' : '' ?>"
                              <?php if ($useCollapse): ?>
-                             data-toggle="collapse"
-                             data-target="#excluded-agents-collapse"
+                             data-bs-toggle="collapse"
+                             data-bs-target="#excluded-agents-collapse"
                              aria-expanded="false"
+                             role="button"
                              <?php endif; ?>>
-                            <h5 class="mb-0">
-                                <i class="bi bi-person-fill-dash"></i>
                                 Agents exclus — <?= (int)$excludedSummary['agents_total'] ?> agents
-                                <small class="text-muted font-weight-normal ml-1">
+                                <small class="text-muted font-weight-normal ms-1">
                                     (<?= (int)$excludedSummary['agents_actionable'] ?> à corriger
                                     / <?= (int)$excludedSummary['agents_expected'] ?> attendus)
                                 </small>
-                            </h5>
                             <?php if ($useCollapse): ?>
                                 <i class="bi bi-chevron-down"></i>
                             <?php endif; ?>
-                        </div>
+                        </h2>
                         <div class="<?= $useCollapse ? 'collapse' : '' ?>" id="excluded-agents-collapse">
-                            <div class="card-body">
                                 <?php if ((int)$excludedSummary['day_agent_total'] > 0): ?>
                                     <p class="text-muted small mb-3">
                                         <?= (int)$excludedSummary['day_agent_total'] ?> exclusions jour×agent au total
@@ -102,11 +96,11 @@ $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($all
                                                     class="btn btn-sm excluded-reason-chip <?= $isActionable ? 'btn-outline-danger' : 'btn-outline-secondary' ?>"
                                                     data-filter-reason="<?= h($reasonKey) ?>"
                                                     title="Filtrer la liste sur cette raison">
-                                                <span class="badge badge-<?= $isActionable ? 'danger' : 'secondary' ?> mr-1">
+                                                <span class="badge bg-<?= $isActionable ? 'danger' : 'secondary' ?> me-1">
                                                     <?= $isActionable ? 'À corriger' : 'Attendu' ?>
                                                 </span>
                                                 <?= h($reasonKey) ?>
-                                                <strong class="ml-1"><?= (int)$reasonRow['agent_count'] ?></strong>
+                                                <strong class="ms-1"><?= (int)$reasonRow['agent_count'] ?></strong>
                                                 <span class="text-muted">agents</span>
                                             </button>
                                         <?php endforeach; ?>
@@ -115,7 +109,7 @@ $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($all
 
                                 <!-- Filtres rapides -->
                                 <div class="mb-3 d-flex flex-wrap align-items-center" style="gap: 0.35rem;" id="excluded-agents-filters">
-                                    <span class="text-muted small mr-1">Filtrer :</span>
+                                    <span class="text-muted small me-1">Filtrer :</span>
                                     <button type="button" class="btn btn-sm btn-primary excluded-filter-chip active" data-filter-category="all">
                                         Tous
                                     </button>
@@ -157,8 +151,8 @@ $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($all
                                                     <td class="text-center">
                                                         <button type="button"
                                                                 class="btn btn-sm btn-link p-0 excluded-agent-toggle"
-                                                                data-toggle="collapse"
-                                                                data-target="#<?= h($collapseId) ?>"
+                                                                data-bs-toggle="collapse"
+                                                                data-bs-target="#<?= h($collapseId) ?>"
                                                                 aria-expanded="false"
                                                                 aria-controls="<?= h($collapseId) ?>"
                                                                 title="Voir le détail par jour">
@@ -171,21 +165,19 @@ $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($all
                                                     </td>
                                                     <td><?= h((string)$agent['site']) ?></td>
                                                     <td>
-                                                        <span class="badge badge-<?= $isActionable ? 'danger' : 'secondary' ?>">
+                                                        <span class="badge bg-<?= $isActionable ? 'danger' : 'secondary' ?>">
                                                             <?= $isActionable ? 'À corriger' : 'Attendu' ?>
                                                         </span>
                                                     </td>
                                                     <td>
                                                         <?php foreach (($agent['reasons'] ?? []) as $r): ?>
                                                             <?php $rCat = ($r === 'Agent en congé complet pour cette date') ? 'expected' : 'actionable'; ?>
-                                                            <span class="badge badge-<?= $rCat === 'actionable' ? 'danger' : 'secondary' ?> mr-1 mb-1">
+                                                            <span class="badge bg-<?= $rCat === 'actionable' ? 'danger' : 'secondary' ?> me-1 mb-1">
                                                                 <?= h($r) ?>
                                                             </span>
                                                         <?php endforeach; ?>
                                                     </td>
-                                                    <td class="text-end">
-                                                        <span class="badge badge-secondary"><?= (int)$agent['day_count'] ?></span>
-                                                    </td>
+                                                    <td class="text-end"><?= (int)$agent['day_count'] ?></td>
                                                 </tr>
                                                 <tr class="excluded-agent-detail-row"
                                                     data-agent-category="<?= h($primaryCat) ?>"
@@ -211,7 +203,7 @@ $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($all
                                                                             <tr>
                                                                                 <td><?= h((string)($dayRow['date'] ?? '')) ?></td>
                                                                                 <td>
-                                                                                    <span class="badge badge-<?= $dayCat === 'actionable' ? 'danger' : 'secondary' ?>">
+                                                                                    <span class="badge bg-<?= $dayCat === 'actionable' ? 'danger' : 'secondary' ?>">
                                                                                         <?= h($dayReason) ?>
                                                                                     </span>
                                                                                 </td>
@@ -230,29 +222,25 @@ $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($all
                                 <p class="text-muted small mb-0" id="excluded-agents-empty-filter" style="display: none;">
                                     Aucun agent pour ce filtre.
                                 </p>
-                            </div>
                         </div>
-                    </div>
+                    </section>
                 <?php endif; ?>
 
                 <?php if ($hasWarnings): ?>
-                    <div class="card mb-4">
-                        <div class="card-header bg-light d-flex justify-content-between align-items-center<?= $useCollapse ? ' cursor-pointer' : '' ?>"
+                    <section class="crud-section">
+                        <h2 class="crud-section-title<?= $useCollapse ? ' workspace-collapse-toggle' : '' ?>"
                              <?php if ($useCollapse): ?>
-                             data-toggle="collapse"
-                             data-target="#warnings-collapse"
+                             data-bs-toggle="collapse"
+                             data-bs-target="#warnings-collapse"
                              aria-expanded="false"
+                             role="button"
                              <?php endif; ?>>
-                            <h5 class="mb-0">
-                                <i class="bi bi-exclamation-triangle"></i>
                                 Warnings (<?= count($allWarnings) ?> types, <?= (int)$stats['total_warnings'] ?> occurrences)
-                            </h5>
                             <?php if ($useCollapse): ?>
                                 <i class="bi bi-chevron-down"></i>
                             <?php endif; ?>
-                        </div>
+                        </h2>
                         <div class="<?= $useCollapse ? 'collapse' : '' ?>" id="warnings-collapse">
-                            <div class="card-body">
                                 <div class="table-responsive">
                                     <table class="table table-striped table-hover">
                                         <thead>
@@ -266,7 +254,7 @@ $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($all
                                             <?php foreach ($topWarnings as $warning): ?>
                                                 <tr>
                                                     <td><?= h($warning['message']) ?></td>
-                                                    <td class="text-end"><span class="badge badge-warning"><?= (int)$warning['count'] ?>x</span></td>
+                                                    <td class="text-end"><?= (int)$warning['count'] ?>×</td>
                                                     <td>
                                                         <small class="text-muted">
                                                             <?= implode(', ', array_slice($warning['dates'], 0, 3)) ?>
@@ -280,26 +268,20 @@ $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($all
                                         </tbody>
                                     </table>
                                 </div>
-                            </div>
                         </div>
-                    </div>
+                    </section>
                 <?php endif; ?>
 
                 <?php if (!$hasExcludedAgents && !$hasWarnings): ?>
-                    <div class="alert alert-success mb-0">
-                        <i class="bi bi-check-circle"></i> Aucun problème détecté dans les diagnostics.
-                    </div>
+                    <p class="text-muted mb-0">Aucun problème détecté dans les diagnostics.</p>
                 <?php endif; ?>
             </div>
 
             <div class="tab-pane fade" id="ws-performance" role="tabpanel">
                 <div class="row">
                     <div class="col-md-6">
-                        <div class="card mb-4">
-                            <div class="card-header bg-light">
-                                <h6 class="mb-0"><i class="bi bi-graph-up"></i> Évolution de la durée</h6>
-                            </div>
-                            <div class="card-body">
+                        <section class="crud-section">
+                            <h2 class="crud-section-title">Évolution de la durée</h2>
                                 <?php if (!empty($durationData)): ?>
                                     <?php
                                     $maxDuration = max(array_column($durationData, 'duration'));
@@ -348,41 +330,41 @@ $diagBadgeCount = (int)($excludedSummary['agents_actionable'] ?? 0) + count($all
                                         Aucune donnée de durée disponible.
                                     </p>
                                 <?php endif; ?>
-                            </div>
-                        </div>
+                        </section>
                     </div>
                     <div class="col-md-6">
-                        <div class="card mb-4">
-                            <div class="card-header bg-light">
-                                <h6 class="mb-0"><i class="bi bi-bar-chart"></i> Statistiques de performance</h6>
-                            </div>
-                            <div class="card-body">
-                                <dl class="row mb-0">
-                                    <dt class="col-sm-6">Durée totale</dt>
-                                    <dd class="col-sm-6"><?= number_format(($stats['total_duration_ms'] ?? 0) / 1000, 2) ?>s</dd>
-                                    <dt class="col-sm-6">Durée moyenne</dt>
-                                    <dd class="col-sm-6"><?= ($stats['avg_duration_ms'] ?? 0) > 0 ? number_format($stats['avg_duration_ms'] / 1000, 2) : '—' ?>s</dd>
-                                    <dt class="col-sm-6">Durée min</dt>
-                                    <dd class="col-sm-6">
+                        <section class="crud-section">
+                            <h2 class="crud-section-title">Statistiques de performance</h2>
+                                <dl class="crud-fields">
+                                    <div>
+                                        <dt>Durée totale</dt>
+                                        <dd><?= number_format(($stats['total_duration_ms'] ?? 0) / 1000, 2) ?>s</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Durée moyenne</dt>
+                                        <dd><?= ($stats['avg_duration_ms'] ?? 0) > 0 ? number_format($stats['avg_duration_ms'] / 1000, 2) : '—' ?>s</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Durée min</dt>
+                                        <dd>
                                         <?php
                                         $durations = array_column($durationData, 'duration');
                                         echo !empty($durations) ? number_format(min($durations), 2) . 's' : '—';
                                         ?>
-                                    </dd>
-                                    <dt class="col-sm-6">Durée max</dt>
-                                    <dd class="col-sm-6">
-                                        <?= !empty($durations) ? number_format(max($durations), 2) . 's' : '—' ?>
-                                    </dd>
-                                    <dt class="col-sm-6">Segments par jour OK</dt>
-                                    <dd class="col-sm-6">
-                                        <?= ($stats['days_ok'] ?? 0) > 0 ? number_format(($stats['total_segments'] ?? 0) / $stats['days_ok'], 0) : '—' ?>
-                                    </dd>
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt>Durée max</dt>
+                                        <dd><?= !empty($durations) ? number_format(max($durations), 2) . 's' : '—' ?></dd>
+                                    </div>
+                                    <div>
+                                        <dt>Segments par jour OK</dt>
+                                        <dd><?= ($stats['days_ok'] ?? 0) > 0 ? number_format(($stats['total_segments'] ?? 0) / $stats['days_ok'], 0) : '—' ?></dd>
+                                    </div>
                                 </dl>
-                            </div>
-                        </div>
+                        </section>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
+</section>

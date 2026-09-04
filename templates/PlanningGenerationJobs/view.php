@@ -16,24 +16,6 @@ $workspaceSection = $workspaceSection ?? '';
 <?php $this->Html->script('planning-generation-workspace', ['block' => true]); ?>
 
 <style>
-.kpi-card {
-    transition: transform 0.2s, box-shadow 0.2s;
-    border-left: 4px solid;
-}
-.kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
-}
-.kpi-value {
-    font-size: 2rem;
-    font-weight: 700;
-    line-height: 1;
-    margin-bottom: 0.35rem;
-}
-.kpi-label {
-    font-size: 0.85rem;
-    color: #6c757d;
-}
 .timeline-bar {
     height: 8px;
     border-radius: 4px;
@@ -43,7 +25,7 @@ $workspaceSection = $workspaceSection ?? '';
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background-color: #28a745;
+    background-color: #318f9b;
     animation: pulse 2s infinite;
     margin-right: 0.5rem;
 }
@@ -54,21 +36,6 @@ $workspaceSection = $workspaceSection ?? '';
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
-}
-.nav-tabs .nav-link {
-    border: none;
-    border-bottom: 3px solid transparent;
-    color: #6c757d;
-    font-weight: 500;
-}
-.nav-tabs .nav-link:hover {
-    border-bottom-color: #dee2e6;
-    color: #495057;
-}
-.nav-tabs .nav-link.active {
-    border-bottom-color: #0d6efd;
-    color: #0d6efd;
-    background: transparent;
 }
 .badge-count {
     font-size: 0.75rem;
@@ -92,17 +59,19 @@ $workspaceSection = $workspaceSection ?? '';
     position: sticky;
     top: 0;
     z-index: 10;
-    background: #f8f9fa;
-    box-shadow: inset 0 -2px 0 #dee2e6;
+    background: #fff;
+    box-shadow: inset 0 -1px 0 var(--crud-border, #dee2e6);
 }
 #equity-cols-menu { font-size: 0.85rem; }
 #equity-cols-menu .form-check { margin-bottom: 0.1rem; }
 #equity-cols-menu .form-check-label { cursor: pointer; white-space: normal; }
 .cursor-pointer { cursor: pointer; }
-.card-header .bi-chevron-down {
+.workspace-collapse-toggle .bi-chevron-down {
     transition: transform 0.2s ease;
+    float: right;
+    margin-top: 0.15rem;
 }
-.card-header[aria-expanded="true"] .bi-chevron-down {
+.workspace-collapse-toggle[aria-expanded="true"] .bi-chevron-down {
     transform: rotate(180deg);
 }
 .excluded-reason-chip,
@@ -113,7 +82,7 @@ $workspaceSection = $workspaceSection ?? '';
 }
 .excluded-reason-chip.active,
 .excluded-filter-chip.active {
-    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.35);
+    box-shadow: 0 0 0 2px rgba(49, 143, 155, 0.35);
 }
 .excluded-agent-toggle .bi-chevron-down {
     transition: transform 0.2s ease;
@@ -124,11 +93,6 @@ $workspaceSection = $workspaceSection ?? '';
 #excluded-agents-table tbody tr.excluded-agent-detail-row > td {
     background: transparent;
 }
-#compliance-panel .badge.p-2 {
-    font-size: 0.9rem;
-    font-weight: 500;
-}
-/* Filtres conformité (radio + CSS, sans JS) */
 #compliance-panel .compliance-filter-radio {
     position: absolute;
     opacity: 0;
@@ -155,24 +119,22 @@ $workspaceSection = $workspaceSection ?? '';
 }
 </style>
 
-<div class="row">
-    <div class="col-12"
-         id="planning-generation-workspace"
-         data-workspace-section="<?= h($workspaceSection) ?>"
-         data-csrf-token="<?= h((string)$this->request->getAttribute('csrfToken')) ?>">
-        <?= $this->element('PlanningGenerationJobs/workspace/_header') ?>
-        <?= $this->element('PlanningGenerationJobs/workspace/_nav') ?>
+<div class="crud-app crud-app-wide planning-generation-jobs view content"
+     id="planning-generation-workspace"
+     data-workspace-section="<?= h($workspaceSection) ?>"
+     data-csrf-token="<?= h((string)$this->request->getAttribute('csrfToken')) ?>">
+    <?= $this->element('PlanningGenerationJobs/workspace/_header') ?>
+    <?= $this->element('PlanningGenerationJobs/workspace/_nav') ?>
 
-        <?php if ($workspaceTab === 'qualite'): ?>
-            <?= $this->element('PlanningGenerationJobs/workspace/_tab_quality') ?>
-        <?php elseif ($workspaceTab === 'equite'): ?>
-            <?= $this->element('PlanningGenerationJobs/workspace/_tab_equity') ?>
-        <?php elseif ($workspaceTab === 'technique'): ?>
-            <?= $this->element('PlanningGenerationJobs/workspace/_tab_tech') ?>
-        <?php elseif ($workspaceTab === 'conflits'): ?>
-            <?= $this->element('PlanningGenerationJobs/workspace/_tab_absence_conflicts') ?>
-        <?php else: ?>
-            <?= $this->element('PlanningGenerationJobs/workspace/_tab_planning') ?>
-        <?php endif; ?>
-    </div>
+    <?php if ($workspaceTab === 'qualite'): ?>
+        <?= $this->element('PlanningGenerationJobs/workspace/_tab_quality') ?>
+    <?php elseif ($workspaceTab === 'equite'): ?>
+        <?= $this->element('PlanningGenerationJobs/workspace/_tab_equity') ?>
+    <?php elseif ($workspaceTab === 'technique'): ?>
+        <?= $this->element('PlanningGenerationJobs/workspace/_tab_tech') ?>
+    <?php elseif ($workspaceTab === 'conflits'): ?>
+        <?= $this->element('PlanningGenerationJobs/workspace/_tab_absence_conflicts') ?>
+    <?php else: ?>
+        <?= $this->element('PlanningGenerationJobs/workspace/_tab_planning') ?>
+    <?php endif; ?>
 </div>

@@ -3,103 +3,66 @@
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\Skill $skill
  */
+$isExpired = $skill->validity_end && $skill->validity_end < new \Cake\I18n\FrozenDate();
+$userLabel = $skill->hasValue('user')
+    ? $skill->user->last_name . ' ' . $skill->user->first_name
+    : 'Compétence #' . $skill->id;
 ?>
 <?php $this->assign('title', 'Détails Compétence #' . $skill->id); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<?php
-$isExpired = $skill->validity_end && $skill->validity_end < new \Cake\I18n\FrozenDate();
-$badgeClass = $isExpired ? 'badge-danger' : 'badge-success';
-$badgeIcon = $isExpired ? 'bi-x-circle' : 'bi-check-circle';
-$badgeLabel = $isExpired ? 'Expirée' : 'Active';
-?>
-
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-award text-primary"></i>
-            Compétence #<?= h($skill->id) ?>
-            <span class="badge <?= $badgeClass ?> ml-2">
-                <i class="bi <?= $badgeIcon ?>"></i> <?= $badgeLabel ?>
-            </span>
-        </h3>
-        <div class="btn-toolbar">
+<div class="crud-app skills view content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-award"></i>
+            <?= h($userLabel) ?>
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-pencil mr-1"></i> Modifier',
+                '<i class="bi bi-pencil me-1"></i> Modifier',
                 ['action' => 'edit', $skill->id],
-                ['class' => 'btn btn-primary mr-2', 'escape' => false]
-            ) ?>
-            <?= $this->Form->postLink(
-                '<i class="bi bi-trash mr-1"></i> Supprimer',
-                ['action' => 'delete', $skill->id],
-                ['confirm' => 'Voulez-vous vraiment supprimer cette compétence ?', 'class' => 'btn btn-danger mr-2', 'escape' => false]
+                ['class' => 'btn btn-primary', 'escape' => false]
             ) ?>
             <?= $this->Html->link(
-                '<i class="bi bi-list mr-1"></i> Liste',
-                ['action' => 'index'],
-                ['class' => 'btn btn-outline-secondary', 'escape' => false]
-            ) ?>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="card border-primary mb-4">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-info-circle"></i> Informations
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="text-muted small mb-1"><i class="bi bi-person"></i> Utilisateur</label>
-                    <div>
-                        <?php if ($skill->hasValue('user')): ?>
-                            <strong><?= h($skill->user->last_name . ' ' . $skill->user->first_name) ?></strong>
-                        <?php else: ?>
-                            <span class="text-muted">N/A</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="text-muted small mb-1"><i class="bi bi-tag"></i> Offre/Compétence</label>
-                    <div>
-                        <?php if ($skill->hasValue('offer')): ?>
-                            <span class="badge badge-info"><?= h($skill->offer->name) ?></span>
-                        <?php else: ?>
-                            <span class="text-muted">N/A</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="text-muted small mb-1"><i class="bi bi-calendar-event"></i> Validité Début</label>
-                        <div><?= h($skill->validity_start ? $skill->validity_start->i18nFormat('dd/MM/yyyy') : 'N/A') ?></div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="text-muted small mb-1"><i class="bi bi-calendar-x"></i> Validité Fin</label>
-                        <div><?= h($skill->validity_end ? $skill->validity_end->i18nFormat('dd/MM/yyyy') : 'N/A') ?></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="mt-3">
-            <?= $this->Html->link(
-                '<i class="bi bi-pencil mr-2"></i> Modifier',
-                ['action' => 'edit', $skill->id],
-                ['class' => 'btn btn-primary mr-3', 'escape' => false]
-            ) ?>
-            <?= $this->Html->link(
-                '<i class="bi bi-list-ul mr-2"></i> Retour à la liste',
+                '<i class="bi bi-list me-1"></i> Liste',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
             <?= $this->Form->postLink(
-                '<i class="bi bi-trash mr-2"></i> Supprimer',
+                '<i class="bi bi-trash me-1"></i> Supprimer',
                 ['action' => 'delete', $skill->id],
                 [
                     'confirm' => 'Voulez-vous vraiment supprimer cette compétence ?',
-                    'class' => 'btn btn-outline-danger float-right',
-                    'escape' => false
+                    'class' => 'btn btn-outline-danger',
+                    'escape' => false,
                 ]
             ) ?>
         </div>
     </div>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Informations</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Utilisateur</dt>
+                <dd><?= $skill->hasValue('user') ? h($userLabel) : '—' ?></dd>
+            </div>
+            <div>
+                <dt>Offre</dt>
+                <dd><?= $skill->hasValue('offer') ? h($skill->offer->name) : '—' ?></dd>
+            </div>
+            <div>
+                <dt>Début de validité</dt>
+                <dd><?= h($skill->validity_start ? $skill->validity_start->i18nFormat('dd/MM/yyyy') : '—') ?></dd>
+            </div>
+            <div>
+                <dt>Fin de validité</dt>
+                <dd>
+                    <?= h($skill->validity_end ? $skill->validity_end->i18nFormat('dd/MM/yyyy') : '—') ?>
+                    <?php if ($isExpired): ?>
+                        <span class="text-muted">Expirée</span>
+                    <?php endif; ?>
+                </dd>
+            </div>
+        </dl>
+    </section>
 </div>

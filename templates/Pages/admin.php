@@ -5,36 +5,118 @@
 
 $this->assign('title', 'Administration');
 $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth');
-?>
 
-<?php
 $this->append('css', '<style>
-.admin-card {
-    transition: all 0.3s ease;
-    border: 2px solid transparent;
+.admin-workflow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.5rem 0.35rem;
 }
-.admin-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-    border-color: #007bff;
+.admin-workflow .admin-tile {
+    flex: 1 1 9.5rem;
+    min-width: 9.5rem;
 }
-.admin-card .card-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
+.admin-workflow-sep {
+    display: none;
+    align-self: center;
+    color: var(--crud-muted, #6b7a82);
+    padding: 0 0.1rem;
+    font-size: 0.85rem;
 }
-.workflow-arrow {
-    font-size: 1.5rem;
-    color: #6c757d;
-    animation: pulse 2s infinite;
+@media (min-width: 1100px) {
+    .admin-workflow-sep { display: block; }
 }
-@keyframes pulse {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 1; }
+.admin-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 0.65rem;
+}
+.admin-tile {
+    display: flex;
+    flex-direction: column;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--crud-border, #e2e8ea);
+    border-radius: var(--crud-radius, 6px);
+    text-decoration: none;
+    color: var(--crud-text, #1f2a30);
+    background: var(--crud-surface, #fff);
+}
+.admin-tile:hover,
+.admin-tile:focus {
+    border-color: var(--crud-accent, #318f9b);
+    color: var(--crud-text, #1f2a30);
+    text-decoration: none;
+}
+.admin-tile:focus-visible {
+    outline: 2px solid var(--crud-accent, #318f9b);
+    outline-offset: 2px;
+}
+.admin-tile .bi {
+    font-size: 1.15rem;
+    color: var(--crud-accent, #318f9b);
+    margin-bottom: 0.4rem;
+}
+.admin-tile strong {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+.admin-tile small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    color: var(--crud-muted, #6b7a82);
+    line-height: 1.35;
+}
+.admin-dir {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 0 1.25rem;
+}
+.admin-dir-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.45rem 0.4rem;
+    margin: 0 -0.4rem;
+    border-radius: var(--crud-radius, 6px);
+    text-decoration: none;
+    color: var(--crud-text, #1f2a30);
+}
+.admin-dir-item:hover,
+.admin-dir-item:focus {
+    background: var(--crud-bg, #f4f6f7);
+    color: var(--crud-text, #1f2a30);
+    text-decoration: none;
+}
+.admin-dir-item:focus-visible {
+    outline: 2px solid var(--crud-accent, #318f9b);
+    outline-offset: 2px;
+}
+.admin-dir-item .bi {
+    color: var(--crud-accent, #318f9b);
+    margin-top: 0.15rem;
+    flex-shrink: 0;
+}
+.admin-dir-item strong {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+.admin-dir-item small {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--crud-muted, #6b7a82);
+    line-height: 1.35;
+}
+.admin-dir-item.is-legacy small {
+    font-style: italic;
 }
 .services-health-pill {
     font-size: 0.8rem;
     font-weight: 500;
-    color: #495057;
+    color: var(--crud-muted, #6b7a82);
     margin-right: 0.65rem;
     white-space: nowrap;
 }
@@ -53,17 +135,35 @@ $this->append('css', '<style>
 $identity = $this->request->getAttribute('identity') ?? (isset($this->Identity) ? $this->Identity->get() : null);
 $roleId = $identity ? (int)(is_object($identity) && method_exists($identity, 'get') ? $identity->get('role_id') : ($identity['role_id'] ?? 0)) : null;
 $servicesHealth = $servicesHealth ?? [];
+$isAdmin = ($roleId === 1);
+$isManager = ($roleId === 2);
+$roleLabel = $roleId === 1 ? 'Administrateur' : ($roleId === 2 ? 'Manager' : 'Utilisateur');
+
+$tile = function (string $icon, string $title, string $help, array $url) {
+    return $this->Html->link(
+        '<i class="bi ' . h($icon) . '" aria-hidden="true"></i>'
+        . '<strong>' . h($title) . '</strong>'
+        . '<small>' . h($help) . '</small>',
+        $url,
+        ['class' => 'admin-tile', 'escape' => false]
+    );
+};
+$dirItem = function (string $icon, string $title, string $help, array $url, string $extra = '') {
+    return $this->Html->link(
+        '<i class="bi ' . h($icon) . '" aria-hidden="true"></i>'
+        . '<span><strong>' . h($title) . '</strong><small>' . h($help) . '</small></span>',
+        $url,
+        ['class' => 'admin-dir-item' . ($extra !== '' ? ' ' . $extra : ''), 'escape' => false]
+    );
+};
 ?>
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-speedometer2 text-primary"></i>
-            Tableau de bord Administration
-        </h3>
-        <div class="d-flex align-items-center">
+<div class="crud-app content">
+    <div class="crud-header">
+        <h1>Administration</h1>
+        <div class="crud-header-actions">
             <?php if (!empty($servicesHealth)): ?>
-                <span class="services-health mr-3" title="État des services Python">
+                <span class="services-health" title="État des services Python">
                     <?php foreach ($servicesHealth as $svc): ?>
                         <?php
                         $ok = !empty($svc['ok']);
@@ -75,439 +175,96 @@ $servicesHealth = $servicesHealth ?? [];
                     <?php endforeach; ?>
                 </span>
             <?php endif; ?>
-            <span class="badge badge-info badge-lg">
-                <i class="bi bi-person-badge"></i>
-                <?= $roleId === 1 ? 'Administrateur' : ($roleId === 2 ? 'Manager' : 'Utilisateur') ?>
-            </span>
+            <span class="badge text-bg-light border"><?= h($roleLabel) ?></span>
         </div>
     </div>
-    <div class="card-body">
-        <?php $isAdmin = ($roleId === 1); $isManager = ($roleId === 2); ?>
 
-        <?php if ($isAdmin || $isManager): ?>
-        <h4 class="mb-4">
-            <i class="bi bi-diagram-2 text-success"></i> Workflow de planification
-        </h4>
-        <div class="row align-items-stretch text-center">
-            <div class="col-md-2 mb-3">
-                <div class="card admin-card border-warning h-100">
-                    <div class="card-body d-flex flex-column">
-                        <i class="bi bi-file-earmark-excel text-warning" style="font-size: 2.5rem; margin-bottom: 0.5rem;"></i>
-                        <h6 class="card-title mb-2">Upload Excel</h6>
-                        <small class="text-muted d-block mb-2">Importer plannings absences/télétravail</small>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle"></i> Importer',
-                                ['controller' => 'ExcelUploads', 'action' => 'upload'],
-                                ['class' => 'btn btn-warning btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-auto d-none d-md-flex align-items-center">
-                <i class="bi bi-arrow-right workflow-arrow"></i>
-            </div>
-            <div class="col-md-2 mb-3">
-                <div class="card admin-card border-info h-100">
-                    <div class="card-body d-flex flex-column">
-                        <i class="bi bi-graph-up-arrow text-info" style="font-size: 2.5rem; margin-bottom: 0.5rem;"></i>
-                        <h6 class="card-title mb-2">Scénarios WFM</h6>
-                        <small class="text-muted d-block mb-2">Prévisions besoin</small>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle"></i> Accéder',
-                                ['controller' => 'ForecastScenarios', 'action' => 'index'],
-                                ['class' => 'btn btn-info btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-auto d-none d-md-flex align-items-center">
-                <i class="bi bi-arrow-right workflow-arrow"></i>
-            </div>
+    <?php if ($isAdmin || $isManager): ?>
+        <?php
+        $workflowSteps = [
+            ['bi-file-earmark-excel', 'Upload Excel', 'Importer plannings absences/télétravail', ['controller' => 'ExcelUploads', 'action' => 'upload']],
+            ['bi-graph-up-arrow', 'Scénarios WFM', 'Prévisions besoin', ['controller' => 'ForecastScenarios', 'action' => 'index']],
+            ['bi-calendar-check', 'Activités fixes', 'Règles rigides', ['controller' => 'FixedActivityRules', 'action' => 'index']],
+            ['bi-arrow-repeat', 'Règles de rotation', 'Rotation et équité', ['controller' => 'RotationRules', 'action' => 'index']],
+            ['bi-cpu', 'Générations de planning', 'Jobs multi-jours', ['controller' => 'PlanningGenerationJobs', 'action' => 'index']],
+        ];
+        $operations = [
+            ['bi-list-task', 'Jobs', 'File Optuna / prévisions / plannings', ['controller' => 'BackgroundJobs', 'action' => 'index']],
+            ['bi-people', 'Utilisateurs', 'Gestion des agents et managers', ['controller' => 'Users', 'action' => 'index']],
+            ['bi-bell', 'Alertes', 'Messages et notifications', ['controller' => 'Alerts', 'action' => 'index']],
+            ['bi-calendar-x', 'Absences', 'Congés et indisponibilités', ['controller' => 'Absences', 'action' => 'index']],
+            ['bi-house-door', 'Télétravail', 'Configuration par agent', ['controller' => 'RemoteWork', 'action' => 'index']],
+        ];
+        ?>
 
-            <div class="col-md-2 mb-3">
-                <div class="card admin-card border-primary h-100">
-                    <div class="card-body d-flex flex-column">
-                        <i class="bi bi-calendar-check text-primary" style="font-size: 2.5rem; margin-bottom: 0.5rem;"></i>
-                        <h6 class="card-title mb-2">Activités fixes</h6>
-                        <small class="text-muted d-block mb-2">Règles rigides</small>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle"></i> Accéder',
-                                ['controller' => 'FixedActivityRules', 'action' => 'index'],
-                                ['class' => 'btn btn-primary btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
+        <section class="crud-section">
+            <h2 class="crud-section-title">Workflow de planification</h2>
+            <div class="admin-workflow">
+                <?php foreach ($workflowSteps as $i => $step): ?>
+                    <?php if ($i > 0): ?>
+                        <span class="admin-workflow-sep" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                    <?php endif; ?>
+                    <?= $tile($step[0], $step[1], $step[2], $step[3]) ?>
+                <?php endforeach; ?>
             </div>
-            <div class="col-auto d-none d-md-flex align-items-center">
-                <i class="bi bi-arrow-right workflow-arrow"></i>
-            </div>
+        </section>
 
-            <div class="col-md-2 mb-3">
-                <div class="card admin-card border-warning h-100">
-                    <div class="card-body d-flex flex-column">
-                        <i class="bi bi-arrow-repeat text-warning" style="font-size: 2.5rem; margin-bottom: 0.5rem;"></i>
-                        <h6 class="card-title mb-2">Règles de rotation</h6>
-                        <small class="text-muted d-block mb-2">Rotation et équité</small>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle"></i> Accéder',
-                                ['controller' => 'RotationRules', 'action' => 'index'],
-                                ['class' => 'btn btn-warning btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
+        <section class="crud-section">
+            <h2 class="crud-section-title">Opérations</h2>
+            <div class="admin-tiles">
+                <?php foreach ($operations as $item): ?>
+                    <?= $tile($item[0], $item[1], $item[2], $item[3]) ?>
+                <?php endforeach; ?>
             </div>
-            <div class="col-auto d-none d-md-flex align-items-center">
-                <i class="bi bi-arrow-right workflow-arrow"></i>
-            </div>
+        </section>
+    <?php endif; ?>
 
-            <div class="col-md-2 mb-3">
-                <div class="card admin-card border-success h-100">
-                    <div class="card-body d-flex flex-column">
-                        <i class="bi bi-cpu-fill text-success" style="font-size: 2.5rem; margin-bottom: 0.5rem;"></i>
-                        <h6 class="card-title mb-2">Générations de planning</h6>
-                        <small class="text-muted d-block mb-2">Jobs multi-jours</small>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle"></i> Accéder',
-                                ['controller' => 'PlanningGenerationJobs', 'action' => 'index'],
-                                ['class' => 'btn btn-success btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
+    <?php if ($isAdmin): ?>
+        <?php
+        $referentials = [
+            ['bi-shield-lock', 'Rôles', 'Droits d\'accès', ['controller' => 'Roles', 'action' => 'index']],
+            ['bi-diagram-3', 'Régions', 'Zones géographiques', ['controller' => 'Regions', 'action' => 'index']],
+            ['bi-geo-alt', 'Sites', 'Lieux de travail', ['controller' => 'Sites', 'action' => 'index']],
+            ['bi-basket', 'Offres', 'Types d\'activités', ['controller' => 'Offers', 'action' => 'index']],
+            ['bi-collection', 'Groupes d\'offres', 'Profils mixtes (passe 2)', ['controller' => 'OfferGroups', 'action' => 'index']],
+            ['bi-clock-history', 'Plages', 'Horaires personnalisés', ['controller' => 'Ranges', 'action' => 'index']],
+            ['bi-award', 'Compétences', 'Habilitations agents', ['controller' => 'Skills', 'action' => 'index']],
+            ['bi-clock', 'Disponibilités', 'Horaires contractuels', ['controller' => 'UserAvailabilities', 'action' => 'index']],
+            ['bi-sliders', 'Affichage', 'Paramètres visuels', ['controller' => 'DisplaySettings', 'action' => 'index']],
+            ['bi-link-45deg', 'Mappings absences', 'Pour GroomRH', ['controller' => 'PlanningEventMappings', 'action' => 'index']],
+            ['bi-sliders', 'Paramètres WFM', 'Config solveur', ['controller' => 'WfmSettings', 'action' => 'index']],
+        ];
+        ?>
+        <section class="crud-section">
+            <h2 class="crud-section-title">Référentiels</h2>
+            <div class="admin-dir">
+                <?php foreach ($referentials as $item): ?>
+                    <?= $dirItem($item[0], $item[1], $item[2], $item[3]) ?>
+                <?php endforeach; ?>
+                <?= $dirItem(
+                    'bi-play-circle',
+                    'Test 1 jour (legacy)',
+                    'Ancien générateur synchrone — préférer Générations de planning',
+                    ['controller' => 'Schedules', 'action' => 'generate'],
+                    'is-legacy'
+                ) ?>
             </div>
-        </div>
-        <?php endif; ?>
+        </section>
+    <?php endif; ?>
 
-        <?php if ($isAdmin || $isManager): ?>
-        <h4 class="mt-5 mb-4">
-            <i class="bi bi-list-check text-primary"></i> Opérations
-        </h4>
-        <div class="row">
-            <div class="col-md-3 mb-4">
-                <div class="card admin-card border-dark h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-list-task text-dark card-icon"></i>
-                        <h5 class="card-title">Jobs</h5>
-                        <p class="text-muted small">File Optuna / prévisions / plannings</p>
-                        <?= $this->Html->link(
-                            '<i class="bi bi-arrow-right-circle mr-2"></i> Accéder',
-                            ['controller' => 'BackgroundJobs', 'action' => 'index'],
-                            ['class' => 'btn btn-dark', 'escape' => false]
-                        ) ?>
-                    </div>
-                </div>
+    <?php if ($isAdmin || $isManager): ?>
+        <section class="crud-section">
+            <h2 class="crud-section-title">Données historiques</h2>
+            <div class="admin-tiles">
+                <?php if ($isAdmin): ?>
+                    <?= $tile('bi-upload', 'Import CSV', 'Charger les données historiques depuis un fichier CSV', ['controller' => 'HistoricalData', 'action' => 'import']) ?>
+                <?php endif; ?>
+                <?= $tile('bi-graph-up', 'Visualisation graphique', 'Analyser les données historiques', ['controller' => 'HistoricalData', 'action' => 'visualize']) ?>
             </div>
-            <div class="col-md-3 mb-4">
-                <div class="card admin-card border-primary h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-people-fill text-primary card-icon"></i>
-                        <h5 class="card-title">Utilisateurs</h5>
-                        <p class="text-muted small">Gestion des agents et managers</p>
-                        <?= $this->Html->link(
-                            '<i class="bi bi-arrow-right-circle mr-2"></i> Accéder',
-                            ['controller' => 'Users', 'action' => 'index'],
-                            ['class' => 'btn btn-primary', 'escape' => false]
-                        ) ?>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 mb-4">
-                <div class="card admin-card border-warning h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-bell-fill text-warning card-icon"></i>
-                        <h5 class="card-title">Alertes</h5>
-                        <p class="text-muted small">Messages et notifications</p>
-                        <?= $this->Html->link(
-                            '<i class="bi bi-arrow-right-circle mr-2"></i> Accéder',
-                            ['controller' => 'Alerts', 'action' => 'index'],
-                            ['class' => 'btn btn-warning', 'escape' => false]
-                        ) ?>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 mb-4">
-                <div class="card admin-card border-danger h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-calendar-x-fill text-danger card-icon"></i>
-                        <h5 class="card-title">Absences</h5>
-                        <p class="text-muted small">Congés et indisponibilités</p>
-                        <?= $this->Html->link(
-                            '<i class="bi bi-arrow-right-circle mr-2"></i> Accéder',
-                            ['controller' => 'Absences', 'action' => 'index'],
-                            ['class' => 'btn btn-danger', 'escape' => false]
-                        ) ?>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 mb-4">
-                <div class="card admin-card border-info h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-house-door-fill text-info card-icon"></i>
-                        <h5 class="card-title">Télétravail</h5>
-                        <p class="text-muted small">Configuration par agent</p>
-                        <?= $this->Html->link(
-                            '<i class="bi bi-arrow-right-circle mr-2"></i> Configurer',
-                            ['controller' => 'RemoteWork', 'action' => 'index'],
-                            ['class' => 'btn btn-info', 'escape' => false]
-                        ) ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
+        </section>
+    <?php endif; ?>
 
-        <?php if ($isAdmin): ?>
-        <h4 class="mt-5 mb-4">
-            <i class="bi bi-database text-secondary"></i> Référentiels
-        </h4>
-        <div class="row align-items-stretch">
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-primary h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-shield-lock-fill text-primary" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Rôles</h5>
-                        <p class="text-muted small">Droits d'accès</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'Roles', 'action' => 'index'],
-                                ['class' => 'btn btn-primary btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-info h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-diagram-3-fill text-info" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Régions</h5>
-                        <p class="text-muted small">Zones géographiques</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'Regions', 'action' => 'index'],
-                                ['class' => 'btn btn-info btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-success h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-geo-alt-fill text-success" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Sites</h5>
-                        <p class="text-muted small">Lieux de travail</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'Sites', 'action' => 'index'],
-                                ['class' => 'btn btn-success btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-warning h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-basket-fill text-warning" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Offres</h5>
-                        <p class="text-muted small">Types d'activités</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'Offers', 'action' => 'index'],
-                                ['class' => 'btn btn-warning btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-info h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-diagram-3-fill text-info" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Groupes d'offres</h5>
-                        <p class="text-muted small">Profils mixtes (passe 2)</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'OfferGroups', 'action' => 'index'],
-                                ['class' => 'btn btn-info btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-secondary h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-clock-history text-secondary" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Plages</h5>
-                        <p class="text-muted small">Horaires personnalisés</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'Ranges', 'action' => 'index'],
-                                ['class' => 'btn btn-secondary btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-danger h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-award-fill text-danger" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Compétences</h5>
-                        <p class="text-muted small">Habilitations agents</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'Skills', 'action' => 'index'],
-                                ['class' => 'btn btn-danger btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <?php if ($isAdmin): ?>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-dark h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-clock text-dark" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Disponibilités</h5>
-                        <p class="text-muted small">Horaires contractuels</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'UserAvailabilities', 'action' => 'index'],
-                                ['class' => 'btn btn-dark btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-primary h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-sliders text-primary" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Affichage</h5>
-                        <p class="text-muted small">Paramètres visuels</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'DisplaySettings', 'action' => 'index'],
-                                ['class' => 'btn btn-primary btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-info h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-link-45deg text-info" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Mappings absences</h5>
-                        <p class="text-muted small">Pour GroomRH</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Gérer',
-                                ['controller' => 'PlanningEventMappings', 'action' => 'index'],
-                                ['class' => 'btn btn-info btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-warning h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-sliders text-warning" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Paramètres WFM</h5>
-                        <p class="text-muted small">Config solveur</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-arrow-right-circle mr-1"></i> Accéder',
-                                ['controller' => 'WfmSettings', 'action' => 'index'],
-                                ['class' => 'btn btn-warning btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-4">
-                <div class="card admin-card border-success h-100">
-                    <div class="card-body text-center d-flex flex-column">
-                        <i class="bi bi-robot text-success" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Test 1 jour (legacy)</h5>
-                        <p class="text-muted small">Ancien générateur synchrone — préférer Générations de planning</p>
-                        <div class="mt-auto">
-                            <?= $this->Html->link(
-                                '<i class="bi bi-play-circle-fill mr-1"></i> Lancer',
-                                ['controller' => 'Schedules', 'action' => 'generate'],
-                                ['class' => 'btn btn-success btn-sm', 'escape' => false]
-                            ) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <?php if ($isAdmin || $isManager): ?>
-        <h4 class="mt-5 mb-4">
-            <i class="bi bi-bar-chart-line text-secondary"></i> Données Historiques
-        </h4>
-        <div class="row">
-            <?php if ($isAdmin): ?>
-            <div class="col-md-6 mb-4">
-                <div class="card admin-card border-secondary h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-upload text-secondary" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Import CSV</h5>
-                        <p class="text-muted small">Charger les données historiques depuis un fichier CSV</p>
-                        <?= $this->Html->link(
-                            '<i class="bi bi-arrow-right-circle mr-2"></i> Importer',
-                            ['controller' => 'HistoricalData', 'action' => 'import'],
-                            ['class' => 'btn btn-secondary', 'escape' => false]
-                        ) ?>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
-            <div class="col-md-6 mb-4">
-                <div class="card admin-card border-info h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-graph-up text-info" style="font-size: 2.5rem; margin-bottom: 1rem;"></i>
-                        <h5 class="card-title">Visualisation graphique</h5>
-                        <p class="text-muted small">Analyser les données historiques avec des graphiques interactifs</p>
-                        <?= $this->Html->link(
-                            '<i class="bi bi-arrow-right-circle mr-2"></i> Consulter',
-                            ['controller' => 'HistoricalData', 'action' => 'visualize'],
-                            ['class' => 'btn btn-info', 'escape' => false]
-                        ) ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-
-        <?php if (!$isAdmin && !$isManager): ?>
-            <div class="alert alert-info" role="alert">Aucun contenu d'administration n'est disponible pour votre rôle.</div>
-        <?php endif; ?>
-    </div>
+    <?php if (!$isAdmin && !$isManager): ?>
+        <div class="alert alert-info" role="alert">Aucun contenu d'administration n'est disponible pour votre rôle.</div>
+    <?php endif; ?>
 </div>

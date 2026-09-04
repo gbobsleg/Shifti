@@ -13,28 +13,24 @@ $this->Html->script('pickr.min', ['block' => true]);
 $this->Html->script('offers-color-picker', ['block' => true]);
 ?>
 
-<div class="offers form content card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-pencil text-primary"></i>
+<div class="crud-app offers form content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-pencil"></i>
             Modifier l'Offre
-        </h3>
-        <div>
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-1"></i> Annuler',
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body">
         <?= $this->Form->create($offer) ?>
         
-        <div class="card border-primary mb-4">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-basket"></i> Informations de l'offre
-            </div>
-            <div class="card-body">
+        <section class="crud-section">
+            <h2 class="crud-section-title">Informations de l'offre</h2>
                 <div class="mb-3">
                     <label class="form-label"><i class="bi bi-tag"></i> Nom</label>
                     <?= $this->Form->control('name', [
@@ -116,7 +112,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             <label class="form-check-label" for="is_forecastable">
                                 <i class="bi bi-graph-up"></i> Utilisable en prévision
                             </label>
-                            <br><small class="text-muted">L'offre sera incluse dans les calculs de forecast</small>
+                            <br><small class="text-muted">L'offre sera incluse dans les calculs de prévision</small>
                         </div>
                     </div>
                 </div>
@@ -136,7 +132,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             'id' => 'default_forecast_method',
                         ]) ?>
                         <small class="text-muted">
-                            Pré-sélectionnée pour le manager à la création d’un scénario de forecast
+                            Pré-sélectionnée pour le manager à la création d’un scénario de prévision
                         </small>
                     </div>
                 </div>
@@ -150,7 +146,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             <label class="form-check-label" for="equity_enabled">
                                 <i class="bi bi-people"></i> Équité (sur la période)
                             </label>
-                            <br><small class="text-muted">Répartir équitablement cette offre sur la période (forecastables + règles fixes en “héritage”)</small>
+                            <br><small class="text-muted">Répartir équitablement cette offre sur la période, y compris les offres utilisées en prévision et les règles fixes en héritage</small>
                         </div>
                     </div>
                 </div>
@@ -186,14 +182,29 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                         ]) ?>
                     </div>
                 </div>
-            </div>
-        </div>
+        </section>
 
-        <div class="card border-info mb-4" id="prophet-settings-section">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-graph-up-arrow"></i> Paramètres Prophet par défaut (profil administrateur)
+        <section class="crud-section" id="prophet-tuning-section">
+            <h2 class="crud-section-title">Optimisation automatique des prévisions</h2>
+            <p class="small text-muted mb-3">
+                Le lancement, le suivi et l’application d’un brouillon se font depuis la fiche de l’offre.
+            </p>
+            <?= \App\Service\ProphetOptunaConfig::fixedRulesHelpHtml() ?>
+            <div class="form-check mb-0">
+                <?= $this->Form->checkbox('prophet_tuning_enabled', [
+                    'checked' => !empty($offer->prophet_tuning_enabled),
+                    'class' => 'form-check-input',
+                    'id' => 'prophet_tuning_enabled',
+                ]) ?>
+                <label class="form-check-label" for="prophet_tuning_enabled">
+                    <strong>Activer l’optimisation automatique pour cette offre</strong>
+                    <span class="text-muted small">(planification automatique)</span>
+                </label>
             </div>
-            <div class="card-body">
+        </section>
+
+        <section class="crud-section" id="prophet-settings-section">
+            <h2 class="crud-section-title">Paramètres Prophet</h2>
                 <p class="small text-muted">
                     Ces paramètres seront utilisés comme base automatique pour tous les scénarios Prophet
                     qui incluent cette offre. Le manager pourra toujours les ajuster scénario par scénario.
@@ -201,13 +212,13 @@ $this->Html->script('offers-color-picker', ['block' => true]);
 
                 <div class="row">
                     <div class="col-md-6">
-                        <div class="form-group bg-light p-3 border rounded">
-                            <label class="font-weight-bold">Mode de saisonnalité</label>
+                        <div class="mb-3">
+                            <label class="font-weight-bold" data-bs-toggle="tooltip" title="seasonality_mode">Mode de saisonnalité</label>
                             <?= $this->Form->control('prophet_defaults.seasonality_mode', [
                                 'type' => 'select',
                                 'options' => [
-                                    'additive' => 'Additif (y = trend + seasonality)',
-                                    'multiplicative' => 'Multiplicatif (y = trend × seasonality)',
+                                    'additive' => 'Additif (y = tendance + saisonnalité)',
+                                    'multiplicative' => 'Multiplicatif (y = tendance × saisonnalité)',
                                 ],
                                 'value' => $prophetDefaults['seasonality_mode'] ?? 'multiplicative',
                                 'label' => false,
@@ -216,8 +227,8 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="form-group bg-light p-3 border rounded">
-                            <label class="font-weight-bold">Jours fériés</label>
+                        <div class="mb-3">
+                            <label class="font-weight-bold" data-bs-toggle="tooltip" title="use_french_holidays">Jours fériés</label>
                             <div class="form-check">
                                 <?= $this->Form->checkbox('prophet_defaults.use_french_holidays', [
                                     'checked' => !empty($prophetDefaults['use_french_holidays']),
@@ -232,15 +243,15 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     </div>
                 </div>
 
-                <h6 class="text-primary mt-3 mb-2"><i class="bi bi-calendar-event"></i> Saisonnalités</h6>
-                <div class="form-group bg-light p-3 border rounded">
+                <h3 class="crud-subsection-title">Saisonnalités</h3>
+                <div class="mb-3">
                     <div class="form-check mb-2">
                         <?= $this->Form->checkbox('prophet_defaults.yearly_seasonality', [
                             'checked' => !empty($prophetDefaults['yearly_seasonality']),
                             'class' => 'form-check-input',
                             'id' => 'prophet_defaults_yearly_seasonality',
                         ]) ?>
-                        <label class="form-check-label" for="prophet_defaults_yearly_seasonality">
+                        <label class="form-check-label" for="prophet_defaults_yearly_seasonality" data-bs-toggle="tooltip" title="yearly_seasonality">
                             Saisonnalité annuelle
                         </label>
                     </div>
@@ -250,7 +261,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             'class' => 'form-check-input',
                             'id' => 'prophet_defaults_weekly_seasonality',
                         ]) ?>
-                        <label class="form-check-label" for="prophet_defaults_weekly_seasonality">
+                        <label class="form-check-label" for="prophet_defaults_weekly_seasonality" data-bs-toggle="tooltip" title="weekly_seasonality">
                             Saisonnalité hebdomadaire
                         </label>
                     </div>
@@ -260,7 +271,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             'class' => 'form-check-input',
                             'id' => 'prophet_defaults_daily_seasonality',
                         ]) ?>
-                        <label class="form-check-label" for="prophet_defaults_daily_seasonality">
+                        <label class="form-check-label" for="prophet_defaults_daily_seasonality" data-bs-toggle="tooltip" title="daily_seasonality">
                             Saisonnalité journalière
                         </label>
                     </div>
@@ -270,12 +281,12 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             'class' => 'form-check-input',
                             'id' => 'prophet_defaults_monthly_seasonality',
                         ]) ?>
-                        <label class="form-check-label" for="prophet_defaults_monthly_seasonality">
+                        <label class="form-check-label" for="prophet_defaults_monthly_seasonality" data-bs-toggle="tooltip" title="monthly_seasonality">
                             Saisonnalité mensuelle
                         </label>
                     </div>
                     <div class="mt-2">
-                        <label class="small font-weight-bold">Complexité mensuelle (Fourier order)</label>
+                        <label class="small font-weight-bold" data-bs-toggle="tooltip" title="monthly_fourier_order">Finesse du cycle mensuel</label>
                         <?= $this->Form->control('prophet_defaults.monthly_fourier_order', [
                             'type' => 'number',
                             'min' => 1,
@@ -288,11 +299,11 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     </div>
                 </div>
 
-                <h6 class="text-primary mt-3 mb-2"><i class="bi bi-sliders"></i> Sensibilité & saisonnalité</h6>
+                <h3 class="crud-subsection-title">Sensibilité et saisonnalité</h3>
                 <div class="row">
                     <div class="col-md-6">
-                        <div class="form-group bg-light p-3 border rounded">
-                            <label class="font-weight-bold">Sensibilité aux changements (changepoint_prior_scale)</label>
+                        <div class="mb-3">
+                            <label class="font-weight-bold" data-bs-toggle="tooltip" title="changepoint_prior_scale">Sensibilité aux ruptures de tendance</label>
                             <?= $this->Form->control('prophet_defaults.changepoint_prior_scale', [
                                 'type' => 'number',
                                 'step' => 'any',
@@ -309,8 +320,8 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="form-group bg-light p-3 border rounded">
-                            <label class="font-weight-bold">Force de la saisonnalité (seasonality_prior_scale)</label>
+                        <div class="mb-3">
+                            <label class="font-weight-bold" data-bs-toggle="tooltip" title="seasonality_prior_scale">Force de la saisonnalité</label>
                             <?= $this->Form->control('prophet_defaults.seasonality_prior_scale', [
                                 'type' => 'number',
                                 'step' => 'any',
@@ -328,9 +339,9 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     </div>
                 </div>
 
-                <h6 class="text-primary mt-3 mb-2"><i class="bi bi-graph-up"></i> Changepoints (tendance)</h6>
-                <div class="form-group bg-light p-3 border rounded mb-3">
-                    <label class="font-weight-bold">Nombre de changepoints (n_changepoints)</label>
+                <h3 class="crud-subsection-title">Ruptures de tendance</h3>
+                <div class="mb-3">
+                    <label class="font-weight-bold" data-bs-toggle="tooltip" title="n_changepoints">Nombre de ruptures de tendance</label>
                     <?= $this->Form->control('prophet_defaults.n_changepoints', [
                         'type' => 'number',
                         'min' => 0,
@@ -345,8 +356,8 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     </small>
                 </div>
 
-                <h6 class="text-primary mt-3 mb-2"><i class="bi bi-calendar-range"></i> Plage de données historiques par défaut</h6>
-                <div class="form-group bg-light p-3 border rounded">
+                <h3 class="crud-subsection-title">Plage de données historiques</h3>
+                <div class="mb-3">
                     <p class="small text-muted mb-2">
                         Cette plage est utilisée comme fenêtre par défaut pour les prévisions,
                         <strong>quelle que soit la méthode</strong> (Moyenne historique ou Prophet).
@@ -361,7 +372,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     <?php else: ?>
                         <div class="row mt-2">
                             <div class="col-md-6 mb-2">
-                                <label class="small font-weight-bold">Date de début</label>
+                                <label class="small font-weight-bold" data-bs-toggle="tooltip" title="history_start_date">Date de début</label>
                                 <?php
                                 $optsStart = [
                                     'type' => 'date',
@@ -379,7 +390,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                                 ?>
                             </div>
                             <div class="col-md-6 mb-2">
-                                <label class="small font-weight-bold">Date de fin</label>
+                                <label class="small font-weight-bold" data-bs-toggle="tooltip" title="history_end_date">Date de fin</label>
                                 <?php
                                 $optsEnd = [
                                     'type' => 'date',
@@ -410,192 +421,23 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                         </small>
                     <?php endif; ?>
                 </div>
-            </div>
-        </div>
+        </section>
 
-        <?php
-        // --- Tuning Optuna ---
-        $prophetTuning = $prophetTuning ?? [
-            'enabled' => !empty($offer->prophet_tuning_enabled),
-            'has_draft' => false,
-            'has_previous' => false,
-            'draft_scores' => null,
-            'job' => null,
-            'urls' => [
-                'status' => $this->Url->build(['action' => 'tuneStatus', $offer->id]),
-                'start' => $this->Url->build(['action' => 'tuneStart', $offer->id]),
-                'cancel' => $this->Url->build(['action' => 'tuneCancel', $offer->id]),
-                'apply' => $this->Url->build(['action' => 'tuneApply', $offer->id]),
-                'reject' => $this->Url->build(['action' => 'tuneReject', $offer->id]),
-                'rollback' => $this->Url->build(['action' => 'tuneRollback', $offer->id]),
-            ],
-        ];
-        $csrfToken = (string)$this->request->getAttribute('csrfToken');
-        $jobStatus = $prophetTuning['job']['status'] ?? 'none';
-        $trialsDone = (int)($prophetTuning['job']['progress_trials_done'] ?? 0);
-        $trialsTotal = (int)($prophetTuning['job']['progress_trials_total'] ?? 0);
-        $progressPct = $trialsTotal > 0 ? min(100, (int)round($trialsDone / $trialsTotal * 100)) : 0;
-        $draftScores = $prophetTuning['draft_scores'] ?? null;
-        $baselineScores = $draftScores['baseline'] ?? ($prophetTuning['job']['baseline_scores'] ?? null);
-        $proposedScores = $draftScores['proposed'] ?? ($prophetTuning['job']['best_scores'] ?? null);
-        $seasonalityAdapt = $draftScores['seasonality_adaptation'] ?? null;
-        $fmtScore = function ($s) {
-            if (!$s) {
-                return '—';
-            }
-            $wape = isset($s['wape_volume']) ? number_format((float)$s['wape_volume'], 2, '.', '') : '—';
-            $mae = isset($s['mae_volume']) ? number_format((float)$s['mae_volume'], 2, '.', '') : '—';
-            $mape = isset($s['mape_volume']) ? number_format((float)$s['mape_volume'], 2, '.', '') : '—';
 
-            return "WAPE {$wape}% · MAE {$mae} · MAPE {$mape}%";
-        };
-        $fmtSeasonalityAdapt = function ($a) {
-            if (!is_array($a) || empty($a['notes']) || !is_array($a['notes'])) {
-                return '';
-            }
-
-            return implode(' · ', array_map('strval', $a['notes']));
-        };
-        $isJobActive = in_array($jobStatus, ['queued', 'running'], true);
-        ?>
-        <div class="card border-warning mb-4" id="prophet-tuning-section">
-            <div class="card-header bg-warning">
-                <i class="bi bi-cpu"></i> Tuning Optuna
-            </div>
-            <div class="card-body"
-                 id="prophet-tuning-root"
-                 data-csrf-token="<?= h($csrfToken) ?>"
-                 data-url-status="<?= h($prophetTuning['urls']['status']) ?>"
-                 data-url-start="<?= h($prophetTuning['urls']['start']) ?>"
-                 data-url-cancel="<?= h($prophetTuning['urls']['cancel']) ?>"
-                 data-url-apply="<?= h($prophetTuning['urls']['apply']) ?>"
-                 data-url-reject="<?= h($prophetTuning['urls']['reject']) ?>"
-                 data-url-rollback="<?= h($prophetTuning['urls']['rollback']) ?>">
-
-                <p class="small text-muted">
-                    Optimise automatiquement 4 paramètres Prophet via backtest walk-forward.
-                    Le profil officiel n’est modifié qu’après <strong>Appliquer</strong>
-                    (sauf auto-apply WFM).
-                </p>
-                <div class="alert alert-info py-2 small mb-3">
-                    <?= \App\Service\ProphetOptunaConfig::fixedRulesHelpHtml() ?>
-                </div>
-
-                <div class="form-check mb-3">
-                    <?= $this->Form->checkbox('prophet_tuning_enabled', [
-                        'checked' => !empty($offer->prophet_tuning_enabled),
-                        'class' => 'form-check-input',
-                        'id' => 'prophet_tuning_enabled',
-                    ]) ?>
-                    <label class="form-check-label" for="prophet_tuning_enabled">
-                        <strong>Activer le tuning Optuna pour cette offre</strong>
-                        <span class="text-muted small">(cron + éligibilité)</span>
-                    </label>
-                </div>
-
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <div class="small text-muted">Statut job</div>
-                        <div class="font-weight-bold" data-pt-status><?= h($jobStatus) ?></div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="small text-muted">Baseline (actuel)</div>
-                        <div data-pt-baseline><?= h($fmtScore($baselineScores)) ?></div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="small text-muted">Proposé</div>
-                        <div data-pt-proposed><?= h($fmtScore($proposedScores)) ?></div>
-                        <div class="small text-muted" data-pt-improvement>
-                            <?php
-                            $impPct = is_array($draftScores)
-                                ? ($draftScores['wape_improvement_pct'] ?? $draftScores['mae_improvement_pct'] ?? null)
-                                : null;
-                            ?>
-                            <?php if ($impPct !== null): ?>
-                                <?= h(number_format((float)$impPct, 1)) ?> % WAPE
-                            <?php else: ?>
-                                —
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-
-                <?php $seasonalityAdaptText = $fmtSeasonalityAdapt($seasonalityAdapt); ?>
-                <div class="alert alert-secondary py-2 small mb-3"
-                     data-pt-seasonality-adapt
-                     style="<?= $seasonalityAdaptText !== '' ? '' : 'display:none' ?>">
-                    <strong>Saisonnalités adaptées à l’historique :</strong>
-                    <span data-pt-seasonality-adapt-text><?= h($seasonalityAdaptText) ?></span>
-                </div>
-
-                <div class="mb-3" data-pt-progress-wrap style="<?= in_array($jobStatus, ['queued', 'running', 'completed', 'failed', 'cancelled'], true) ? '' : 'display:none' ?>">
-                    <div class="d-flex justify-content-between small mb-1">
-                        <span>Progression</span>
-                        <span data-pt-progress-label><?= (int)$trialsDone ?> / <?= (int)$trialsTotal ?> essais</span>
-                    </div>
-                    <div class="progress" style="height: 18px;">
-                        <div class="progress-bar progress-bar-striped <?= $jobStatus === 'running' ? 'progress-bar-animated' : '' ?>"
-                             role="progressbar"
-                             data-pt-progress-bar
-                             style="width: <?= (int)$progressPct ?>%;"
-                             aria-valuenow="<?= (int)$progressPct ?>"
-                             aria-valuemin="0"
-                             aria-valuemax="100"></div>
-                    </div>
-                </div>
-
-                <div class="alert alert-danger py-2 small" data-pt-error style="<?= !empty($prophetTuning['job']['error_message']) ? '' : 'display:none' ?>">
-                    <?= h($prophetTuning['job']['error_message'] ?? '') ?>
-                </div>
-
-                <div class="mb-2">
-                    <button type="button" class="btn btn-warning btn-sm mr-2" data-pt-start
-                            <?= $isJobActive ? 'disabled' : '' ?>>
-                        <i class="bi bi-play-fill"></i> Lancer un tuning
-                    </button>
-                    <button type="button" class="btn btn-outline-danger btn-sm mr-2" data-pt-cancel
-                            style="<?= $isJobActive ? '' : 'display:none' ?>">
-                        <i class="bi bi-x-circle"></i> Annuler le job
-                    </button>
-                    <span class="small" data-pt-message></span>
-                </div>
-
-                <div class="mb-2" data-pt-draft-actions style="<?= !empty($prophetTuning['has_draft']) ? '' : 'display:none' ?>">
-                    <button type="button" class="btn btn-success btn-sm mr-2" data-pt-apply>
-                        <i class="bi bi-check2"></i> Appliquer le brouillon
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-pt-reject>
-                        <i class="bi bi-x"></i> Rejeter
-                    </button>
-                </div>
-
-                <div data-pt-rollback-wrap style="<?= !empty($prophetTuning['has_previous']) ? '' : 'display:none' ?>">
-                    <button type="button" class="btn btn-outline-danger btn-sm" data-pt-rollback>
-                        <i class="bi bi-arrow-counterclockwise"></i> Rollback profil précédent
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="mt-3">
-            <?= $this->Form->button('<i class="bi bi-save mr-2"></i> Sauvegarder', [
-                'class' => 'btn btn-success mr-3',
+        <div class="crud-actions-bar">
+            <?= $this->Form->button('<i class="bi bi-save me-2"></i> Sauvegarder', [
+                'class' => 'btn btn-primary',
                 'escapeTitle' => false
             ]) ?>
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-2"></i> Annuler',
+                '<i class="bi bi-x-circle me-2"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
         
         <?= $this->Form->end() ?>
-    </div>
 </div>
-
-<?php
-$this->Html->script('prophet-tuning', ['block' => true]);
-?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

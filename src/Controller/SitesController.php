@@ -22,29 +22,7 @@ class SitesController extends AppController
         $query = $this->Sites->find()->contain(['Regions', 'Users']);
         $sites = $this->paginate($query);
 
-        // Statistiques
-        $allSites = $this->Sites->find('all')->contain(['Regions', 'Users']);
-        $stats = [
-            'total' => $allSites->count(),
-            'total_users' => 0,
-            'by_region' => []
-        ];
-        
-        foreach ($allSites as $site) {
-            $stats['total_users'] += count($site->users);
-            
-            $regionName = $site->region ? $site->region->name : 'Sans région';
-            if (!isset($stats['by_region'][$regionName])) {
-                $stats['by_region'][$regionName] = 0;
-            }
-            $stats['by_region'][$regionName]++;
-        }
-        
-        // Top 3 régions
-        arsort($stats['by_region']);
-        $stats['top_regions'] = array_slice($stats['by_region'], 0, 3, true);
-
-        $this->set(compact('sites', 'stats'));
+        $this->set(compact('sites'));
     }
 
     /**

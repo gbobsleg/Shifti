@@ -19,12 +19,11 @@ $slotCount = is_countable($slots) ? count($slots) : 0;
 $wStart = $line->time_window_start ?? $defaultTimeWindowStart;
 $wEnd = $line->time_window_end ?? $defaultTimeWindowEnd;
 ?>
-<div class="card mb-3 rotation-line-card" data-line-idx="<?= h((string)$idx) ?>" data-slot-next="<?= (int)$slotCount ?>">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <strong>Ligne <?= is_numeric($idx) ? ((int)$idx + 1) : '' ?></strong>
+<section class="crud-section rotation-line-card" data-line-idx="<?= h((string)$idx) ?>" data-slot-next="<?= (int)$slotCount ?>">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h3 class="crud-subsection-title mb-0">Ligne <?= is_numeric($idx) ? ((int)$idx + 1) : '' ?></h3>
         <button type="button" class="btn btn-sm btn-outline-danger" data-remove-line>Retirer</button>
     </div>
-    <div class="card-body">
         <?php if (!empty($line->id)): ?>
             <?= $this->Form->hidden("rotation_rule_lines.$idx.id", ['value' => $line->id]) ?>
         <?php endif; ?>
@@ -118,7 +117,7 @@ $wEnd = $line->time_window_end ?? $defaultTimeWindowEnd;
                 <div class="col-md-9 mb-2">
                     <label class="d-block">Jours</label>
                     <?php foreach ($daysOptions as $num => $lab): ?>
-                        <label class="mr-2">
+                        <label class="me-2">
                             <input type="checkbox"
                                    name="rotation_rule_lines[<?= h((string)$idx) ?>][days_of_week_selected][]"
                                    value="<?= (int)$num ?>"
@@ -166,5 +165,4 @@ $wEnd = $line->time_window_end ?? $defaultTimeWindowEnd;
             </div>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-add-slot>Ajouter une plage</button>
         </div>
-    </div>
-</div>
+</section>

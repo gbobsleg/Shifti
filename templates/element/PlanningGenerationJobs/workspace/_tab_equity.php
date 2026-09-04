@@ -45,14 +45,14 @@ $equityHeatClass = function (float $gapMin, float $targetMin): string {
 ?>
 
 <?php if (!$equityAvailable): ?>
-    <div class="alert alert-warning mb-0">
+    <div class="crud-warn mb-0">
         <i class="bi bi-exclamation-triangle"></i>
         Rapport d'équité indisponible (aucun jour OK, aucun brouillon, ou filtres trop restrictifs).
     </div>
 <?php else: ?>
     <div class="mb-3 small text-muted">
-        <span class="mr-3"><strong>Jours pris en compte :</strong> <?= count($okDates) ?> (jours OK uniquement)</span>
-        <span class="mr-3"><strong>Temps théorique / jour :</strong> <?= fmtMinutesWs((int)$minutesPerDay) ?></span>
+        <span class="me-3"><strong>Jours pris en compte :</strong> <?= count($okDates) ?> (jours OK uniquement)</span>
+        <span class="me-3"><strong>Temps théorique / jour :</strong> <?= fmtMinutesWs((int)$minutesPerDay) ?></span>
         <span><strong>Temps théorique total :</strong> <?= fmtMinutesWs((int)$theoreticalMinutesTotal) ?></span>
     </div>
 
@@ -118,13 +118,13 @@ $equityHeatClass = function (float $gapMin, float $targetMin): string {
     $equityColsHiddenByDefault = ['teletravail', 'pause', 'repas'];
     ?>
     <div class="mb-2 d-flex justify-content-end align-items-center">
-        <div class="dropdown mr-2">
+        <div class="dropdown me-2">
             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                    id="equity-cols-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                    id="equity-cols-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
                     title="Afficher / masquer les colonnes">
                 <i class="bi bi-layout-three-columns"></i> Colonnes
             </button>
-            <div class="dropdown-menu dropdown-menu-right p-2" id="equity-cols-menu"
+            <div class="dropdown-menu dropdown-menu-end p-2" id="equity-cols-menu"
                  aria-labelledby="equity-cols-toggle" style="min-width: 260px; max-height: 60vh; overflow-y: auto;">
                 <?php foreach ($equityColDefs as $colKey => $colLabel): ?>
                     <?php $colChecked = !in_array($colKey, $equityColsHiddenByDefault, true); ?>
@@ -221,7 +221,7 @@ $equityHeatClass = function (float $gapMin, float $targetMin): string {
                             $tooltipHtml = implode('<br>', array_map('h', $tooltipParts));
                             $csvContent = $target > 0 ? $gapLabel : ($m > 0 ? fmtMinutesWs($m) : '—');
                             ?>
-                            <td class="text-end" data-toggle="tooltip" data-html="true"
+                            <td class="text-end" data-bs-toggle="tooltip" data-html="true"
                                 title="<?= $tooltipHtml ?>"
                                 data-csv-content="<?= h($csvContent) ?>"
                                 data-sort-value="<?= $m ?>">
@@ -237,7 +237,7 @@ $equityHeatClass = function (float $gapMin, float $targetMin): string {
             </tbody>
         </table>
     </div>
-    <div class="alert alert-info mb-0 mt-3">
+    <div class="crud-warn mb-0 mt-3">
         <div class="mb-1">Lecture des colonnes de groupe : la valeur affichée est le <strong>temps réalisé</strong>, comparé à la <strong>cible</strong> d'équité (visible en info-bulle au survol). Les deux valeurs sont exprimées en <strong>créneaux complets (pauses incluses)</strong>. L'écart est signé (<code>+</code> = au-dessus de la cible, <code>-</code> = en dessous). Les offres de <strong>rotation quota</strong> (ex. AE 2×3 h) prennent la cible proratisée × durée de shift — la même que l’onglet Qualité. Les lignes de <strong>couverture</strong> (ex. livechat) n’ont pas de cible individuelle : c’est un need par plage. La colonne <strong>Contrat</strong> est la somme des disponibilités de l'agent sur la période (brut, pauses incluses). La colonne <strong>Planifié net</strong> est le temps de production effectif (pauses et repas déduits).</div>
         <div class="mb-0">
             <i class="bi bi-circle-fill text-success"></i> proche de la cible (≤ 10 % d'écart)

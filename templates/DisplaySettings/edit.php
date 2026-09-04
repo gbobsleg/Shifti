@@ -7,67 +7,68 @@
 <?php $this->assign('title', 'Modifier Paramètre'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="mb-0">
-            <i class="bi bi-pencil text-primary"></i> Modifier Paramètre
-        </h3>
-        <div class="btn-toolbar">
-            <?= $this->Form->postLink(
-                '<i class="bi bi-trash mr-1"></i> Supprimer',
-                ['action' => 'delete', $displaySetting->id],
-                [
-                    'confirm' => 'Voulez-vous vraiment supprimer ce paramètre ?',
-                    'class' => 'btn btn-danger mr-2',
-                    'escape' => false
-                ]
-            ) ?>
+<div class="crud-app displaySettings form content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-pencil"></i>
+            Modifier Paramètre
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-list mr-1"></i> Liste',
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
                 ['action' => 'index'],
-                ['class' => 'btn btn-secondary', 'escape' => false]
+                ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body">
-        <?= $this->Form->create($displaySetting) ?>
-        <fieldset>
-            <?php
-                echo $this->Form->control('key', [
-                    'label' => 'Clé',
-                    'class' => 'form-control',
-                    'disabled' => true,
-                    'help' => 'La clé ne peut pas être modifiée'
-                ]);
-                echo $this->Form->control('value', [
-                    'label' => 'Valeur',
-                    'class' => 'form-control'
-                ]);
-                echo $this->Form->control('description', [
-                    'label' => 'Description',
-                    'class' => 'form-control',
-                    'type' => 'textarea',
-                    'rows' => 2
-                ]);
-                echo $this->Form->control('type', [
-                    'label' => 'Type',
-                    'class' => 'form-control',
-                    'disabled' => true,
-                    'help' => 'Le type ne peut pas être modifié'
-                ]);
-            ?>
-        </fieldset>
-        <div class="mt-3">
-            <?= $this->Form->button('<i class="bi bi-check-circle mr-2"></i> Enregistrer', [
-                'class' => 'btn btn-primary',
-                'escapeTitle' => false
+    <?= $this->Form->create($displaySetting) ?>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Informations</h2>
+        <div class="mb-3">
+            <label class="form-label">Clé</label>
+            <?= $this->Form->control('key', [
+                'label' => false,
+                'class' => 'form-control',
+                'disabled' => true,
+                'help' => 'La clé ne peut pas être modifiée',
             ]) ?>
-            <?= $this->Html->link(
-                'Annuler',
-                ['action' => 'index'],
-                ['class' => 'btn btn-secondary']
-            ) ?>
         </div>
-        <?= $this->Form->end() ?>
+        <div class="mb-3">
+            <label class="form-label">Valeur</label>
+            <?= $this->Form->control('value', [
+                'label' => false,
+                'class' => 'form-control',
+            ]) ?>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Description</label>
+            <?= $this->Form->control('description', [
+                'label' => false,
+                'class' => 'form-control',
+                'type' => 'textarea',
+                'rows' => 2,
+            ]) ?>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Type</label>
+            <?= $this->Form->control('type', [
+                'label' => false,
+                'class' => 'form-control',
+                'disabled' => true,
+                'help' => 'Le type ne peut pas être modifié',
+            ]) ?>
+        </div>
+    </section>
+    <div class="crud-actions-bar">
+        <?= $this->Form->button('<i class="bi bi-save me-2"></i> Enregistrer', [
+            'class' => 'btn btn-primary',
+            'escapeTitle' => false,
+        ]) ?>
+        <?= $this->Html->link(
+            '<i class="bi bi-x-circle me-2"></i> Annuler',
+            ['action' => 'index'],
+            ['class' => 'btn btn-outline-secondary', 'escape' => false]
+        ) ?>
     </div>
+    <?= $this->Form->end() ?>
 </div>

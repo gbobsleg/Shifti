@@ -18,8 +18,8 @@ $user = is_array($users_ranges) ? $users_ranges[0] : $users_ranges->first();
 $rangesProperty = $rangesProperty ?? 'ranges';
 ?>
 
-<table class="table table-bordered quarter table-hover grid-single-user">
-    <thead class="thead-light">
+<table class="quarter grid-single-user">
+    <thead>
         <tr>
             <th scope="col" colspan="50" class="text-center th_title">
                 Planning de <?= h($user->full_name) ?> 
@@ -61,19 +61,23 @@ $rangesProperty = $rangesProperty ?? 'ranges';
         $bg = '';
         $icon = '';
         $homework = '';
+        $remoteStyle = '';
         
         if ($remoteWorkInfo['is_remote']) {
-                    $bg = 'bg-info text-white';
-                    $icon = '<i class="bi-house-door-fill pr-2" style="color: black"></i>';
+            $bg = 'is-remote';
+            $icon = '<i class="bi-house-door-fill pe-1"></i>';
             $homework = $remoteWorkInfo['info'];
+            $remoteColor = (string)($remoteWorkInfo['color'] ?? '');
+            if ($remoteColor !== '' && preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteColor)) {
+                $remoteStyle = ' style="background:' . $remoteColor . '"';
+            }
         }
     ?>
-        <tr class="tr_quarter" data_user="<?= $user->id ?>">
-            <th scope="row" class="th_row <?= $bg ?>" 
-                data-toggle="tooltip" 
-                data-placement="right" 
-                title="<?= h($user['site']['number']) ?> - <?= h($user->user_code) ?><?= $homework ?>" 
-                style="font-weight: 600; white-space: nowrap;">
+        <tr class="tr_quarter<?= $remoteWorkInfo['is_remote'] ? ' is-remote-row' : '' ?>" data_user="<?= $user->id ?>">
+            <th scope="row" class="th_row <?= $bg ?>"<?= $remoteStyle ?>
+                data-bs-toggle="tooltip"
+                data-placement="right"
+                title="<?= h($user['site']['number']) ?> - <?= h($user->user_code) ?><?= $homework ?>">
                 <?= $icon ?><?= $currentDay->i18nFormat('EEEE dd/MM') ?>
             </th>
             <?php echo $this->Grids->writeTimeSlots($user, $currentDay, (string)$rangesProperty); ?>

@@ -2086,71 +2086,82 @@ class PlanningGenerationJobsController extends AppController
         $sortBy = 'site_name';
         $order = ['Sites.name' => 'ASC', 'Users.last_name' => 'ASC', 'Users.first_name' => 'ASC'];
 
-        // Users + DraftRanges (job) + Ranges (absences/remote_work) pour contexte et télétravail
-        $usersQuery = $Users->find()
-            ->contain(['Sites', 'Roles', 'UserAvailabilities', 'UserRemoteWorkSetting', 'UserContracts'])
-            ->contain('DraftRanges', function ($q) use ($id, $day_ranges) {
-                return $q
-                    ->where([
+        $siteId = (int)($q['site_id'] ?? 0);
+        $userId = (int)($q['user_id'] ?? 0);
+        $budget = new \App\Service\Planning\GridQueryBudget();
+        $budgetThresholds = $budget->thresholds();
+        $budgetResult = $budget->evaluate($begin, $end, $siteId, $userId);
+        $zoom = (string)($q['zoom'] ?? '15');
+        if ($zoom !== 'hour') {
+            $zoom = '15';
+        }
+        $gridView = $budgetResult['allowed'] ? $budgetResult['view'] : \App\Service\Planning\GridQueryBudget::VIEW_GANTT;
+        $showCharts = $budgetResult['allowed']
+            && $gridView === \App\Service\Planning\GridQueryBudget::VIEW_GANTT
+            && $budgetResult['working_days'] <= 1;
+
+        $users_ranges = [];
+        $publishedByDate = [];
+        if ($budgetResult['allowed']) {
+            // Users + DraftRanges (job) + Ranges (absences/remote_work) pour contexte et télétravail
+            $usersQuery = $Users->find()
+                ->contain(['Sites', 'Roles', 'UserAvailabilities', 'UserRemoteWorkSetting', 'UserContracts'])
+                ->contain('DraftRanges', function ($q) use ($id, $day_ranges) {
+                    return $q
+                        ->where([
+                            'DraftRanges.job_id' => $id,
+                            'DraftRanges.date_start <=' => $day_ranges['end'],
+                            'DraftRanges.date_end >=' => $day_ranges['begin'],
+                        ])
+                        ->contain(['Offers']);
+                })
+                ->contain('Ranges', function ($q) use ($day_ranges) {
+                    return $q
+                        ->where([
+                            'Ranges.date_start <=' => $day_ranges['end'],
+                            'Ranges.date_end >=' => $day_ranges['begin'],
+                        ])
+                        ->contain(['Offers'])
+                        ->matching('Offers', function ($q2) {
+                            return $q2->where(['Offers.offer_type IN' => ['absence', 'meeting', 'remote_work']]);
+                        });
+                })
+                ->leftJoinWith('Sites')
+                ->order($order);
+
+            if ($siteId > 0) {
+                $usersQuery->where(['Users.site_id' => $siteId]);
+            }
+            if ($userId > 0) {
+                $usersQuery->where(['Users.id' => $userId]);
+            }
+            $offerIdRaw = $q['offer_id'] ?? null;
+            $offerIds = is_array($offerIdRaw)
+                ? array_values(array_filter(array_map('intval', $offerIdRaw)))
+                : ((int)$offerIdRaw > 0 ? [(int)$offerIdRaw] : []);
+            if (!empty($offerIds)) {
+                $usersQuery->innerJoinWith('DraftRanges', function ($q2) use ($id, $offerIds, $day_ranges) {
+                    return $q2->where([
                         'DraftRanges.job_id' => $id,
+                        'DraftRanges.offer_id IN' => $offerIds,
                         'DraftRanges.date_start <=' => $day_ranges['end'],
                         'DraftRanges.date_end >=' => $day_ranges['begin'],
-                    ])
-                    ->contain(['Offers']);
-            })
-            ->contain('Ranges', function ($q) use ($day_ranges) {
-                // On ne charge que ce qui sert de contexte (absences + télétravail) pour éviter de surcharger.
-                return $q
-                    ->where([
-                        'Ranges.date_start <=' => $day_ranges['end'],
-                        'Ranges.date_end >=' => $day_ranges['begin'],
-                    ])
-                    ->contain(['Offers'])
-                    ->matching('Offers', function ($q2) {
-                        return $q2->where(['Offers.offer_type IN' => ['absence', 'meeting', 'remote_work']]);
-                    });
-            })
-            ->leftJoinWith('Sites')
-            ->order($order);
+                    ]);
+                });
+                $usersQuery->distinct(true);
+            }
 
-        // Filtres: site / user (côté Users), offer (côté DraftRanges)
-        $siteId = (int)($q['site_id'] ?? 0);
-        if ($siteId > 0) {
-            $usersQuery->where(['Users.site_id' => $siteId]);
-        }
-        $userId = (int)($q['user_id'] ?? 0);
-        if ($userId > 0) {
-            $usersQuery->where(['Users.id' => $userId]);
-        }
-        $offerIdRaw = $q['offer_id'] ?? null;
-        $offerIds = is_array($offerIdRaw)
-            ? array_values(array_filter(array_map('intval', $offerIdRaw)))
-            : ((int)$offerIdRaw > 0 ? [(int)$offerIdRaw] : []);
-        if (!empty($offerIds)) {
-            $usersQuery->innerJoinWith('DraftRanges', function ($q2) use ($id, $offerIds, $day_ranges) {
-                return $q2->where([
-                    'DraftRanges.job_id' => $id,
-                    'DraftRanges.offer_id IN' => $offerIds,
-                    'DraftRanges.date_start <=' => $day_ranges['end'],
-                    'DraftRanges.date_end >=' => $day_ranges['begin'],
-                ]);
-            });
-            $usersQuery->distinct(true);
-        }
+            $users_ranges = $usersQuery;
 
-        $users_ranges = $usersQuery;
-
-        // Publication de scénario: utiliser le scenario_id du job pour permettre l'affichage du graphique de besoin
-        $publishedByDate = [];
-        if ($job->scenario_id && $job->scenario_id > 0) {
-            $scanDay = clone $beginDay;
-            while ($scanDay <= $endDay) {
-                // Ignorer les weekends comme dans la logique de génération du job
-                if (!$scanDay->isWeekend()) {
-                    $dateKey = $scanDay->i18nFormat('yyyy-MM-dd');
-                    $publishedByDate[$dateKey] = (int)$job->scenario_id;
+            if ($job->scenario_id && $job->scenario_id > 0) {
+                $scanDay = clone $beginDay;
+                while ($scanDay <= $endDay) {
+                    if (!$scanDay->isWeekend()) {
+                        $dateKey = $scanDay->i18nFormat('yyyy-MM-dd');
+                        $publishedByDate[$dateKey] = (int)$job->scenario_id;
+                    }
+                    $scanDay = $scanDay->addDays(1);
                 }
-                $scanDay = $scanDay->addDays(1);
             }
         }
 
@@ -2161,7 +2172,6 @@ class PlanningGenerationJobsController extends AppController
         $saveUrl = ['controller' => 'PlanningGenerationJobs', 'action' => 'saveDraft', $id];
         $plannedSeriesBaseUrl = Router::url(['controller' => 'PlanningGenerationJobs', 'action' => 'draftPlannedSeries', '_ext' => 'json']);
         $plannedSeriesExtraQuery = '&job_id=' . $id;
-        // Conserver embed=1 pour que les filtres de la grille restent dans l'iframe
         $searchUrl = ['controller' => 'PlanningGenerationJobs', 'action' => 'draft', $id, '?' => ['embed' => '1']];
 
         $rangesProperty = 'draft_ranges';
@@ -2186,6 +2196,11 @@ class PlanningGenerationJobsController extends AppController
             'rangesProperty',
             'job',
             'embedMode',
+            'budgetResult',
+            'budgetThresholds',
+            'zoom',
+            'gridView',
+            'showCharts',
         ));
     }
 

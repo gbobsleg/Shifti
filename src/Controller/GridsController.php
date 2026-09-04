@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\Planning\GridQueryBudget;
 use App\Service\PlanningDayHistoryService;
 use Cake\Event\EventInterface;
 use Cake\Log\Log;
@@ -266,8 +267,21 @@ class GridsController extends AppController
         ];
         $order = $orderMap[$sortBy] ?? $orderMap['site_name'];
 
+        $budget = new GridQueryBudget();
+        $siteId = (int)($this->request->getQuery('site_id') ?? 0);
+        $userId = (int)($this->request->getQuery('user_id') ?? 0);
+        $budgetResult = $budget->evaluate($day_ranges['begin'], $day_ranges['end'], $siteId, $userId);
+        $budgetThresholds = $budget->thresholds();
+        $zoom = (string)$this->request->getQuery('zoom', '15');
+        if ($zoom !== 'hour') {
+            $zoom = '15';
+        }
+        $gridView = $budgetResult['allowed'] ? $budgetResult['view'] : GridQueryBudget::VIEW_GANTT;
+        $showCharts = $budgetResult['allowed']
+            && $gridView === GridQueryBudget::VIEW_GANTT
+            && (int)$budgetResult['working_days'] <= 1;
+
         // --- CHARGEMENT DES DONNÉES ---
-        // Charger les listes complètes pour les boucles foreach en haut de index.php
         $offers_list = $this->Offers->find('DisplayedInGrid');
         $users_list = $this->Users->find();
         $sites_list = $this->Sites->find();
@@ -289,31 +303,28 @@ class GridsController extends AppController
             $alerts_list->where(['priority' => 3]);
         }
 
-        // Requête principale pour les ranges affichés dans le planning
-        $users_ranges_query = $this->Users->find('ThisDay', compact('params', 'day_ranges'));
-
-        // Appliquer l'ordre et exécuter (ou passer la query si toArray() n'est pas nécessaire ici)
-        $users_ranges = $users_ranges_query
-            ->contain(['Sites', 'Roles', 'UserAvailabilities', 'Ranges.Offers', 'UserRemoteWorkSetting', 'UserContracts'])
-            ->leftJoinWith('Sites') // Assure la jointure pour ORDER BY Sites.name
-            ->order($order);
-        // ->toArray(); // Décommentez si vous avez besoin d'un tableau ici
-
-        // Map des publications: date (Y-m-d) => scenario_id
-        $pubsTable = $this->fetchTable('ForecastScenarioPublications');
+        $users_ranges = [];
         $publishedByDate = [];
-        $scanDay = clone $day_ranges['begin'];
-        $scanEnd = clone $day_ranges['end'];
-        while ($scanDay <= $scanEnd) {
-            $dateKey = $scanDay->i18nFormat('yyyy-MM-dd');
-            $pub = $pubsTable->find()->select(['scenario_id'])->where(['date' => $dateKey])->first();
-            if ($pub) {
-                $publishedByDate[$dateKey] = (int)$pub->scenario_id;
+        if ($budgetResult['allowed']) {
+            $users_ranges_query = $this->Users->find('ThisDay', compact('params', 'day_ranges'));
+            $users_ranges = $users_ranges_query
+                ->contain(['Sites', 'Roles', 'UserAvailabilities', 'Ranges.Offers', 'UserRemoteWorkSetting', 'UserContracts'])
+                ->leftJoinWith('Sites')
+                ->order($order);
+
+            $pubsTable = $this->fetchTable('ForecastScenarioPublications');
+            $scanDay = clone $day_ranges['begin'];
+            $scanEnd = clone $day_ranges['end'];
+            while ($scanDay <= $scanEnd) {
+                $dateKey = $scanDay->i18nFormat('yyyy-MM-dd');
+                $pub = $pubsTable->find()->select(['scenario_id'])->where(['date' => $dateKey])->first();
+                if ($pub) {
+                    $publishedByDate[$dateKey] = (int)$pub->scenario_id;
+                }
+                $scanDay = $scanDay->addDays(1);
             }
-            $scanDay = $scanDay->addDays(1);
         }
 
-        // Transmettre les variables à la vue
         $this->set(compact(
             'users_ranges',
             'offers_list',
@@ -326,6 +337,11 @@ class GridsController extends AppController
             'publishedByDate',
             'gridStartHour',
             'gridEndHour',
+            'budgetResult',
+            'budgetThresholds',
+            'zoom',
+            'gridView',
+            'showCharts',
         ));
     }
 
@@ -766,9 +782,10 @@ class GridsController extends AppController
         if ($actorUserId === null || $actorUserId <= 0) {
             $this->set([
                 'success' => false,
-                'message' => 'Utilisateur non identifié.'
+                'message' => 'Utilisateur non identifié.',
             ]);
             $this->viewBuilder()->setOption('serialize', ['success', 'message']);
+
             return;
         }
 

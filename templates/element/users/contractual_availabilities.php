@@ -7,81 +7,73 @@
  */
 ?>
 
-<?php // --- Section Disponibilités Contractuelles --- ?>
-<div class="card border-info mb-4 js-contractual-availabilities">
-    <div class="card-header bg-info text-white">
-        <i class="bi bi-calendar-week"></i> Disponibilités Contractuelles
-    </div>
-    <div class="card-body">
-        <p class="text-muted">
-            <i class="bi bi-info-circle"></i>
-            Définissez les fenêtres de travail pour chaque jour. Mettez 00:00 à 00:00 pour un jour non travaillé.
-        </p>
-
-        <div class="table-responsive">
-            <table class="table table-sm table-striped align-middle mb-0">
-                <thead class="table-light">
-                <tr>
-                    <th style="width: 15%;">Jour</th>
-                    <th style="width: 20%;">Disponible de</th>
-                    <th style="width: 20%;">Disponible à</th>
-                    <th style="width: 25%;">Fin la plus tôt (optionnelle)</th>
-                    <th style="width: 20%;">Copier / Coller</th>
+<section class="crud-section js-contractual-availabilities">
+    <h2 class="crud-section-title">Disponibilités contractuelles</h2>
+    <p class="text-muted">
+        Définissez les fenêtres de travail pour chaque jour. Mettez 00:00 à 00:00 pour un jour non travaillé.
+    </p>
+    <div class="table-responsive">
+        <table class="table table-hover table-sm crud-table">
+            <thead>
+            <tr>
+                <th>Jour</th>
+                <th>Disponible de</th>
+                <th>Disponible à</th>
+                <th>Fin la plus tôt (optionnelle)</th>
+                <th>Copier / Coller</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($days as $dayNum => $dayName): ?>
+                <?php $index = (int)$dayNum - 1; ?>
+                <tr data-ua-day="<?= (int)$dayNum ?>" data-ua-index="<?= (int)$index ?>">
+                    <td><?= h($dayName) ?></td>
+                    <?= $this->Form->hidden("user_availabilities.{$index}.id") ?>
+                    <?= $this->Form->hidden("user_availabilities.{$index}.day_of_week", ['value' => (int)$dayNum]) ?>
+                    <td>
+                        <?= $this->Form->control("user_availabilities.{$index}.availability_start_time", [
+                            'label' => false,
+                            'type' => 'time',
+                            'class' => 'form-control form-control-sm js-ua-input',
+                            'data-ua-field' => 'availability_start_time',
+                            'templates' => ['inputContainer' => '{{content}}'],
+                        ]) ?>
+                    </td>
+                    <td>
+                        <?= $this->Form->control("user_availabilities.{$index}.availability_end_time", [
+                            'label' => false,
+                            'type' => 'time',
+                            'class' => 'form-control form-control-sm js-ua-input',
+                            'data-ua-field' => 'availability_end_time',
+                            'templates' => ['inputContainer' => '{{content}}'],
+                        ]) ?>
+                    </td>
+                    <td>
+                        <?= $this->Form->control("user_availabilities.{$index}.earliest_end_time", [
+                            'label' => false,
+                            'type' => 'time',
+                            'empty' => true,
+                            'class' => 'form-control form-control-sm js-ua-input',
+                            'data-ua-field' => 'earliest_end_time',
+                            'templates' => ['inputContainer' => '{{content}}'],
+                        ]) ?>
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Copier / coller les disponibilités">
+                            <button type="button" class="btn btn-outline-secondary js-ua-copy-btn" title="Copier les disponibilités de ce jour">
+                                <i class="bi bi-copy"></i> Copier
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary js-ua-paste-btn" title="Coller les disponibilités copiées sur ce jour" disabled>
+                                <i class="bi bi-clipboard-check"></i> Coller
+                            </button>
+                        </div>
+                    </td>
                 </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($days as $dayNum => $dayName): ?>
-                    <?php $index = (int)$dayNum - 1; ?>
-                    <tr data-ua-day="<?= (int)$dayNum ?>" data-ua-index="<?= (int)$index ?>">
-                        <td class="fw-bold">
-                            <i class="bi bi-calendar"></i> <?= h($dayName) ?>
-                        </td>
-
-                        <?= $this->Form->hidden("user_availabilities.{$index}.id") ?>
-                        <?= $this->Form->hidden("user_availabilities.{$index}.day_of_week", ['value' => (int)$dayNum]) ?>
-
-                        <td>
-                            <?= $this->Form->control("user_availabilities.{$index}.availability_start_time", [
-                                'label' => false,
-                                'type' => 'time',
-                                'class' => 'form-control form-control-sm js-ua-input',
-                                'data-ua-field' => 'availability_start_time',
-                            ]) ?>
-                        </td>
-                        <td>
-                            <?= $this->Form->control("user_availabilities.{$index}.availability_end_time", [
-                                'label' => false,
-                                'type' => 'time',
-                                'class' => 'form-control form-control-sm js-ua-input',
-                                'data-ua-field' => 'availability_end_time',
-                            ]) ?>
-                        </td>
-                        <td>
-                            <?= $this->Form->control("user_availabilities.{$index}.earliest_end_time", [
-                                'label' => false,
-                                'type' => 'time',
-                                'empty' => true,
-                                'class' => 'form-control form-control-sm js-ua-input',
-                                'data-ua-field' => 'earliest_end_time',
-                            ]) ?>
-                        </td>
-                        <td>
-                            <div class="btn-group btn-group-sm" role="group" aria-label="Copier / coller les disponibilités">
-                                <button type="button" class="btn btn-outline-secondary js-ua-copy-btn" title="Copier les disponibilités de ce jour">
-                                    <i class="bi bi-copy"></i> Copier
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary js-ua-paste-btn" title="Coller les disponibilités copiées sur ce jour" disabled>
-                                    <i class="bi bi-clipboard-check"></i> Coller
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
-</div>
+</section>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -91,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     const fields = ['availability_start_time', 'availability_end_time', 'earliest_end_time'];
-    let clipboard = null; // { availability_start_time, availability_end_time, earliest_end_time, fromDay }
+    let clipboard = null;
 
     function findRowByDay(dayNum) {
         return container.querySelector('tr[data-ua-day="' + dayNum + '"]');
@@ -190,5 +182,3 @@ document.addEventListener('DOMContentLoaded', function () {
     enablePasteButtons();
 });
 </script>
-
-

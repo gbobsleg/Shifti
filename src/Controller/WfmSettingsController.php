@@ -24,30 +24,7 @@ class WfmSettingsController extends AppController
         $this->paginate = ['limit' => 25, 'order' => ['WfmSettings.name' => 'ASC']];
         $wfmSettings = $this->paginate($query);
 
-        // Statistiques
-        $allSettings = $this->WfmSettings->find()->all();
-        $stats = [
-            'total' => $allSettings->count(),
-            'strict' => 0,
-            'flexible' => 0,
-            'with_breaks' => 0,
-        ];
-        
-        foreach ($allSettings as $setting) {
-            // Compte strict vs flexible
-            if ($setting->strict_work_hours === null || $setting->strict_work_hours) {
-                $stats['strict']++;
-            } else {
-                $stats['flexible']++;
-            }
-            
-            // Compte ceux avec pauses AM/PM activées
-            if ($setting->enable_am_pm_breaks === null || $setting->enable_am_pm_breaks) {
-                $stats['with_breaks']++;
-            }
-        }
-
-        $this->set(compact('wfmSettings', 'stats'));
+        $this->set(compact('wfmSettings'));
     }
 
     /**

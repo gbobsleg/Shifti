@@ -76,42 +76,6 @@ class RangesController extends AppController
         $this->paginate = ['limit' => 25, 'order' => ['Ranges.id' => 'desc']];
         $ranges = $this->paginate($query);
 
-        // Statistiques
-        $allRanges = $this->Ranges->find('all')->contain(['Users', 'Offers']);
-        $stats = [
-            'total' => $allRanges->count(),
-            'this_week' => 0,
-            'this_month' => 0,
-            'by_offer' => []
-        ];
-        
-        $now = new \DateTime();
-        $startOfWeek = (clone $now)->modify('monday this week');
-        $endOfWeek = (clone $now)->modify('sunday this week');
-        $startOfMonth = (clone $now)->modify('first day of this month');
-        
-        foreach ($allRanges as $range) {
-            // Plages cette semaine
-            if ($range->date_start && $range->date_start >= $startOfWeek && $range->date_start <= $endOfWeek) {
-                $stats['this_week']++;
-            }
-            // Plages ce mois
-            if ($range->date_start && $range->date_start >= $startOfMonth) {
-                $stats['this_month']++;
-            }
-            
-            // Par offre
-            $offerName = $range->offer ? $range->offer->name : 'Sans offre';
-            if (!isset($stats['by_offer'][$offerName])) {
-                $stats['by_offer'][$offerName] = 0;
-            }
-            $stats['by_offer'][$offerName]++;
-        }
-        
-        // Top 3 offres
-        arsort($stats['by_offer']);
-        $stats['top_offers'] = array_slice($stats['by_offer'], 0, 3, true);
-
         // Données pour le formulaire de recherche
         $users = $this->Ranges->Users->find('list', [
             'keyField' => 'id',
@@ -122,7 +86,7 @@ class RangesController extends AppController
         
         $offers = $this->Ranges->Offers->find('list', ['limit' => 200])->toArray();
 
-        $this->set(compact('ranges', 'users', 'offers', 'stats'));
+        $this->set(compact('ranges', 'users', 'offers'));
     }
 
     /**

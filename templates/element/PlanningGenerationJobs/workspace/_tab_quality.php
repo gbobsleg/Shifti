@@ -78,46 +78,31 @@ if ($healthScore < 50) {
 ?>
 
 <!-- KPI -->
-<div class="row mb-3">
-    <div class="col-md-4">
-        <div class="card shadow kpi-card border-left-success">
-            <div class="card-body">
-                <div class="kpi-value text-success"><?= number_format((int)$stats['days_ok']) ?></div>
-                <div class="kpi-label">Jours OK</div>
-                <small class="text-muted">
-                    <?= ($stats['total_days'] ?? 0) > 0 ? number_format(($stats['days_ok'] / $stats['total_days']) * 100, 1) : 0 ?>% de réussite
-                </small>
-            </div>
+<section class="crud-section">
+    <h2 class="crud-section-title">Synthèse</h2>
+    <dl class="crud-fields">
+        <div>
+            <dt>Jours OK</dt>
+            <dd><?= number_format((int)$stats['days_ok']) ?>
+                (<?= ($stats['total_days'] ?? 0) > 0 ? number_format(($stats['days_ok'] / $stats['total_days']) * 100, 1) : 0 ?>% de réussite)
+            </dd>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card shadow kpi-card border-left-info">
-            <div class="card-body">
-                <div class="kpi-value text-info"><?= number_format((float)$successRate, 1) ?>%</div>
-                <div class="kpi-label">Taux de succès</div>
-                <small class="text-muted"><?= (int)$stats['days_ok'] ?> / <?= (int)$stats['total_days'] ?> jours</small>
-            </div>
+        <div>
+            <dt>Taux de succès</dt>
+            <dd><?= number_format((float)$successRate, 1) ?>%
+                — <?= (int)$stats['days_ok'] ?> / <?= (int)$stats['total_days'] ?> jours
+            </dd>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card shadow kpi-card border-left-primary">
-            <div class="card-body">
-                <div class="kpi-value text-<?= $healthColor ?>"><?= (int)$healthScore ?><small style="font-size:1.2rem;">/100</small></div>
-                <div class="kpi-label">Score de santé</div>
-                <div class="progress mt-2" style="height: 6px;">
-                    <div class="progress-bar bg-<?= $healthColor ?>" style="width: <?= (int)$healthScore ?>%"></div>
-                </div>
-            </div>
+        <div>
+            <dt>Score de santé</dt>
+            <dd><?= (int)$healthScore ?>/100</dd>
         </div>
-    </div>
-</div>
+    </dl>
+</section>
 
 <!-- Timeline -->
-<div class="card shadow mb-3">
-    <div class="card-header bg-light">
-        <h5 class="mb-0"><i class="bi bi-timeline"></i> Timeline des statuts</h5>
-    </div>
-    <div class="card-body">
+<section class="crud-section">
+    <h2 class="crud-section-title">Timeline des statuts</h2>
         <div class="d-flex flex-wrap mb-2" style="min-height: 40px; gap: 0.25rem;">
             <?php foreach ($statusTimeline as $item): ?>
                 <?php
@@ -139,7 +124,7 @@ if ($healthScore < 50) {
                 ?>
                 <span class="timeline-bar bg-<?= $color ?>"
                       style="flex: 1; min-width: 8px;"
-                      data-toggle="tooltip"
+                      data-bs-toggle="tooltip"
                       title="<?= h($item['date']) ?> : <?= h($title) ?>"></span>
             <?php endforeach; ?>
         </div>
@@ -148,16 +133,15 @@ if ($healthScore < 50) {
             <span><?= h((string)$job->end_date) ?></span>
         </div>
         <div class="d-flex flex-wrap mt-3" style="gap: 1rem;">
-            <span><i class="bi bi-circle-fill text-success"></i> OK : <?= (int)$stats['days_ok'] ?></span>
+            <span>OK : <?= (int)$stats['days_ok'] ?></span>
             <?php if (($stats['days_infeasible'] ?? 0) > 0): ?>
-                <span><i class="bi bi-circle-fill text-warning"></i> Infaisable : <?= (int)$stats['days_infeasible'] ?></span>
+                <span>Infaisable : <?= (int)$stats['days_infeasible'] ?></span>
             <?php endif; ?>
             <?php if (($stats['days_error'] ?? 0) > 0): ?>
-                <span><i class="bi bi-circle-fill text-danger"></i> Erreur : <?= (int)$stats['days_error'] ?></span>
+                <span>Erreur : <?= (int)$stats['days_error'] ?></span>
             <?php endif; ?>
         </div>
-    </div>
-</div>
+</section>
 
 <?php
 $complianceFixed = $complianceFixed ?? [];
@@ -183,30 +167,26 @@ $statusLabel = static function (string $status): array {
 };
 ?>
 <!-- Conformité pré-publication -->
-<div class="card shadow mb-3" id="compliance-panel" data-compliance-ko="<?= $complianceKo ?>">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center cursor-pointer"
-         data-toggle="collapse"
-         data-target="#ws-quality-compliance"
+<section class="crud-section" id="compliance-panel" data-compliance-ko="<?= $complianceKo ?>">
+    <h2 class="crud-section-title workspace-collapse-toggle"
+         data-bs-toggle="collapse"
+         data-bs-target="#ws-quality-compliance"
          aria-expanded="<?= $complianceOpen ? 'true' : 'false' ?>"
          aria-controls="ws-quality-compliance"
          role="button">
-        <h5 class="mb-0">
-            <i class="bi bi-shield-check"></i> Conformité
+        Conformité
             <?php if ($complianceKo > 0): ?>
-                <span class="badge badge-danger badge-count ml-1"><?= $complianceKo ?></span>
+                <span class="badge bg-danger badge-count ms-1"><?= $complianceKo ?></span>
             <?php elseif ($complianceHasData): ?>
-                <span class="badge badge-success badge-count ml-1">OK</span>
+                <span class="badge bg-success badge-count ms-1">OK</span>
             <?php endif; ?>
-        </h5>
         <i class="bi bi-chevron-down"></i>
-    </div>
+    </h2>
     <div class="collapse<?= $complianceOpen ? ' show' : '' ?>" id="ws-quality-compliance">
-        <div class="card-body">
             <?php if (!$complianceHasData): ?>
-                <div class="alert alert-secondary mb-0">
-                    <i class="bi bi-info-circle"></i>
+                <p class="text-muted mb-0">
                     Aucune règle à contrôler (pas de jour OK, ou aucune activité fixe / rotation applicable).
-                </div>
+                </p>
             <?php else: ?>
                 <div class="d-flex flex-wrap mb-3" style="gap: 0.75rem;">
                     <?php
@@ -217,12 +197,16 @@ $statusLabel = static function (string $status): array {
                     $rotTotal = (int)$complianceSummary['rotation_total'];
                     $rotOk = (int)$complianceSummary['rotation_ok'];
                     ?>
-                    <span class="badge badge-<?= $fixedKo > 0 ? 'danger' : 'success' ?> p-2">
-                        Fixes : <?= $fixedOk ?>/<?= $fixedTotal ?> OK
-                    </span>
-                    <span class="badge badge-<?= $rotKo > 0 ? 'danger' : 'success' ?> p-2">
-                        Rotations : <?= $rotOk ?>/<?= $rotTotal ?> OK
-                    </span>
+                    <dl class="crud-fields mb-3">
+                        <div>
+                            <dt>Fixes</dt>
+                            <dd><?= $fixedOk ?>/<?= $fixedTotal ?> OK</dd>
+                        </div>
+                        <div>
+                            <dt>Rotations</dt>
+                            <dd><?= $rotOk ?>/<?= $rotTotal ?> OK</dd>
+                        </div>
+                    </dl>
                 </div>
                 <p class="text-muted small mb-3">
                     <strong>Couverture</strong> (fixes) = nombre d’agents présents sur la plage horaire demandée.
@@ -241,19 +225,16 @@ $statusLabel = static function (string $status): array {
                 ksort($fixedByDate);
                 ?>
                 <!-- Fixes -->
-                <div class="card mb-3">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center cursor-pointer"
-                         data-toggle="collapse" data-target="#compliance-fixed-body" aria-expanded="false" role="button">
-                        <h6 class="mb-0">
-                            <i class="bi bi-geo-alt"></i> Activités fixes
+                <section class="crud-section mb-3">
+                    <h3 class="crud-subsection-title workspace-collapse-toggle cursor-pointer"
+                         data-bs-toggle="collapse" data-bs-target="#compliance-fixed-body" aria-expanded="false" role="button">
+                        Activités fixes
                             <?php if ($fixedKo > 0): ?>
-                                <span class="badge badge-danger ml-1"><?= $fixedKo ?> manque(s)</span>
+                                <span class="badge bg-danger ms-1"><?= $fixedKo ?> manque(s)</span>
                             <?php endif; ?>
-                        </h6>
                         <i class="bi bi-chevron-down"></i>
-                    </div>
+                    </h3>
                     <div class="collapse" id="compliance-fixed-body">
-                        <div class="card-body">
                             <?php if ($fixedTotal === 0): ?>
                                 <p class="text-muted mb-0">Aucune activité fixe à contrôler sur les jours OK.</p>
                             <?php else: ?>
@@ -280,19 +261,19 @@ $statusLabel = static function (string $status): array {
                                             $dateLabel = $dateKey;
                                         }
                                         ?>
-                                        <div class="compliance-fixed-date-group mb-2 border rounded"
+                                        <div class="compliance-fixed-date-group mb-2"
                                              data-date-ko="<?= (int)$dateKo ?>">
-                                            <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light cursor-pointer"
-                                                 data-toggle="collapse"
-                                                 data-target="#<?= h($dateCollapseId) ?>"
+                                            <div class="d-flex justify-content-between align-items-center py-2 workspace-collapse-toggle cursor-pointer"
+                                                 data-bs-toggle="collapse"
+                                                 data-bs-target="#<?= h($dateCollapseId) ?>"
                                                  aria-expanded="false"
                                                  role="button">
                                                 <strong>
                                                     <i class="bi bi-calendar-event"></i>
                                                     <?= h($dateLabel) ?>
-                                                    <span class="text-muted font-weight-normal ml-1">(<?= count($dateRows) ?>)</span>
+                                                    <span class="text-muted font-weight-normal ms-1">(<?= count($dateRows) ?>)</span>
                                                     <?php if ($dateKo > 0): ?>
-                                                        <span class="badge badge-danger ml-1"><?= $dateKo ?></span>
+                                                        <span class="badge bg-danger ms-1"><?= $dateKo ?></span>
                                                     <?php endif; ?>
                                                 </strong>
                                                 <i class="bi bi-chevron-down"></i>
@@ -319,7 +300,7 @@ $statusLabel = static function (string $status): array {
                                                                     <td><?= h((string)$row['window_label']) ?></td>
                                                                     <td class="text-end"><?= (int)$row['required'] ?></td>
                                                                     <td class="text-end"><?= (int)$row['actual'] ?></td>
-                                                                    <td><span class="badge badge-<?= $badge ?>"><?= h($label) ?></span></td>
+                                                                    <td><span class="badge bg-<?= $badge ?>"><?= h($label) ?></span></td>
                                                                 </tr>
                                                             <?php endforeach; ?>
                                                         </tbody>
@@ -331,24 +312,19 @@ $statusLabel = static function (string $status): array {
                                 </div>
                                 </div><!-- /.compliance-fixed-filter-wrap -->
                             <?php endif; ?>
-                        </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- Rotations -->
-                <div class="card mb-0">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center cursor-pointer"
-                         data-toggle="collapse" data-target="#compliance-rotation-body" aria-expanded="false" role="button">
-                        <h6 class="mb-0">
-                            <i class="bi bi-arrow-repeat"></i> Rotations
+                <section class="crud-section mb-0">
+                    <h3 class="crud-subsection-title workspace-collapse-toggle cursor-pointer"
+                         data-bs-toggle="collapse" data-bs-target="#compliance-rotation-body" aria-expanded="false" role="button">
+                        Rotations
                             <?php if ($rotKo > 0): ?>
-                                <span class="badge badge-danger ml-1"><?= $rotKo ?> écart(s)</span>
+                                <span class="badge bg-danger ms-1"><?= $rotKo ?> écart(s)</span>
                             <?php endif; ?>
-                        </h6>
                         <i class="bi bi-chevron-down"></i>
-                    </div>
+                    </h3>
                     <div class="collapse" id="compliance-rotation-body">
-                        <div class="card-body">
                             <?php if ($rotTotal === 0): ?>
                                 <p class="text-muted mb-0">Aucune rotation à contrôler pour les agents du brouillon.</p>
                             <?php else: ?>
@@ -383,7 +359,7 @@ $statusLabel = static function (string $status): array {
                                                 <tr class="compliance-rotation-row" data-compliance-status="<?= h((string)$row['status']) ?>">
                                                     <td>
                                                         <button type="button" class="btn btn-sm btn-link p-0"
-                                                                data-toggle="collapse" data-target="#<?= h($collapseId) ?>"
+                                                                data-bs-toggle="collapse" data-bs-target="#<?= h($collapseId) ?>"
                                                                 aria-expanded="false" title="Voir les plages">
                                                             <i class="bi bi-chevron-down"></i>
                                                         </button>
@@ -399,7 +375,7 @@ $statusLabel = static function (string $status): array {
                                                     <td><small><?= h($targetLabel) ?></small></td>
                                                     <td class="text-end"><?= (int)$row['required'] ?></td>
                                                     <td class="text-end"><?= (int)$row['actual'] ?></td>
-                                                    <td><span class="badge badge-<?= $badge ?>"><?= h($label) ?></span></td>
+                                                    <td><span class="badge bg-<?= $badge ?>"><?= h($label) ?></span></td>
                                                 </tr>
                                                 <tr class="compliance-rotation-detail" data-compliance-status="<?= h((string)$row['status']) ?>">
                                                     <td colspan="8" class="p-0 border-0">
@@ -443,34 +419,28 @@ $statusLabel = static function (string $status): array {
                                 </p>
                                 </div><!-- /.compliance-rotation-filter-wrap -->
                             <?php endif; ?>
-                        </div>
                     </div>
-                </div>
+                </section>
             <?php endif; ?>
-        </div>
     </div>
-</div>
+</section>
 
-<!-- Détail par jour (replié par défaut) -->
-<div class="card shadow mb-3">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center cursor-pointer"
-         data-toggle="collapse"
-         data-target="#ws-quality-days"
+<section class="crud-section">
+    <h2 class="crud-section-title workspace-collapse-toggle"
+         data-bs-toggle="collapse"
+         data-bs-target="#ws-quality-days"
          aria-expanded="false"
          aria-controls="ws-quality-days"
          role="button">
-        <h5 class="mb-0">
-            <i class="bi bi-calendar3"></i> Détail par jour
+        Détail par jour
             <?php if (($stats['days_infeasible'] ?? 0) > 0 || ($stats['days_error'] ?? 0) > 0): ?>
-                <span class="badge badge-danger badge-count ml-1">
+                <span class="badge bg-danger badge-count ms-1">
                     <?= (int)$stats['days_infeasible'] + (int)$stats['days_error'] ?>
                 </span>
             <?php endif; ?>
-        </h5>
         <i class="bi bi-chevron-down"></i>
-    </div>
+    </h2>
     <div class="collapse" id="ws-quality-days">
-    <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover align-middle">
                 <thead class="table-light">
@@ -555,12 +525,12 @@ $statusLabel = static function (string $status): array {
                         <tr>
                             <td><strong><?= h((string)$d->date) ?></strong></td>
                             <td>
-                                <span class="badge badge-<?= $badge ?>">
+                                <span class="badge bg-<?= $badge ?>">
                                     <i class="bi bi-<?= $icon ?>"></i> <?= h($st) ?>
                                 </span>
                                 <?php foreach ($passBadges as $pb): ?>
-                                    <span class="badge badge-<?= $pb['color'] ?> pass-badge"
-                                          data-toggle="tooltip"
+                                    <span class="badge bg-<?= $pb['color'] ?> pass-badge"
+                                          data-bs-toggle="tooltip"
                                           title="<?= h($pb['tooltip']) ?>">
                                         <?= h($pb['short']) ?>
                                     </span>
@@ -575,7 +545,7 @@ $statusLabel = static function (string $status): array {
                             </td>
                             <td class="text-end">
                                 <?php if (($dayData['schedule_count'] ?? 0) > 0): ?>
-                                    <span class="badge badge-success"><?= number_format((int)$dayData['schedule_count']) ?></span>
+                                    <?= number_format((int)$dayData['schedule_count']) ?>
                                 <?php else: ?>
                                     <span class="text-muted">0</span>
                                 <?php endif; ?>
@@ -584,13 +554,13 @@ $statusLabel = static function (string $status): array {
                             <td class="text-end">
                                 <?php if ($hasDiagnostics): ?>
                                     <button class="btn btn-sm btn-outline-secondary" type="button"
-                                            data-toggle="collapse" data-target="#<?= h($collapseId) ?>">
+                                            data-bs-toggle="collapse" data-bs-target="#<?= h($collapseId) ?>">
                                         <i class="bi bi-info-circle"></i>
                                         <?php if (($dayData['excluded_count'] ?? 0) > 0): ?>
-                                            <span class="badge badge-danger"><?= (int)$dayData['excluded_count'] ?></span>
+                                            <span class="badge bg-danger"><?= (int)$dayData['excluded_count'] ?></span>
                                         <?php endif; ?>
                                         <?php if (($dayData['warnings_count'] ?? 0) > 0): ?>
-                                            <span class="badge badge-warning"><?= (int)$dayData['warnings_count'] ?></span>
+                                            <span class="badge bg-warning"><?= (int)$dayData['warnings_count'] ?></span>
                                         <?php endif; ?>
                                     </button>
                                 <?php else: ?>
@@ -616,7 +586,7 @@ $statusLabel = static function (string $status): array {
                         <?php if ($showPass2Explanation): ?>
                             <tr>
                                 <td colspan="7" class="p-0 border-0">
-                                    <div class="alert alert-warning mb-2 mx-3 mt-2 py-2">
+                                    <div class="crud-warn mb-2 mx-3 mt-2">
                                         <strong><i class="bi bi-search"></i> Diagnostic d'infaisabilité</strong>
                                         <?php $explStatus = (string)($pass2Explanation['status'] ?? ''); ?>
                                         <?php if ($explStatus === 'ok'): ?>
@@ -653,28 +623,21 @@ $statusLabel = static function (string $status): array {
                                             <div class="row">
                                                 <?php if (($dayData['warnings_count'] ?? 0) > 0): ?>
                                                     <div class="col-md-6">
-                                                        <div class="card border-warning mb-2">
-                                                            <div class="card-header bg-warning text-dark py-2">
+                                                        <div class="crud-warn mb-2" style="max-height: 200px; overflow-y: auto;">
                                                                 <strong>Warnings (<?= (int)$dayData['warnings_count'] ?>)</strong>
-                                                            </div>
-                                                            <div class="card-body py-2" style="max-height: 200px; overflow-y: auto;">
                                                                 <ul class="mb-0 small">
                                                                     <?php foreach (($dayData['diagnostics']['warnings'] ?? []) as $w): ?>
                                                                         <?php $msg = is_array($w) ? ($w['message'] ?? json_encode($w)) : (string)$w; ?>
                                                                         <li><?= h((string)$msg) ?></li>
                                                                     <?php endforeach; ?>
                                                                 </ul>
-                                                            </div>
                                                         </div>
                                                     </div>
                                                 <?php endif; ?>
                                                 <?php if (($dayData['excluded_count'] ?? 0) > 0): ?>
                                                     <div class="col-md-6">
-                                                        <div class="card border-secondary mb-2">
-                                                            <div class="card-header bg-light py-2">
+                                                        <div class="mb-2" style="max-height: 200px; overflow-y: auto;">
                                                                 <strong>Agents exclus (<?= (int)$dayData['excluded_count'] ?>)</strong>
-                                                            </div>
-                                                            <div class="card-body py-2" style="max-height: 200px; overflow-y: auto;">
                                                                 <ul class="mb-0 small">
                                                                     <?php foreach (($dayData['diagnostics']['excluded_agents'] ?? []) as $ex): ?>
                                                                         <?php
@@ -690,7 +653,6 @@ $statusLabel = static function (string $status): array {
                                                                         <li><?= h($line) ?></li>
                                                                     <?php endforeach; ?>
                                                                 </ul>
-                                                            </div>
                                                         </div>
                                                     </div>
                                                 <?php endif; ?>
@@ -710,5 +672,4 @@ $statusLabel = static function (string $status): array {
             </table>
         </div>
     </div>
-    </div><!-- /#ws-quality-days -->
-</div>
+</section>

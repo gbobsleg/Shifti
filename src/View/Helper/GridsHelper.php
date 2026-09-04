@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\View\Helper;
 
+use App\View\Grid\BarRenderer;
 use Cake\I18n\FrozenTime;
 use Cake\View\Helper;
 
@@ -140,23 +141,31 @@ class GridsHelper extends Helper
      */
     public function writeTimeSlots(object $user, FrozenTime $beginOfDay, string $rangesProperty = 'ranges'): string
     {
-        $date = clone $beginOfDay;
+        $slots = $this->collectTimeSlots($user, $beginOfDay, $rangesProperty);
+        $renderer = new BarRenderer();
 
+        return $renderer->renderHtml($slots, (int)$user->id);
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function collectTimeSlots(object $user, FrozenTime $beginOfDay, string $rangesProperty): array
+    {
+        $date = clone $beginOfDay;
         $start = $date->setTime($this->gridStartHour, 0);
         $timestampStart = $start->getTimestamp();
         $end = $date->setTime($this->gridEndHour - 1, 45);
         $timestampEnd = $end->getTimestamp();
-
-        $timeSlots = '';
-        
-        // Calculer les indisponibilités basées sur user_availabilities
         $unavailableSlots = $this->getUserUnavailableSlots($user, $beginOfDay);
+        $slots = [];
 
         while ($timestampStart <= $timestampEnd) {
             $start = $start->addMinutes(15);
             $newTimestampStart = $start->getTimestamp();
-            
-            // PRIORITÉ 1 : Vérifier si un range existe déjà pour ce créneau
+            $slotStart = date('Y-m-d H:i:s', $timestampStart);
+            $slotEnd = date('Y-m-d H:i:s', $newTimestampStart);
+
             $existingRange = null;
             $remoteWorkCandidate = null;
             $ranges = $this->getRangesForDisplay($user, $rangesProperty);
@@ -165,9 +174,6 @@ class GridsHelper extends Helper
                     ($range->date_start->getTimestamp() <= $timestampStart)
                     && ($timestampStart < $range->date_end->getTimestamp())
                 ) {
-                    // Ne pas laisser le télétravail masquer une activité "réelle".
-                    // On retient le télétravail comme candidat de secours, et on continue à chercher
-                    // un range non-remote_work qui couvrirait aussi ce créneau.
                     $isRemoteWork = isset($range->offer) && isset($range->offer->offer_type)
                         && $range->offer->offer_type === 'remote_work';
                     if ($isRemoteWork) {
@@ -176,7 +182,6 @@ class GridsHelper extends Helper
                         }
                         continue;
                     }
-
                     $existingRange = $range;
                     break;
                 }
@@ -184,89 +189,83 @@ class GridsHelper extends Helper
             if ($existingRange === null && $remoteWorkCandidate !== null) {
                 $existingRange = $remoteWorkCandidate;
             }
-            
-            // Si un range existe, l'afficher (même si offer_id=0 pour "blanc")
+
             if ($existingRange) {
-                // Vérifier que ce n'est pas une offre système à exclure (télétravail uniquement)
-                $isExcludedOffer = isset($existingRange->offer) && isset($existingRange->offer->offer_type) 
-                    && $existingRange->offer->offer_type === 'remote_work';
-                
-                if ($isExcludedOffer) {
-                    // Télétravail : ne pas afficher (géré ailleurs avec icône)
-                    $Td = '<td class="td_quarter" style="background:white" ';
-                    $Td .= 'data-user-id="' . $user->id . '" ';
-                    $Td .= 'data-start="' . date('Y-m-d H:i:s', $timestampStart) . '" ';
-                    $Td .= 'data-end="' . date('Y-m-d H:i:s', $newTimestampStart) . '" ';
-                    $Td .= 'data-offer-id="' . $existingRange->offer_id . '" ';
-                    $Td .= 'data-range-id="' . $existingRange->id . '"';
-                    $Td .= '>';
-                } elseif (isset($existingRange->offer) && $existingRange->offer_id != '0' && $existingRange->offer_id != 0) {
-                    // Range avec offre : afficher avec la couleur de l'offre
-                    $Td = '<td class="td_quarter" style="background-color:' . $existingRange['offer']['color'] . '"
-                    data-toggle="tooltip" data-placement="top" title="' . h($existingRange['offer']['name']) . ' de ' . $existingRange->date_start->i18nFormat('HH:mm') . ' à ' . $existingRange->date_end->i18nFormat('HH:mm') . ' - ' . ($existingRange->comment ?? '') . '"
-                    data-user-id="' . $user->id . '"
-                    data-start="' . date('Y-m-d H:i:s', $timestampStart) . '"
-                    data-end="' . date('Y-m-d H:i:s', $newTimestampStart) . '"
-                    data-offer-id="' . $existingRange->offer_id . '"
-                    data-range-id="' . $existingRange->id . '"
-                    >';
-                } else {
-                    // Range avec offer_id=0 ou sans offre : case blanche (débloquée manuellement ou range vide)
-                    $Td = '<td class="td_quarter" style="background:white" ';
-                    $Td .= 'data-user-id="' . $user->id . '" ';
-                    $Td .= 'data-start="' . date('Y-m-d H:i:s', $timestampStart) . '" ';
-                    $Td .= 'data-end="' . date('Y-m-d H:i:s', $newTimestampStart) . '" ';
-                    $Td .= 'data-offer-id="' . ($existingRange->offer_id ?? '0') . '" ';
-                    $Td .= 'data-range-id="' . $existingRange->id . '"';
-                    $Td .= '>';
+                if (isset($existingRange->offer) && $existingRange->offer_id != '0' && $existingRange->offer_id != 0) {
+                    $offer = $existingRange->offer;
+                    $name = (string)($offer->name ?? '');
+                    $slots[] = [
+                        'start' => $slotStart,
+                        'end' => $slotEnd,
+                        'offer_id' => (string)$existingRange->offer_id,
+                        'range_id' => (string)$existingRange->id,
+                        'offer_type' => (string)($offer->offer_type ?? 'normal'),
+                        'color' => (string)($offer->color ?? ''),
+                        'label' => $name,
+                        'title' => $name . ' de ' . $existingRange->date_start->i18nFormat('HH:mm')
+                            . ' à ' . $existingRange->date_end->i18nFormat('HH:mm')
+                            . ' - ' . ($existingRange->comment ?? ''),
+                        'unavailable' => false,
+                    ];
+                    $timestampStart = $newTimestampStart;
+                    continue;
                 }
-                $timeSlots .= $Td . '</td>';
+                $slots[] = $this->emptySlot(
+                    $slotStart,
+                    $slotEnd,
+                    (string)($existingRange->offer_id ?? '0'),
+                    (string)($existingRange->id ?? '')
+                );
                 $timestampStart = $newTimestampStart;
                 continue;
             }
-            
-            // PRIORITÉ 2 : Si aucun range n'existe, vérifier si créneau est dans une zone d'indispo
+
             $isUnavailable = false;
-            foreach ($unavailableSlots as [$slotStart, $slotEnd]) {
-                if ($timestampStart >= $slotStart && $timestampStart < $slotEnd) {
+            foreach ($unavailableSlots as [$slotUnavailStart, $slotUnavailEnd]) {
+                if ($timestampStart >= $slotUnavailStart && $timestampStart < $slotUnavailEnd) {
                     $isUnavailable = true;
                     break;
                 }
             }
-
-            // Si indisponible, afficher en grisé
             if ($isUnavailable) {
-                $Td = '<td class="td_quarter td_unavailable" 
-                    style="background: repeating-linear-gradient(45deg, #f0f0f0, #f0f0f0 10px, #e0e0e0 10px, #e0e0e0 20px);" 
-                    data-toggle="tooltip" 
-                    data-placement="top"
-                    title="Agent non disponible selon son contrat"
-                    data-user-id="' . $user->id . '" 
-                    data-start="' . date('Y-m-d H:i:s', $timestampStart) . '" 
-                    data-end="' . date('Y-m-d H:i:s', $newTimestampStart) . '" 
-                    data-offer-id="0" 
-                    data-range-id="">
-                    </td>';
-                $timeSlots .= $Td;
+                $slots[] = [
+                    'start' => $slotStart,
+                    'end' => $slotEnd,
+                    'offer_id' => '0',
+                    'range_id' => '',
+                    'offer_type' => '',
+                    'color' => '',
+                    'label' => '',
+                    'title' => 'Agent non disponible selon son contrat',
+                    'unavailable' => true,
+                ];
                 $timestampStart = $newTimestampStart;
                 continue;
             }
 
-            // PRIORITÉ 3 : Case disponible (blanc)
-            $Td = '<td class="td_quarter" style="background:white" ';
-            $Td .= 'data-user-id="' . $user->id . '" ';
-            $Td .= 'data-start="' . date('Y-m-d H:i:s', $timestampStart) . '" ';
-            $Td .= 'data-end="' . date('Y-m-d H:i:s', $newTimestampStart) . '" ';
-            $Td .= 'data-offer-id="0" ';
-            $Td .= 'data-range-id=""';
-            $Td .= '>';
-
-            $Td .= '</td>';
-            $timeSlots .= $Td;
+            $slots[] = $this->emptySlot($slotStart, $slotEnd, '0', '');
             $timestampStart = $newTimestampStart;
         }
 
-        return $timeSlots;
+        return $slots;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function emptySlot(string $start, string $end, string $offerId, string $rangeId): array
+    {
+        return [
+            'start' => $start,
+            'end' => $end,
+            'offer_id' => $offerId,
+            'range_id' => $rangeId,
+            'offer_type' => '',
+            'color' => '',
+            'label' => '',
+            'title' => '',
+            'unavailable' => false,
+        ];
     }
 
     /**
@@ -328,14 +327,19 @@ class GridsHelper extends Helper
         $bg = '';
         $icon = '';
         $homework = '';
+        $remoteStyle = '';
         $currentDayStart = $date->startOfDay();
 
         // Vérifier si agent en télétravail ce jour
         $remoteWorkInfo = $this->isUserInRemoteWork($user, $date);
         if ($remoteWorkInfo['is_remote']) {
-            $bg = 'bg-info text-white';
-            $icon = '<i class="bi-house-door-fill pr-2" style="color: black"></i>';
+            $bg = 'is-remote';
+            $icon = '<i class="bi-house-door-fill pe-1"></i>';
             $homework = $remoteWorkInfo['info'];
+            $remoteColor = (string)($remoteWorkInfo['color'] ?? '');
+            if ($remoteColor !== '' && preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteColor)) {
+                $remoteStyle = ' style="background:' . $remoteColor . '"';
+            }
         }
 
         // Palette de couleurs distinctes et subtiles pour les sites
@@ -357,14 +361,12 @@ class GridsHelper extends Helper
         // $bgColor non utilisé
         $textColor = $colors['text'];
 
-        // Cellule Site — bordures G/D colorées en vrai border (pas box-shadow inset :
-        // l'inset est coupé par les traits haut/bas ; border-right inline bat le !important CSS)
-        $TrUser .= '<th scope="row" class="th_row text-center site-column" style="border-left: 4px solid ' . $textColor . ' !important; border-right: 4px solid ' . $textColor . ' !important; color: ' . $textColor . '; font-weight: 600; width: 1%; white-space: nowrap;">
+        $TrUser .= '<th scope="row" class="th_row text-center site-column" style="border-left: 2px solid ' . $textColor . '; color: ' . $textColor . '; width: 1%; white-space: nowrap;">
         ' . h($user['site']['name']) . '
         </th>';
 
         // Cellule Agent (sans trait coloré — réservé à la colonne Site)
-        $TrUser .= '<th scope="row" class="th_row ' . $bg . '" data-toggle="tooltip" data-placement="right" title="Site ' . h($user['site']['number']) . ' - ' . h($user->user_code) . $homework . '">
+        $TrUser .= '<th scope="row" class="th_row ' . $bg . '"' . $remoteStyle . ' data-bs-toggle="tooltip" data-placement="right" title="Site ' . h($user['site']['number']) . ' - ' . h($user->user_code) . $homework . '">
         ' . $icon . h($user->full_name) . '</th>';
 
         $TrUser .= $this->writeTimeSlots($user, $beginOfDay, $rangesProperty);
@@ -419,7 +421,8 @@ class GridsHelper extends Helper
                     return [
                         'is_remote' => true,
                         'type' => $type,
-                        'info' => ' - ' . $offerName . ' du ' . $rangeStart->i18nFormat('dd/MM HH:mm') . ' au ' . $rangeEnd->i18nFormat('dd/MM HH:mm')
+                        'info' => ' - ' . $offerName . ' du ' . $rangeStart->i18nFormat('dd/MM HH:mm') . ' au ' . $rangeEnd->i18nFormat('dd/MM HH:mm'),
+                        'color' => (string)($range->offer->color ?? ''),
                     ];
                 }
             }
@@ -429,7 +432,8 @@ class GridsHelper extends Helper
         return [
             'is_remote' => false,
             'type' => null,
-            'info' => ''
+            'info' => '',
+            'color' => '',
         ];
     }
 }

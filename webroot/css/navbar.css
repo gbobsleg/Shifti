@@ -43,7 +43,6 @@
     height: auto;
     margin: 0 auto 2rem auto;
     display: block;
-    animation: fadeInUp 0.5s ease;
 }
 .login-logo-container {
     text-align: center;

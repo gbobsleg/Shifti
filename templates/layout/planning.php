@@ -84,18 +84,17 @@ $this->prepend('meta', $this->Html->meta([
 ]));
 
 /**
- * Load Bootstrap 4 from CDN (for navbar compatibility)
+ * Bootstrap 5 (CSS local, JS CDN) + jQuery (daterangepicker / DragSelect)
  */
-$this->prepend('css', $this->Html->css('bootstrap.spacelab.min', ['block' => false]));
+$this->prepend('css', $this->Html->css('bootstrap.min', ['block' => false]));
+$this->append('css', $this->Html->css('app/shell', ['block' => false, 'timestamp' => 'force']));
 $this->append('css', $this->Html->css('cake', ['block' => false]));
 $this->append('css', $this->Html->css('dropdown-actions-body', ['block' => false]));
 
-/**
- * Load jQuery FIRST (prepend), then Bootstrap JS, then flash-auto-dismiss
- */
 $this->prepend('script', $this->Html->script('jquery-3.6.0.min', ['block' => false]));
-$this->append('script', $this->Html->script('https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js', ['block' => false]));
-$this->append('script', $this->Html->script('flash-auto-dismiss', ['block' => false]));
+$this->append('script', $this->Html->script('https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js', ['block' => false]));
+$this->append('script', $this->Html->script('app/tooltips', ['block' => false]));
+$this->append('script', $this->Html->script('flash-auto-dismiss', ['block' => false, 'timestamp' => 'force']));
 $this->append('script', $this->Html->script('dropdown-actions-body', ['block' => false]));
 
 ?>
@@ -114,15 +113,6 @@ $this->append('script', $this->Html->script('dropdown-actions-body', ['block' =>
         <?= $this->Html->css('navbar') ?>
         <?= $this->Html->css('footer') ?>
         <?= $this->fetch('css') ?>
-    <style>
-        .flash-container {
-            position: fixed; /* Fait flotter le conteneur */
-            top: 56px;       /* Positionnée juste sous la navbar */
-            left: 0;
-            right: 0;        /* Prend toute la largeur */
-            z-index: 2000;   /* Doit passer au-dessus de la barre de recherche sticky */
-        }
-    </style>
     </head>
 
     <?php
@@ -133,13 +123,10 @@ $this->append('script', $this->Html->script('dropdown-actions-body', ['block' =>
     </div>
     <?= $this->fetch('content'); ?>
     <footer class="navbar navbar-dark bg-primary app-footer">
-        <div class="app-footer-content">
+        <div class="app-footer-content shell-inner">
             <?= $this->fetch('tb_footer'); ?>
         </div>
     </footer>
-
-    <?php // Messages Flash persistants - l'utilisateur doit les fermer manuellement ?>
-
 
     <?= $this->fetch('script') ?>
     <?= $this->fetch('tb_body_end'); ?>

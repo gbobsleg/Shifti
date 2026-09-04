@@ -6,13 +6,8 @@ use Cake\Core\Configure;
 
 $this->setLayout('planning');
 
-$this->Html->css('dashtron', ['block' => true]);
+$this->Html->css('app/crud', ['block' => true]);
 $this->Html->css("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css", ['block' => true]);
-$this->Html->scriptStart(['block' => true]);
-echo  "$(function () {
-    $('[data-toggle=\"tooltip\"]').tooltip()
-})";
-$this->Html->scriptEnd();
 
 $this->prepend('tb_body_attrs', ' class="' . implode(' ', [$this->request->getParam('controller'), $this->request->getParam('action')]) . '" ');
 $this->start('tb_body_start');
@@ -27,7 +22,7 @@ $this->start('tb_body_start');
                 <?= $this->fetch('tb_sidebar') ?>
             </div>
         </nav>
-        <main role="main" class="col-md-9 ml-sm-auto col-lg-10 pt-3 px-4">
+        <main role="main" class="col-md-9 ms-sm-auto col-lg-10 pt-3 px-4">
         <?php
             if (!$this->fetch('tb_flash')) {
                 $this->start('tb_flash');

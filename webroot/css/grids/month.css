@@ -1,0 +1,58 @@
+.grids-app .grids-month {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--grids-surface);
+}
+
+.grids-app .grids-month th,
+.grids-app .grids-month td {
+    border-bottom: 1px solid var(--grids-border);
+    padding: 0.35rem 0.4rem;
+    font-size: 0.75rem;
+}
+
+.grids-app .grids-month thead th {
+    position: sticky;
+    top: 0;
+    background: var(--grids-surface);
+    color: var(--grids-muted);
+    font-weight: 600;
+    text-align: center;
+    min-width: 42px;
+}
+
+.grids-app .grids-month .grids-month-agent {
+    position: sticky;
+    left: 0;
+    background: var(--grids-surface);
+    text-align: left;
+    white-space: nowrap;
+    font-weight: 600;
+    min-width: 160px;
+    z-index: 2;
+}
+
+.grids-app .grids-month-cell {
+    text-align: center;
+}
+
+.grids-app .grids-month-cell a {
+    display: block;
+    min-height: 28px;
+    border-radius: 6px;
+    text-decoration: none;
+}
+
+.grids-app .grids-month-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    vertical-align: middle;
+}
+
+.grids-app .grids-month-mix {
+    font-size: 0.65rem;
+    color: var(--grids-muted);
+}

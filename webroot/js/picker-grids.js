@@ -25,23 +25,23 @@ $(function() { // Utiliser $(function() { ... }); est une syntaxe plus courte po
 
     // Cibler UNIQUEMENT #date-start
     $('#date-start').daterangepicker({
-        // Utiliser les dates existantes ou aujourd'hui par défaut
         "startDate": moment($('#date-start').val(), localeOptions.format).isValid() ? moment($('#date-start').val(), localeOptions.format) : moment(),
         "endDate": moment($('#date-end').val(), localeOptions.format).isValid() ? moment($('#date-end').val(), localeOptions.format) : moment(),
         "showWeekNumbers": true,
         "timePicker": false,
-        "autoApply": true, // Garder true
-        "autoUpdateInput": false, // Garder false
+        "autoApply": true,
+        "autoUpdateInput": false,
         "showDropdowns": true,
         "minYear": 2021,
         "maxYear": 2030,
         "showISOWeekNumbers": true,
         "showCustomRangeLabel": true,
-        "alwaysShowCalendars": true, // Mettre false est plus standard
+        "alwaysShowCalendars": true,
+        "maxSpan": { months: (window.gridsBudget && window.gridsBudget.max_calendar_months) ? window.gridsBudget.max_calendar_months : 1 },
         "ranges": predefinedRanges,
         "locale": localeOptions,
         "drops": "down"
-    }, function(start, end, label) { // Le callback est appelé par autoApply après clic date fin OU clic range OU clic Valider
+    }, function(start, end) {
         console.log('Callback déclenché: ' + start.format('DD/MM/YYYY') + ' à ' + end.format('DD/MM/YYYY'));
 
         var selectedStartDate = start.format('DD/MM/YYYY');

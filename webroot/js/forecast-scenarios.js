@@ -9,7 +9,7 @@ $(document).ready(function() {
     });
 
     // Activer les tooltips Bootstrap pour les dates relatives
-    if (typeof $().tooltip === 'function') {
-        $('[data-toggle="tooltip"]').tooltip();
+    if (typeof window.initTooltips === 'function') {
+        window.initTooltips();
     }
 });

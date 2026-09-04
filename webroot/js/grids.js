@@ -1,52 +1,13 @@
-// Fonction pour gérer le tri
-function handleSortChange() {
-    const sortSelect = document.getElementById('sort-select');
-    if (sortSelect) {
-        sortSelect.addEventListener('change', function() {
-            const selectedValue = this.value;
-            const currentUrl = new URL(window.location.href);
-            currentUrl.searchParams.set('sort_by', selectedValue);
-            window.location.href = currentUrl.toString();
-        });
-    }
-}
-
-// Fonction pour gérer l'icône du collapse des alertes
-function handleAlertCollapseIcon() {
-    var alertsContainer = $('#alertsCollapseContainer');
-    var alertToggleButton = $('a[href="#alertsCollapseContainer"][data-toggle="collapse"]');
-    var alertToggleIcon = alertToggleButton.find('i.bi');
-
-    if (alertsContainer.length && alertToggleButton.length && alertToggleIcon.length) {
-        alertsContainer.on('show.bs.collapse', function () {
-            alertToggleIcon.removeClass('bi-chevron-right').addClass('bi-chevron-down');
-            alertToggleButton.attr('aria-expanded', 'true');
-        });
-
-        alertsContainer.on('hide.bs.collapse', function () {
-            alertToggleIcon.removeClass('bi-chevron-down').addClass('bi-chevron-right');
-            alertToggleButton.attr('aria-expanded', 'false');
-        });
-
-        // Vérification initiale au chargement
-        if (!alertsContainer.hasClass('show')) {
-            alertToggleIcon.removeClass('bi-chevron-down').addClass('bi-chevron-right');
-        } else {
-            alertToggleIcon.removeClass('bi-chevron-right').addClass('bi-chevron-down');
-        }
-    }
-}
-
-// Exécution quand le DOM est prêt (pour le tri Vanilla JS)
-document.addEventListener('DOMContentLoaded', handleSortChange);
-
-// Exécution quand jQuery est prêt
 $(document).ready(function() {
+    var $submitButton = $('#submitRanges');
+    var $flashContainer = $('.flash-container');
 
-    handleAlertCollapseIcon();
-
-    var $submitButton = $('#submitRanges'); // Mettre en cache le bouton
-    var $flashContainer = $('.flash-container'); // Mettre en cache le conteneur flash
+    function flashToastHtml(kind, message, autoDismiss) {
+        var autoAttr = (autoDismiss > 0) ? ' data-auto-dismiss="' + autoDismiss + '"' : '';
+        return '<div class="flash-toast is-' + kind + '" role="alert"' + autoAttr + '>' +
+            message +
+            '<button type="button" class="btn-close" data-flash-dismiss aria-label="Fermer"></button></div>';
+    }
 
     // Soumission AJAX du formulaire de planning
     $("#rangesForm").on("submit", function(e) {
@@ -65,7 +26,7 @@ $(document).ready(function() {
         if (modifiedCells.length === 0) {
             jsonField.value = "[]";
             // Optionnel : Afficher info et ne pas soumettre
-            // $flashContainer.empty().prepend('<div role="alert" class="alert alert-info alert-dismissible fade show"><button type="button" class="close" data-dismiss="alert">&times;</button>Aucune modification détectée.</div>');
+            // $flashContainer.empty().prepend('<div role="alert" class="alert alert-info alert-dismissible fade show"><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>Aucune modification détectée.</div>');
             // return;
         } else {
             modifiedCells.forEach(cell => {
@@ -111,15 +72,12 @@ $(document).ready(function() {
             if (messages.length > 0) {
                 var flashMessagesHTML = '';
                 $.each(messages, function(index, message) {
-                    var closeButton = '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
-                    var alertClass = 'alert-secondary';
-                    if (message.element === 'flash/error') alertClass = 'alert-danger';
-                    if (message.element === 'flash/success') alertClass = 'alert-success';
-                    if (message.element === 'flash/info') alertClass = 'alert-info';
-                    
-                    // Ajouter data-auto-dismiss pour les messages non-error (géré par flash-auto-dismiss.js)
-                    var autoDismissAttr = (message.element !== 'flash/error') ? ' data-auto-dismiss="5000"' : '';
-                    flashMessagesHTML += `<div role="alert" class="alert ${alertClass} alert-dismissible fade show"${autoDismissAttr}>${closeButton}${message.message}</div>`;
+                    var kind = 'info';
+                    if (message.element === 'flash/error') kind = 'error';
+                    if (message.element === 'flash/success') kind = 'success';
+                    if (message.element === 'flash/warning') kind = 'warning';
+                    var autoDismiss = (kind === 'success' || kind === 'info') ? 5000 : 0;
+                    flashMessagesHTML += flashToastHtml(kind, message.message, autoDismiss);
                 });
                 $flashContainer.prepend(flashMessagesHTML);
                 
@@ -136,7 +94,7 @@ $(document).ready(function() {
                     // TODO: Mettre à jour data-range-id si le serveur renvoie les ID créés
                 }
             } else {
-                $flashContainer.prepend('<div role="alert" class="alert alert-warning alert-dismissible fade show"><button type="button" class="close" data-dismiss="alert">&times;</button>Réponse inattendue du serveur.</div>');
+                $flashContainer.prepend(flashToastHtml('warning', 'Réponse inattendue du serveur.', 0));
             }
 
         }).fail(function(xhr, textStatus, errorThrown) {
@@ -146,7 +104,7 @@ $(document).ready(function() {
                 var jsonError = JSON.parse(xhr.responseText);
                 if(jsonError && jsonError.message) errorDetail = jsonError.message;
             } catch(e) {}
-            $flashContainer.prepend(`<div role="alert" class="alert alert-danger alert-dismissible fade show"><button type="button" class="close" data-dismiss="alert">&times;</button>Erreur de communication (${errorDetail}). Vérifiez la console.</div>`);
+            $flashContainer.prepend(flashToastHtml('error', 'Erreur de communication (' + errorDetail + '). Vérifiez la console.', 0));
 
         }).always(function() {
             // *** CORRECTION CRUCIALE : Réactiver le bouton ***

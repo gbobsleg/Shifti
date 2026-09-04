@@ -72,6 +72,23 @@ return [
     ],
 
     /*
+     * Garde-fous d’affichage de la grille de planning (jours ouvrés).
+     * free_days : plage affichable sans filtre site/agent.
+     * need_site_or_user_after : au-delà, site_id ou user_id obligatoire.
+     * month_view_after : au-delà, vue calendrier (pas N Gantt).
+     * max_working_days / max_calendar_months : plafond dur.
+     */
+    'Grids' => [
+        'budget' => [
+            'free_days' => 5,
+            'need_site_or_user_after' => 5,
+            'month_view_after' => 10,
+            'max_working_days' => 23,
+            'max_calendar_months' => 1,
+        ],
+    ],
+
+    /*
      * Security and encryption configuration
      *
      * - salt - A random string used in security hashing methods.

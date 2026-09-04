@@ -65,24 +65,7 @@ class SkillsController extends AppController
         
         $offers = $this->Skills->Offers->find('list', ['limit' => 200, 'order' => ['name' => 'ASC']])->toArray();
 
-        // Statistiques
-        $allSkills = $this->Skills->find()->all();
-        $stats = [
-            'total' => $allSkills->count(),
-            'active' => 0,
-            'expired' => 0,
-        ];
-        
-        $today = new \Cake\I18n\FrozenDate();
-        foreach ($allSkills as $skill) {
-            if ($skill->validity_end && $skill->validity_end < $today) {
-                $stats['expired']++;
-            } else {
-                $stats['active']++;
-            }
-        }
-
-        $this->set(compact('skills', 'users', 'offers', 'stats'));
+        $this->set(compact('skills', 'users', 'offers'));
     }
 
     /**

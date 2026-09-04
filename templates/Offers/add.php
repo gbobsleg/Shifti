@@ -13,28 +13,24 @@ $this->Html->script('pickr.min', ['block' => true]);
 $this->Html->script('offers-color-picker', ['block' => true]);
 ?>
 
-<div class="offers form content card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-plus-circle text-success"></i>
+<div class="crud-app offers form content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-plus-circle"></i>
             Ajouter une Offre
-        </h3>
-        <div>
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-1"></i> Annuler',
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body">
         <?= $this->Form->create($offer) ?>
         
-        <div class="card border-success mb-4">
-            <div class="card-header bg-success text-white">
-                <i class="bi bi-basket"></i> Informations de l'offre
-            </div>
-            <div class="card-body">
+        <section class="crud-section">
+            <h2 class="crud-section-title">Informations de l'offre</h2>
                 <div class="mb-3">
                     <label class="form-label"><i class="bi bi-tag"></i> Nom</label>
                     <?= $this->Form->control('name', [
@@ -125,7 +121,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             <label class="form-check-label" for="is_forecastable">
                                 <i class="bi bi-graph-up"></i> Utilisable en prévision
                             </label>
-                            <br><small class="text-muted">L'offre sera incluse dans les calculs de forecast</small>
+                            <br><small class="text-muted">L'offre sera incluse dans les calculs de prévision</small>
                         </div>
                     </div>
                 </div>
@@ -146,7 +142,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             'id' => 'default_forecast_method',
                         ]) ?>
                         <small class="text-muted">
-                            Pré-sélectionnée pour le manager à la création d’un scénario de forecast
+                            Pré-sélectionnée pour le manager à la création d’un scénario de prévision
                         </small>
                     </div>
                 </div>
@@ -161,7 +157,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             <label class="form-check-label" for="equity_enabled">
                                 <i class="bi bi-people"></i> Équité (sur la période)
                             </label>
-                            <br><small class="text-muted">Répartir équitablement cette offre sur la période (forecastables + règles fixes en “héritage”)</small>
+                            <br><small class="text-muted">Répartir équitablement cette offre sur la période, y compris les offres utilisées en prévision et les règles fixes en héritage</small>
                         </div>
                     </div>
                 </div>
@@ -198,14 +194,10 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                         ]) ?>
                     </div>
                 </div>
-            </div>
-        </div>
+        </section>
 
-        <div class="card border-info mb-4" id="prophet-settings-section">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-graph-up-arrow"></i> Paramètres Prophet par défaut (profil administrateur)
-            </div>
-            <div class="card-body">
+        <section class="crud-section" id="prophet-settings-section">
+            <h2 class="crud-section-title">Paramètres Prophet</h2>
                 <p class="small text-muted">
                     Ces paramètres seront utilisés comme base automatique pour tous les scénarios Prophet
                     qui incluent cette offre. Le manager pourra toujours les ajuster scénario par scénario.
@@ -213,13 +205,13 @@ $this->Html->script('offers-color-picker', ['block' => true]);
 
                 <div class="row">
                     <div class="col-md-6">
-                        <div class="form-group bg-light p-3 border rounded">
-                            <label class="font-weight-bold">Mode de saisonnalité</label>
+                        <div class="mb-3">
+                            <label class="font-weight-bold" data-bs-toggle="tooltip" title="seasonality_mode">Mode de saisonnalité</label>
                             <?= $this->Form->control('prophet_defaults.seasonality_mode', [
                                 'type' => 'select',
                                 'options' => [
-                                    'additive' => 'Additif (y = trend + seasonality)',
-                                    'multiplicative' => 'Multiplicatif (y = trend × seasonality)',
+                                    'additive' => 'Additif (y = tendance + saisonnalité)',
+                                    'multiplicative' => 'Multiplicatif (y = tendance × saisonnalité)',
                                 ],
                                 'value' => $prophetDefaults['seasonality_mode'] ?? 'multiplicative',
                                 'label' => false,
@@ -228,8 +220,8 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="form-group bg-light p-3 border rounded">
-                            <label class="font-weight-bold">Jours fériés</label>
+                        <div class="mb-3">
+                            <label class="font-weight-bold" data-bs-toggle="tooltip" title="use_french_holidays">Jours fériés</label>
                             <div class="form-check">
                                 <?= $this->Form->checkbox('prophet_defaults.use_french_holidays', [
                                     'checked' => !empty($prophetDefaults['use_french_holidays']),
@@ -244,15 +236,15 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     </div>
                 </div>
 
-                <h6 class="text-primary mt-3 mb-2"><i class="bi bi-calendar-event"></i> Saisonnalités</h6>
-                <div class="form-group bg-light p-3 border rounded">
+                <h3 class="crud-subsection-title">Saisonnalités</h3>
+                <div class="mb-3">
                     <div class="form-check mb-2">
                         <?= $this->Form->checkbox('prophet_defaults.yearly_seasonality', [
                             'checked' => !empty($prophetDefaults['yearly_seasonality']),
                             'class' => 'form-check-input',
                             'id' => 'prophet_defaults_yearly_seasonality',
                         ]) ?>
-                        <label class="form-check-label" for="prophet_defaults_yearly_seasonality">
+                        <label class="form-check-label" for="prophet_defaults_yearly_seasonality" data-bs-toggle="tooltip" title="yearly_seasonality">
                             Saisonnalité annuelle
                         </label>
                     </div>
@@ -262,7 +254,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             'class' => 'form-check-input',
                             'id' => 'prophet_defaults_weekly_seasonality',
                         ]) ?>
-                        <label class="form-check-label" for="prophet_defaults_weekly_seasonality">
+                        <label class="form-check-label" for="prophet_defaults_weekly_seasonality" data-bs-toggle="tooltip" title="weekly_seasonality">
                             Saisonnalité hebdomadaire
                         </label>
                     </div>
@@ -272,7 +264,7 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             'class' => 'form-check-input',
                             'id' => 'prophet_defaults_daily_seasonality',
                         ]) ?>
-                        <label class="form-check-label" for="prophet_defaults_daily_seasonality">
+                        <label class="form-check-label" for="prophet_defaults_daily_seasonality" data-bs-toggle="tooltip" title="daily_seasonality">
                             Saisonnalité journalière
                         </label>
                     </div>
@@ -282,12 +274,12 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             'class' => 'form-check-input',
                             'id' => 'prophet_defaults_monthly_seasonality',
                         ]) ?>
-                        <label class="form-check-label" for="prophet_defaults_monthly_seasonality">
+                        <label class="form-check-label" for="prophet_defaults_monthly_seasonality" data-bs-toggle="tooltip" title="monthly_seasonality">
                             Saisonnalité mensuelle
                         </label>
                     </div>
                     <div class="mt-2">
-                        <label class="small font-weight-bold">Complexité mensuelle (Fourier order)</label>
+                        <label class="small font-weight-bold" data-bs-toggle="tooltip" title="monthly_fourier_order">Finesse du cycle mensuel</label>
                         <?= $this->Form->control('prophet_defaults.monthly_fourier_order', [
                             'type' => 'number',
                             'min' => 1,
@@ -300,11 +292,11 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     </div>
                 </div>
 
-                <h6 class="text-primary mt-3 mb-2"><i class="bi bi-sliders"></i> Sensibilité & saisonnalité</h6>
+                <h3 class="crud-subsection-title">Sensibilité et saisonnalité</h3>
                 <div class="row">
                     <div class="col-md-6">
-                        <div class="form-group bg-light p-3 border rounded">
-                            <label class="font-weight-bold">Sensibilité aux changements (changepoint_prior_scale)</label>
+                        <div class="mb-3">
+                            <label class="font-weight-bold" data-bs-toggle="tooltip" title="changepoint_prior_scale">Sensibilité aux ruptures de tendance</label>
                             <?= $this->Form->control('prophet_defaults.changepoint_prior_scale', [
                                 'type' => 'number',
                                 'step' => 'any',
@@ -321,8 +313,8 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="form-group bg-light p-3 border rounded">
-                            <label class="font-weight-bold">Force de la saisonnalité (seasonality_prior_scale)</label>
+                        <div class="mb-3">
+                            <label class="font-weight-bold" data-bs-toggle="tooltip" title="seasonality_prior_scale">Force de la saisonnalité</label>
                             <?= $this->Form->control('prophet_defaults.seasonality_prior_scale', [
                                 'type' => 'number',
                                 'step' => 'any',
@@ -340,9 +332,9 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     </div>
                 </div>
 
-                <h6 class="text-primary mt-3 mb-2"><i class="bi bi-graph-up"></i> Changepoints (tendance)</h6>
-                <div class="form-group bg-light p-3 border rounded mb-3">
-                    <label class="font-weight-bold">Nombre de changepoints (n_changepoints)</label>
+                <h3 class="crud-subsection-title">Ruptures de tendance</h3>
+                <div class="mb-3">
+                    <label class="font-weight-bold" data-bs-toggle="tooltip" title="n_changepoints">Nombre de ruptures de tendance</label>
                     <?= $this->Form->control('prophet_defaults.n_changepoints', [
                         'type' => 'number',
                         'min' => 0,
@@ -357,8 +349,8 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                     </small>
                 </div>
 
-                <h6 class="text-primary mt-3 mb-2"><i class="bi bi-calendar-range"></i> Plage de données historiques par défaut</h6>
-                <div class="form-group bg-light p-3 border rounded">
+                <h3 class="crud-subsection-title">Plage de données historiques</h3>
+                <div class="mb-3">
                     <p class="small text-muted mb-2">
                         Cette plage sera utilisée comme fenêtre par défaut pour les prévisions,
                         <strong>quelle que soit la méthode</strong> (Moyenne historique ou Prophet).
@@ -367,23 +359,21 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                         historiques auront été injectées pour cette offre (via l'écran de modification).
                     </p>
                 </div>
-            </div>
-        </div>
+        </section>
 
-        <div class="mt-3">
-            <?= $this->Form->button('<i class="bi bi-save mr-2"></i> Créer l\'offre', [
-                'class' => 'btn btn-success mr-3',
+        <div class="crud-actions-bar">
+            <?= $this->Form->button('<i class="bi bi-save me-2"></i> Créer l\'offre', [
+                'class' => 'btn btn-primary',
                 'escapeTitle' => false
             ]) ?>
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-2"></i> Annuler',
+                '<i class="bi bi-x-circle me-2"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
         
         <?= $this->Form->end() ?>
-    </div>
 </div>
 
 <script>

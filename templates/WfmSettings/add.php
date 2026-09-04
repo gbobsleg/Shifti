@@ -8,46 +8,38 @@
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 <?php $this->Html->script('wfm-settings', ['block' => true]); ?>
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-plus-circle text-success"></i>
+<div class="crud-app wfm-settings form crud-app-wide content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-plus-circle"></i>
             Nouveau Profil de Paramètres WFM
-        </h3>
-        <div>
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-1"></i> Annuler',
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body">
         <?= $this->Form->create($wfmSetting, [
             'data-slot-minutes' => (int)$slotMinutes,
         ]) ?>
         
         <?php // --- Nom du profil --- ?>
-        <div class="card border-primary mb-4">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-tag"></i> Nom du profil
-            </div>
-            <div class="card-body">
+        <section class="crud-section">
+            <h2 class="crud-section-title"><i class="bi bi-tag"></i> Nom du profil</h2>
                 <label class="form-label"><i class="bi bi-pencil-square"></i> Nom</label>
                 <?= $this->Form->control('name', [
                     'label' => false,
                     'class' => 'form-control',
                     'placeholder' => 'Ex: Profil Standard, Profil Weekend...'
                 ]) ?>
-            </div>
-        </div>
+        </section>
 
         <?php // --- Qualité de Service --- ?>
-        <div class="card border-success mb-4">
-            <div class="card-header bg-success text-white">
-                <i class="bi bi-graph-up"></i> Qualité de Service (QS)
-            </div>
-            <div class="card-body">
+        <section class="crud-section">
+            <h2 class="crud-section-title"><i class="bi bi-graph-up"></i> Qualité de Service (QS)</h2>
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label"><i class="bi bi-percent"></i> Objectif QS (%)</label>
@@ -66,15 +58,11 @@
                         ]) ?>
                     </div>
                 </div>
-            </div>
-        </div>
+        </section>
 
         <?php // --- Plage horaire de production --- ?>
-        <div class="card border-info mb-4">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-clock-history"></i> Plage horaire de production
-            </div>
-            <div class="card-body">
+        <section class="crud-section">
+            <h2 class="crud-section-title"><i class="bi bi-clock-history"></i> Plage horaire de production</h2>
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">
@@ -120,15 +108,11 @@
                         </small>
                     </div>
                 </div>
-            </div>
-        </div>
+        </section>
 
         <?php // --- Règles Générales --- ?>
-        <div class="card border-warning mb-4">
-            <div class="card-header bg-warning text-dark">
-                <i class="bi bi-sliders"></i> Règles Générales
-            </div>
-            <div class="card-body">
+        <section class="crud-section">
+            <h2 class="crud-section-title"><i class="bi bi-sliders"></i> Règles Générales</h2>
                 <div class="row">
                     <div class="col-md-4 mb-3">
                         <label class="form-label"><i class="bi bi-percent"></i> Shrinkage planifié (%)</label>
@@ -210,15 +194,11 @@
                         </small>
                     </div>
                 </div>
-            </div>
-        </div>
+        </section>
 
         <?php // --- Configuration des Pauses --- ?>
-        <div class="card border-info mb-4">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-cup-hot"></i> Configuration des Pauses
-            </div>
-            <div class="card-body">
+        <section class="crud-section">
+            <h2 class="crud-section-title"><i class="bi bi-cup-hot"></i> Configuration des Pauses</h2>
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <label class="form-label"><i class="bi bi-cup"></i> Offre pour les Pauses (AM/PM)</label>
@@ -359,17 +339,11 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+        </section>
 
         <?php // --- Paramètres Prophet par défaut (système) --- ?>
-        <div class="card mb-3 border-info">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-stars"></i> Paramètres Prophet par défaut (profil système WFM)
-                </h5>
-            </div>
-            <div class="card-body">
+        <section class="crud-section">
+            <h2 class="crud-section-title"><i class="bi bi-stars"></i> Paramètres Prophet par défaut (profil système WFM)</h2>
                 <p class="small text-muted">
                     Ces paramètres servent de base pour initialiser les profils Prophet de chaque offre
                     (`prophet_default_settings_json`). Ils sont également utilisés comme valeur de repli
@@ -379,7 +353,7 @@
                 <div class="row">
                     <div class="col-md-6">
                         <h6 class="text-primary"><i class="bi bi-gear"></i> Configuration du modèle</h6>
-                        <div class="form-group bg-light p-3 border rounded">
+                        <div class="mb-3 bg-light p-3 border rounded">
                             <label class="font-weight-bold">Mode de saisonnalité</label>
                             <?= $this->Form->control('prophet_defaults.seasonality_mode', [
                                 'type' => 'select',
@@ -394,7 +368,7 @@
                         </div>
 
                         <h6 class="text-primary mt-4"><i class="bi bi-calendar-event"></i> Saisonnalités</h6>
-                        <div class="form-group bg-light p-3 border rounded">
+                        <div class="mb-3 bg-light p-3 border rounded">
             <div class=\"form-check mb-2\">
                 <?= $this->Form->checkbox('prophet_defaults.yearly_seasonality', [
                     'checked' => $prophetDefaults['yearly_seasonality'] ?? true,
@@ -455,7 +429,7 @@
 
                     <div class="col-md-6">
                         <h6 class="text-primary"><i class="bi bi-sliders"></i> Sensibilité & stabilité</h6>
-                        <div class="form-group bg-light p-3 border rounded">
+                        <div class="mb-3 bg-light p-3 border rounded">
                             <label class="font-weight-bold">Sensibilité aux changements (changepoint_prior_scale)</label>
                             <?= $this->Form->control('prophet_defaults.changepoint_prior_scale', [
                                 'type' => 'number',
@@ -472,7 +446,7 @@
                             </small>
                         </div>
 
-                        <div class="form-group bg-light p-3 border rounded">
+                        <div class="mb-3 bg-light p-3 border rounded">
                             <label class="font-weight-bold">Force de la saisonnalité (seasonality_prior_scale)</label>
                             <?= $this->Form->control('prophet_defaults.seasonality_prior_scale', [
                                 'type' => 'number',
@@ -489,7 +463,7 @@
                             </small>
                         </div>
 
-                        <div class="form-group bg-light p-3 border rounded mb-3">
+                        <div class="mb-3 bg-light p-3 border rounded">
                             <label class="font-weight-bold">Nombre de points de changement (n_changepoints)</label>
                             <?= $this->Form->control('prophet_defaults.n_changepoints', [
                                 'type' => 'number',
@@ -505,7 +479,7 @@
                             </small>
                         </div>
 
-                        <div class="form-group bg-light p-3 border rounded">
+                        <div class="mb-3 bg-light p-3 border rounded">
                             <div class="form-check">
                                 <?= $this->Form->checkbox('prophet_defaults.use_french_holidays', [
                                     'checked' => $prophetDefaults['use_french_holidays'] ?? true,
@@ -524,7 +498,7 @@
                 </div>
 
                 <h6 class="text-primary mt-3 mb-2"><i class="bi bi-calendar-range"></i> Plage de données historiques par défaut (système)</h6>
-                <div class="form-group bg-light p-3 border rounded">
+                <div class="mb-3 bg-light p-3 border rounded">
                     <p class="small text-muted mb-2">
                         Cette plage globale est utilisée comme base pour toutes les offres, puis surchargée
                         par la plage définie au niveau de chaque offre si elle existe.
@@ -573,16 +547,12 @@
                         Chaque offre peut ensuite restreindre sa propre fenêtre si nécessaire.
                     </small>
                 </div>
-            </div>
-        </div>
+        </section>
 
         <?php // --- Temps de recherche des Solveurs --- ?>
         <?php $solverDefaults = ['global' => 300, 'pass1' => 60, 'pass1_5' => 30, 'pass2' => 195]; ?>
-        <div class="card border-danger mb-4" id="solver-timeout-section">
-            <div class="card-header bg-danger text-white">
-                <i class="bi bi-cpu"></i> Temps de recherche des Solveurs (Timeouts en secondes)
-            </div>
-            <div class="card-body">
+        <section class="crud-section" id="solver-timeout-section">
+            <h2 class="crud-section-title"><i class="bi bi-cpu"></i> Temps de recherche des Solveurs (Timeouts en secondes)</h2>
                 <p class="small text-muted mb-3">
                     <i class="bi bi-info-circle"></i>
                     Ces limites définissent le temps maximum alloué à chaque solveur CP-SAT.
@@ -664,25 +634,22 @@
                     Budget vérifié en temps réel : <strong>P1 + P1.5 + P2 ≤ Global - 15s</strong>.
                     Le bouton de création se désactive automatiquement si la somme dépasse le budget.
                 </small>
-            </div>
-        </div>
+        </section>
 
-        <?php // --- Boutons d'action --- ?>
-        <div class="mt-3">
-            <?= $this->Form->button('<i class="bi bi-save mr-2"></i> Créer', [
-                'class' => 'btn btn-success mr-3',
+        <div class="crud-actions-bar">
+            <?= $this->Form->button('<i class="bi bi-save me-2"></i> Créer', [
+                'class' => 'btn btn-primary',
                 'escapeTitle' => false,
                 'id' => 'solver-submit-btn',
             ]) ?>
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-2"></i> Annuler',
+                '<i class="bi bi-x-circle me-2"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
-        
+
         <?= $this->Form->end() ?>
-    </div>
 </div>
 
 <script>

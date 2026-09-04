@@ -6,7 +6,7 @@
  * @var array $filters
  * @var string $cancelOptunaUrlTemplate
  */
-$this->assign('title', 'Jobs');
+$this->assign('title', 'Tâches');
 $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth');
 
 $jobsSnapshot = $jobsSnapshot ?? [
@@ -47,22 +47,22 @@ $typeOptions = [
 ];
 $statusOptions = [
     '' => 'Tous les statuts',
-    'completed' => 'completed',
-    'failed' => 'failed',
-    'cancelled' => 'cancelled',
-    'finished' => 'finished',
-    'finished_with_errors' => 'finished_with_errors',
-    'error' => 'error',
-    'infeasible' => 'infeasible',
+    'completed' => 'Terminé',
+    'failed' => 'Échec',
+    'cancelled' => 'Annulé',
+    'finished' => 'Terminé',
+    'finished_with_errors' => 'Terminé avec erreurs',
+    'error' => 'Erreur',
+    'infeasible' => 'Infaisable',
 ];
 $statusBadge = static function (string $status): string {
     return match ($status) {
-        'running' => 'badge-primary',
-        'queued' => 'badge-warning',
-        'completed', 'finished' => 'badge-success',
-        'failed', 'error', 'infeasible', 'finished_with_errors' => 'badge-danger',
-        'cancelled' => 'badge-secondary',
-        default => 'badge-secondary',
+        'running' => 'bg-primary',
+        'queued' => 'bg-warning',
+        'completed', 'finished' => 'bg-success',
+        'failed', 'error', 'infeasible', 'finished_with_errors' => 'bg-danger',
+        'cancelled' => 'bg-secondary',
+        default => 'bg-secondary',
     };
 };
 
@@ -81,74 +81,40 @@ $queryBase = array_filter([
 .table-row-active {
     background-color: rgba(255, 193, 7, 0.06);
 }
-.bj-counters .card {
-    border-width: 2px;
-}
 </style>
 
-<div class="card"
+<div class="crud-app background-jobs index content"
      id="background-jobs-root"
      data-url-status="<?= h($statusUrl) ?>"
      data-url-cancel-optuna="<?= h($cancelOptunaUrlTemplate) ?>"
      data-csrf-token="<?= h($csrfToken) ?>">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-list-task text-primary"></i>
-            File d’attente / Jobs
-        </h3>
-        <span class="small text-muted">
-            Actifs actualisés : <span data-bj-updated>—</span>
-            · polling 6 s
-        </span>
-    </div>
-    <div class="card-body">
-        <p class="small text-muted mb-3">
-            Actifs (<code>queued</code> / <code>running</code>) en live.
-            Historique <?= (int)$historyDays ?> j filtrable / paginé (hors polling).
-        </p>
-
-        <div class="row mb-4 bj-counters">
-            <div class="col-md-3 mb-2">
-                <div class="card border-warning h-100">
-                    <div class="card-body text-center py-3">
-                        <div class="text-muted small">Actifs</div>
-                        <h3 class="mb-0" data-bj-active-count><?= (int)($jobsSnapshot['active_count'] ?? 0) ?></h3>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 mb-2">
-                <div class="card border-secondary h-100">
-                    <div class="card-body text-center py-3">
-                        <div class="text-muted small">Optuna (actifs)</div>
-                        <h3 class="mb-0" data-bj-type-optuna><?= (int)($byType['optuna'] ?? 0) ?></h3>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 mb-2">
-                <div class="card border-info h-100">
-                    <div class="card-body text-center py-3">
-                        <div class="text-muted small">Prévisions (actifs)</div>
-                        <h3 class="mb-0" data-bj-type-forecast><?= (int)($byType['forecast'] ?? 0) ?></h3>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 mb-2">
-                <div class="card border-success h-100">
-                    <div class="card-body text-center py-3">
-                        <div class="text-muted small">Plannings (actifs)</div>
-                        <h3 class="mb-0" data-bj-type-planning><?= (int)($byType['planning'] ?? 0) ?></h3>
-                    </div>
-                </div>
-            </div>
+    <div class="crud-header">
+        <div>
+            <h1>
+                <i class="bi bi-list-task"></i>
+                File d’attente / Tâches
+            </h1>
+            <p class="crud-header-meta">
+                <span data-bj-active-count><?= (int)($jobsSnapshot['active_count'] ?? 0) ?></span> actifs
+                · Optuna <span data-bj-type-optuna><?= (int)($byType['optuna'] ?? 0) ?></span>
+                · Prévisions <span data-bj-type-forecast><?= (int)($byType['forecast'] ?? 0) ?></span>
+                · Plannings <span data-bj-type-planning><?= (int)($byType['planning'] ?? 0) ?></span>
+                · actualisé <span data-bj-updated>—</span>
+                · actualisation 6 s
+            </p>
         </div>
+    </div>
 
-        <h5 class="mb-2">
-            <i class="bi bi-lightning-charge text-warning"></i>
-            Actifs
-        </h5>
-        <div class="table-responsive mb-4">
-            <table class="table table-sm table-hover mb-0">
-                <thead class="thead-light">
+    <p class="small text-muted mb-3">
+        Actifs (en file / en cours) en direct.
+        Historique <?= (int)$historyDays ?> j filtrable / paginé (hors actualisation).
+    </p>
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">Actifs</h2>
+        <div class="table-responsive mb-0">
+            <table class="table table-sm table-hover crud-table mb-0">
+                <thead>
                     <tr>
                         <th>Type</th>
                         <th>Cible</th>
@@ -156,15 +122,13 @@ $queryBase = array_filter([
                         <th>Progression</th>
                         <th>Démarré</th>
                         <th>Terminé</th>
-                        <th></th>
+                        <th class="actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody data-bj-active-tbody>
                     <?php if ($activeItems === []): ?>
                         <tr>
-                            <td colspan="7" class="text-muted text-center py-4">
-                                Aucun job actif.
-                            </td>
+                            <td colspan="7" class="crud-empty">Aucune tâche active.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($activeItems as $item): ?>
@@ -174,54 +138,52 @@ $queryBase = array_filter([
                 </tbody>
             </table>
         </div>
+    </section>
 
-        <h5 class="mb-2">
-            <i class="bi bi-clock-history text-secondary"></i>
-            Historique (<?= (int)$historyDays ?> j)
-        </h5>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Historique (<?= (int)$historyDays ?> j)</h2>
 
         <?= $this->Form->create(null, [
             'type' => 'get',
-            'class' => 'filters-toolbar mb-3 p-3 bg-light border rounded',
+            'class' => 'filters-toolbar mb-3',
             'url' => ['controller' => 'BackgroundJobs', 'action' => 'index'],
         ]) ?>
-            <div class="row align-items-end">
-                <div class="col-md-3 mb-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
                     <label class="form-label small text-muted mb-1">Type</label>
                     <?= $this->Form->select('type', $typeOptions, [
                         'class' => 'form-control form-control-sm',
                         'value' => $filters['type'] ?? '',
                     ]) ?>
                 </div>
-                <div class="col-md-3 mb-2">
+                <div class="col-md-3">
                     <label class="form-label small text-muted mb-1">Statut</label>
                     <?= $this->Form->select('status', $statusOptions, [
                         'class' => 'form-control form-control-sm',
                         'value' => $filters['status'] ?? '',
                     ]) ?>
                 </div>
-                <div class="col-md-3 mb-2">
-                    <?= $this->Form->button('<i class="bi bi-search"></i> Filtrer', [
+                <div class="col-md-3 d-flex gap-2">
+                    <?= $this->Form->button('Filtrer', [
                         'type' => 'submit',
                         'class' => 'btn btn-sm btn-primary',
-                        'escapeTitle' => false,
                     ]) ?>
                     <?= $this->Html->link('Réinitialiser', ['action' => 'index'], [
-                        'class' => 'btn btn-sm btn-outline-secondary ml-1',
+                        'class' => 'btn btn-sm btn-outline-secondary',
                     ]) ?>
                 </div>
-                <div class="col-md-3 mb-2 text-md-right">
-                    <span class="small text-muted">
+                <div class="col-md-3">
+                    <p class="crud-header-meta mb-0">
                         <?= (int)$history['total'] ?> résultat(s)
                         · page <?= (int)$history['page'] ?> / <?= (int)$history['page_count'] ?>
-                    </span>
+                    </p>
                 </div>
             </div>
         <?= $this->Form->end() ?>
 
         <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-                <thead class="thead-light">
+            <table class="table table-sm table-hover crud-table mb-0">
+                <thead>
                     <tr>
                         <th>Type</th>
                         <th>Cible</th>
@@ -229,14 +191,14 @@ $queryBase = array_filter([
                         <th>Progression</th>
                         <th>Démarré</th>
                         <th>Terminé</th>
-                        <th></th>
+                        <th class="actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ($historyItems === []): ?>
                         <tr>
-                            <td colspan="7" class="text-muted text-center py-4">
-                                Aucun job terminé sur <?= (int)$historyDays ?> j
+                            <td colspan="7" class="crud-empty">
+                                Aucune tâche terminée sur <?= (int)$historyDays ?> j
                                 <?= ($filters['type'] ?? '') !== '' || ($filters['status'] ?? '') !== ''
                                     ? ' pour ces filtres'
                                     : '' ?>.
@@ -263,25 +225,27 @@ $queryBase = array_filter([
                 ]);
             };
             ?>
-            <nav class="mt-3" aria-label="Pagination historique jobs">
-                <ul class="pagination pagination-sm justify-content-center mb-0">
-                    <li class="page-item <?= $cur <= 1 ? 'disabled' : '' ?>">
-                        <a class="page-link" href="<?= $cur <= 1 ? '#' : h($mkUrl($cur - 1)) ?>">Précédente</a>
-                    </li>
-                    <?php
-                    $start = max(1, $cur - 2);
-                    $end = min($pages, $cur + 2);
-                    for ($p = $start; $p <= $end; $p++):
-                    ?>
-                        <li class="page-item <?= $p === $cur ? 'active' : '' ?>">
-                            <a class="page-link" href="<?= h($mkUrl($p)) ?>"><?= $p ?></a>
+            <div class="paginator">
+                <nav aria-label="Pagination de l'historique">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item <?= $cur <= 1 ? 'disabled' : '' ?>">
+                            <a class="page-link" href="<?= $cur <= 1 ? '#' : h($mkUrl($cur - 1)) ?>">Précédente</a>
                         </li>
-                    <?php endfor; ?>
-                    <li class="page-item <?= $cur >= $pages ? 'disabled' : '' ?>">
-                        <a class="page-link" href="<?= $cur >= $pages ? '#' : h($mkUrl($cur + 1)) ?>">Suivante</a>
-                    </li>
-                </ul>
-            </nav>
+                        <?php
+                        $start = max(1, $cur - 2);
+                        $end = min($pages, $cur + 2);
+                        for ($p = $start; $p <= $end; $p++):
+                        ?>
+                            <li class="page-item <?= $p === $cur ? 'active' : '' ?>">
+                                <a class="page-link" href="<?= h($mkUrl($p)) ?>"><?= $p ?></a>
+                            </li>
+                        <?php endfor; ?>
+                        <li class="page-item <?= $cur >= $pages ? 'disabled' : '' ?>">
+                            <a class="page-link" href="<?= $cur >= $pages ? '#' : h($mkUrl($cur + 1)) ?>">Suivante</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
         <?php endif; ?>
-    </div>
+    </section>
 </div>

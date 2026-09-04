@@ -22,21 +22,7 @@ class PlanningEventMappingsController extends AppController
         
         $planningEventMappings = $this->paginate($query, ['limit' => 25]);
 
-        $allMappings = $this->PlanningEventMappings->find()->contain(['Offers'])->all();
-        $stats = [
-            'total' => $allMappings->count(),
-            'by_offer' => [],
-        ];
-        
-        foreach ($allMappings as $mapping) {
-            $offerName = $mapping->offer->name ?? 'N/A';
-            if (!isset($stats['by_offer'][$offerName])) {
-                $stats['by_offer'][$offerName] = 0;
-            }
-            $stats['by_offer'][$offerName]++;
-        }
-
-        $this->set(compact('planningEventMappings', 'stats'));
+        $this->set(compact('planningEventMappings'));
     }
 
     public function view($id = null)

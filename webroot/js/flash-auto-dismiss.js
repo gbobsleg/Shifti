@@ -1,94 +1,90 @@
 /**
- * Auto-dismiss pour les messages flash
- * 
- * Détecte les alertes avec l'attribut data-auto-dismiss et les masque
- * automatiquement après le délai spécifié.
- * Gère aussi les messages ajoutés dynamiquement au DOM.
+ * Auto-dismiss et fermeture des toasts flash (.flash-toast).
  */
+(function () {
+    'use strict';
 
-// Fonction réutilisable pour initialiser l'auto-dismiss sur des alertes
-function initFlashAutoDismiss($container) {
-    // Vérifier que jQuery est disponible
-    if (typeof jQuery === 'undefined') {
-        return;
+    function closeToast(el) {
+        if (!el || el.classList.contains('is-closing')) {
+            return;
+        }
+        el.classList.add('is-closing');
+        var removed = false;
+        function finish() {
+            if (removed) {
+                return;
+            }
+            removed = true;
+            el.removeEventListener('transitionend', onEnd);
+            if (el.parentNode) {
+                el.parentNode.removeChild(el);
+            }
+        }
+        function onEnd(event) {
+            if (event.target !== el || event.propertyName !== 'max-height') {
+                return;
+            }
+            finish();
+        }
+        el.addEventListener('transitionend', onEnd);
+        window.setTimeout(finish, 600);
     }
-    
-    var $ = jQuery;
-    
-    // Si aucun conteneur n'est fourni, utiliser document
-    $container = $container || $(document);
-    
-    // Sélectionner toutes les alertes avec l'attribut data-auto-dismiss qui n'ont pas déjà été traitées
-    var $alerts = $container.find('.alert[data-auto-dismiss]:not(.auto-dismiss-initialized)');
-    
-    $alerts.each(function() {
-        var $alert = $(this);
-        var delay = parseInt($alert.attr('data-auto-dismiss'), 10);
-        
-        // Marquer comme initialisée pour éviter les doubles traitements
-        $alert.addClass('auto-dismiss-initialized');
-        
-        // Vérifier que le délai est valide
-        if (delay > 0 && !isNaN(delay)) {
-            // Masquer l'alerte après le délai spécifié
-            setTimeout(function() {
-                // Utiliser la méthode Bootstrap pour masquer avec animation fade
-                $alert.fadeOut('slow', function() {
-                    // Retirer l'élément du DOM après l'animation
-                    $(this).remove();
-                });
-            }, delay);
+
+    function initFlashAutoDismiss(root) {
+        var scope = root;
+        if (scope && !scope.querySelectorAll && scope.jquery && scope[0]) {
+            scope = scope[0];
         }
+        if (!scope || !scope.querySelectorAll) {
+            scope = document;
+        }
+        var nodes = scope.querySelectorAll('.flash-toast[data-auto-dismiss]:not([data-flash-timer])');
+        nodes.forEach(function (el) {
+            var delay = parseInt(el.getAttribute('data-auto-dismiss'), 10);
+            el.setAttribute('data-flash-timer', '1');
+            if (delay > 0 && !isNaN(delay)) {
+                window.setTimeout(function () {
+                    closeToast(el);
+                }, delay);
+            }
+        });
+    }
+
+    document.addEventListener('click', function (event) {
+        var target = event.target;
+        if (target && target.nodeType !== 1) {
+            target = target.parentElement;
+        }
+        if (!target || typeof target.closest !== 'function') {
+            return;
+        }
+        var btn = target.closest('[data-flash-dismiss]');
+        if (!btn) {
+            return;
+        }
+        var toast = btn.closest('.flash-toast');
+        if (!toast) {
+            return;
+        }
+        event.preventDefault();
+        closeToast(toast);
     });
-}
 
-// S'assurer que jQuery est disponible avant d'exécuter le code
-if (typeof jQuery !== 'undefined') {
-    jQuery(document).ready(function($) {
-        // Initialiser pour les messages déjà présents dans le DOM
-        // Chercher dans tout le document pour être sûr de trouver les messages
-        initFlashAutoDismiss();
-        
-        // Observer les changements dans le conteneur flash pour détecter les messages ajoutés dynamiquement
-        var flashContainer = document.querySelector('.flash-container');
-        if (flashContainer && typeof MutationObserver !== 'undefined') {
-            var observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    if (mutation.addedNodes.length > 0) {
-                        // Vérifier si des alertes ont été ajoutées
-                        var $addedNodes = $(mutation.addedNodes);
-                        if ($addedNodes.find('.alert[data-auto-dismiss]').length > 0 || $addedNodes.is('.alert[data-auto-dismiss]')) {
-                            initFlashAutoDismiss($(flashContainer));
-                        }
-                    }
-                });
-            });
-            
-            observer.observe(flashContainer, {
-                childList: true,
-                subtree: true
-            });
+    function boot() {
+        initFlashAutoDismiss(document);
+        var container = document.querySelector('.flash-container');
+        if (container && typeof MutationObserver !== 'undefined') {
+            new MutationObserver(function () {
+                initFlashAutoDismiss(container);
+            }).observe(container, { childList: true, subtree: true });
         }
-        
-        // Fallback : réinitialiser après un court délai au cas où les messages seraient ajoutés après le ready
-        setTimeout(function() {
-            initFlashAutoDismiss();
-        }, 500);
-    });
-} else {
-    // Si jQuery n'est pas encore disponible, attendre un peu et réessayer
-    setTimeout(function() {
-        if (typeof jQuery !== 'undefined') {
-            jQuery(document).ready(function($) {
-                initFlashAutoDismiss();
-                setTimeout(function() {
-                    initFlashAutoDismiss();
-                }, 500);
-            });
-        }
-    }, 100);
-}
+    }
 
-// Exposer la fonction globalement pour qu'elle puisse être appelée manuellement si nécessaire
-window.initFlashAutoDismiss = initFlashAutoDismiss;
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+    } else {
+        boot();
+    }
 
+    window.initFlashAutoDismiss = initFlashAutoDismiss;
+}());

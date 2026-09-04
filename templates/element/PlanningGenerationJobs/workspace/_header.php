@@ -58,33 +58,27 @@ if ($job->end_date instanceof \DateTimeInterface) {
     }
 }
 ?>
-<div class="card shadow mb-3" id="workspace-header"
+<div class="crud-header" id="workspace-header"
      data-job-id="<?= (int)$job->id ?>"
      data-job-status="<?= h($status) ?>">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap" style="gap: 0.75rem;">
-        <div class="d-flex align-items-center" style="gap: 1rem;">
-            <?= $this->Html->link(
-                '<i class="bi bi-arrow-left"></i>',
-                ['action' => 'index'],
-                ['class' => 'btn btn-sm btn-outline-secondary', 'escape' => false, 'title' => 'Retour à la liste']
-            ) ?>
-            <div>
-                <h3 class="mb-0">
-                    <i class="bi bi-calendar2-week text-primary"></i>
-                    Job #<?= (int)$job->id ?>
-                </h3>
-                <small class="text-muted">
-                    <?= h((string)$job->start_date) ?> → <?= h((string)$job->end_date) ?>
-                    <?php if (!empty($job->wfm_setting)): ?>
-                        | <?= h($job->wfm_setting->name ?? '') ?>
-                    <?php endif; ?>
-                </small>
-            </div>
-            <span id="workspaceStatusBadge" class="badge badge-<?= $badge ?>" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                <i class="bi bi-<?= $icon ?>"></i> <?= h($status) ?>
-            </span>
-        </div>
-
+    <div>
+        <h1>Job #<?= (int)$job->id ?></h1>
+        <p class="crud-header-meta">
+            <?= h((string)$job->start_date) ?> → <?= h((string)$job->end_date) ?>
+            <?php if (!empty($job->wfm_setting)): ?>
+                | <?= h($job->wfm_setting->name ?? '') ?>
+            <?php endif; ?>
+        </p>
+    </div>
+    <div class="crud-header-actions">
+        <?= $this->Html->link(
+            'Liste',
+            ['action' => 'index'],
+            ['class' => 'btn btn-outline-secondary', 'title' => 'Retour à la liste']
+        ) ?>
+        <span id="workspaceStatusBadge" class="badge bg-<?= $badge ?>">
+            <i class="bi bi-<?= $icon ?>"></i> <?= h($status) ?>
+        </span>
         <div class="d-flex align-items-center flex-wrap" style="gap: 0.5rem;" id="workspacePrimaryCta">
             <?php if ($canPublish): ?>
                 <?= $this->Form->create(null, [
@@ -93,8 +87,8 @@ if ($job->end_date instanceof \DateTimeInterface) {
                 ]) ?>
                     <?= $this->Form->hidden('publish_start', ['value' => $startVal]) ?>
                     <?= $this->Form->hidden('publish_end', ['value' => $endVal]) ?>
-                    <?= $this->Form->button('<i class="bi bi-check2-circle"></i> Publier', [
-                        'class' => 'btn btn-success btn-sm',
+                    <?= $this->Form->button('Publier', [
+                        'class' => 'btn btn-primary btn-sm',
                         'escapeTitle' => false,
                         'onclick' => 'return confirm("Publier le brouillon sur toute la période du job ? Les jours en échec seront exclus.");',
                     ]) ?>
@@ -105,26 +99,26 @@ if ($job->end_date instanceof \DateTimeInterface) {
                    data-job-id="<?= (int)$job->id ?>"
                    data-confirm="Relancer ce job ? Il sera remis en file d'attente et traité depuis le début."
                    data-url="<?= $this->Url->build(['action' => 'retry', (int)$job->id]) ?>">
-                    <i class="bi bi-arrow-clockwise"></i> Relancer
+                    Relancer
                 </a>
             <?php elseif ($isRunning): ?>
-                <button type="button" class="btn btn-secondary btn-sm" disabled>
-                    <i class="bi bi-hourglass-split"></i> En cours…
+                <button type="button" class="btn btn-outline-secondary btn-sm" disabled>
+                    En cours…
                 </button>
             <?php endif; ?>
 
             <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="workspaceActions" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <i class="bi bi-three-dots-vertical"></i> Actions
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="workspaceActions" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Actions
                 </button>
-                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="workspaceActions" style="min-width: 16rem;">
+                <div class="dropdown-menu dropdown-menu-end" aria-labelledby="workspaceActions" style="min-width: 16rem;">
                     <?php if ($canPublish): ?>
                         <h6 class="dropdown-header">Publier une plage</h6>
                         <?= $this->Form->create(null, [
                             'url' => ['action' => 'publish', (int)$job->id],
                             'class' => 'px-3 pb-2',
                         ]) ?>
-                            <div class="form-group mb-2">
+                            <div class="mb-2">
                                 <label class="small text-muted mb-0">Début</label>
                                 <?= $this->Form->control('publish_start', [
                                     'label' => false,
@@ -133,7 +127,7 @@ if ($job->end_date instanceof \DateTimeInterface) {
                                     'value' => $startVal,
                                 ]) ?>
                             </div>
-                            <div class="form-group mb-2">
+                            <div class="mb-2">
                                 <label class="small text-muted mb-0">Fin</label>
                                 <?= $this->Form->control('publish_end', [
                                     'label' => false,
@@ -142,43 +136,42 @@ if ($job->end_date instanceof \DateTimeInterface) {
                                     'value' => $endVal,
                                 ]) ?>
                             </div>
-                            <?= $this->Form->button('<i class="bi bi-check2-circle"></i> Publier la plage', [
-                                'class' => 'btn btn-success btn-sm btn-block',
+                            <?= $this->Form->button('Publier la plage', [
+                                'class' => 'btn btn-primary btn-sm',
                                 'escapeTitle' => false,
                             ]) ?>
                         <?= $this->Form->end() ?>
                         <div class="dropdown-divider"></div>
                     <?php endif; ?>
                     <a href="#"
-                       class="dropdown-item text-primary job-retry-link"
+                       class="dropdown-item job-retry-link"
                        data-job-id="<?= (int)$job->id ?>"
                        data-confirm="Relancer ce job ? Il sera remis en file d'attente et traité depuis le début."
                        data-url="<?= $this->Url->build(['action' => 'retry', (int)$job->id]) ?>">
-                        <i class="bi bi-arrow-clockwise mr-2"></i> Relancer
+                        Relancer
                     </a>
                     <?php if ($status !== 'running'): ?>
                         <?= $this->Html->link(
-                            '<i class="bi bi-pencil mr-2"></i> Modifier',
+                            'Modifier',
                             ['action' => 'edit', (int)$job->id],
-                            ['class' => 'dropdown-item text-warning', 'escape' => false]
+                            ['class' => 'dropdown-item']
                         ) ?>
                         <div class="dropdown-divider"></div>
                         <?= $this->Form->postLink(
-                            '<i class="bi bi-trash mr-2"></i> Supprimer le brouillon',
+                            'Supprimer le brouillon',
                             ['action' => 'clearDraft', (int)$job->id],
                             [
-                                'class' => 'dropdown-item text-danger',
-                                'escape' => false,
+                                'class' => 'dropdown-item',
                                 'confirm' => 'Supprimer le brouillon ? Le planning publié ne sera pas modifié.',
                             ]
                         ) ?>
                         <div class="dropdown-divider"></div>
                         <a href="#"
-                           class="dropdown-item text-danger job-delete-link"
+                           class="dropdown-item job-delete-link"
                            data-job-id="<?= (int)$job->id ?>"
                            data-confirm="Supprimer ce job ? Le brouillon et le détail des jours seront supprimés."
                            data-url="<?= $this->Url->build(['action' => 'delete', (int)$job->id]) ?>">
-                            <i class="bi bi-trash mr-2"></i> Supprimer le job
+                            Supprimer le job
                         </a>
                     <?php endif; ?>
                 </div>

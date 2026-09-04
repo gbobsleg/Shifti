@@ -2,279 +2,245 @@
 /**
  * @var \App\View\AppView $this
  * @var array $users
- * @var array $offers  
+ * @var array $offers
  * @var array $sites
  * @var array $day_ranges
  * @var array|null $searchUrl
  */
+$zoom = $zoom ?? '15';
+$sortBy = $sortBy ?? (string)$this->request->getQuery('sort_by', 'site_name');
 
 echo $this->Form->create(null, [
     'url' => $searchUrl ?? ['action' => 'index'],
     'type' => 'get',
     'valueSources' => ['query', 'context'],
-    'class' => 'w-100'
+    'class' => 'grids-filters-form',
 ]);
-// Mode iframe workspace : conserver embed=1 dans les filtres GET
 if (!empty($embedMode)) {
     echo $this->Form->hidden('embed', ['value' => '1']);
 }
+if ($zoom === 'hour') {
+    echo $this->Form->hidden('zoom', ['value' => 'hour']);
+}
+if ($sortBy !== 'site_name') {
+    echo $this->Form->hidden('sort_by', ['value' => $sortBy]);
+}
+
+$offerIdParam = $this->request->getQuery('offer_id');
+$selectedOfferIds = is_array($offerIdParam)
+    ? array_values(array_filter(array_map('intval', $offerIdParam)))
+    : ((int)$offerIdParam > 0 ? [(int)$offerIdParam] : []);
+$offerLabel = count($selectedOfferIds) === 0
+    ? 'Toutes'
+    : (count($selectedOfferIds) === 1 ? (string)($offers[$selectedOfferIds[0]] ?? '1 offre') : count($selectedOfferIds) . ' offres');
+
+$currentAction = $this->request->getParam('action');
+$zoomBase = ['action' => $currentAction];
+if ($currentAction === 'draft') {
+    $pass = $this->request->getParam('pass');
+    if (!empty($pass)) {
+        $zoomBase[] = $pass[0];
+    }
+}
 ?>
-<div class="form-row align-items-center justify-content-center w-100">
-    <div class="col-auto">
-        <label class="sr-only" for="date-start">Date Start</label>
-        <div class="input-group input-group-sm mt-2 mb-2">
-            <div class="input-group-prepend">
-                <div class="input-group-text">
-                    <i class="bi bi-calendar-event mr-1"></i> Début
-                </div>
+<div class="grids-chrome-row">
+    <label class="visually-hidden" for="date-start">Période</label>
+    <?= $this->Form->text('date_start', [
+        'id' => 'date-start',
+        'class' => 'form-control form-control-sm',
+        'style' => 'width: 118px;',
+        'placeholder' => 'Début',
+        'value' => is_array($day_ranges) && isset($day_ranges[0]) ? (string)$day_ranges[0] : null,
+    ]) ?>
+    <?= $this->Form->text('date_end', [
+        'id' => 'date-end',
+        'class' => 'form-control form-control-sm',
+        'style' => 'width: 118px;',
+        'readonly' => true,
+        'placeholder' => 'Fin',
+        'value' => is_array($day_ranges) && isset($day_ranges[1]) ? (string)$day_ranges[1] : null,
+    ]) ?>
+    <?= $this->Form->select('site_id', $sites, [
+        'empty' => 'Site',
+        'class' => 'form-control form-control-sm',
+        'style' => 'width: 140px;',
+        'id' => 'site-filter',
+    ]) ?>
+    <?= $this->Form->select('user_id', $users, [
+        'empty' => 'Agent',
+        'class' => 'form-control form-control-sm',
+        'style' => 'width: 160px;',
+        'id' => 'user-filter',
+    ]) ?>
+    <div class="dropdown">
+        <button type="button" class="form-control form-control-sm dropdown-toggle text-start" data-bs-toggle="dropdown" id="offer-filter-toggle" style="width: 140px;">
+            <span class="offer-filter-label text-truncate"><?= h($offerLabel) ?></span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end py-1 px-2" style="max-height: 280px; overflow-y: auto; min-width: 200px;">
+            <div class="small mb-1 px-2">
+                <a href="#" class="offer-filter-check-all">Tout</a> /
+                <a href="#" class="offer-filter-uncheck-all">Rien</a>
             </div>
-            <?php echo $this->Form->text('date_start', [
-                'id' => 'date-start',
-                'class' => 'form-control form-control-sm',
-                'style' => 'width: 120px;',
-                'placeholder' => 'jj/mm/aaaa',
-                'value' => is_array($day_ranges) && isset($day_ranges[0]) ? (string)$day_ranges[0] : null,
-            ]); ?>
+            <?php foreach ($offers as $offerId => $offerName) : ?>
+                <div class="form-check dropdown-item-text py-0">
+                    <?= $this->Form->checkbox('offer_id[]', [
+                        'value' => $offerId,
+                        'id' => 'offer-filter-' . (int)$offerId,
+                        'class' => 'form-check-input offer-filter-cb',
+                        'checked' => in_array((int)$offerId, $selectedOfferIds, true),
+                        'hiddenField' => false,
+                    ]) ?>
+                    <label class="form-check-label small w-100" for="offer-filter-<?= (int)$offerId ?>"><?= h($offerName) ?></label>
+                </div>
+            <?php endforeach; ?>
         </div>
     </div>
-    <div class="col-auto">
-        <label class="sr-only" for="date-end">Date End</label>
-        <div class="input-group input-group-sm mt-2 mb-2">
-            <div class="input-group-prepend">
-                <div class="input-group-text">
-                    <i class="bi bi-calendar-x mr-1"></i> Fin
-                </div>
-            </div>
-            <?php echo $this->Form->text('date_end', [
-                'id' => 'date-end',
-                'class' => 'form-control form-control-sm',
-                'style' => 'width: 120px;',
-                'readonly' => true,
-                'placeholder' => 'jj/mm/aaaa',
-                'value' => is_array($day_ranges) && isset($day_ranges[1]) ? (string)$day_ranges[1] : null,
-            ]); ?>
-        </div>
-    </div>
-    <div class="col-auto">
-        <div class="input-group input-group-sm mt-2 mb-2">
-            <div class="input-group-prepend">
-                <div class="input-group-text">
-                    <i class="bi bi-building mr-1"></i> Site
-                </div>
-            </div>
-            <?php echo $this->Form->select('site_id', $sites, [
-                'empty' => 'Tous',
-                'class' => 'form-control form-control-sm',
-                'style' => 'width: 140px;',
-                'id' => 'site-filter'
-            ]); ?>
-        </div>
-    </div>
-    <div class="col-auto">
-        <div class="input-group input-group-sm mt-2 mb-2">
-            <div class="input-group-prepend">
-                <div class="input-group-text">
-                    <i class="bi bi-person mr-1"></i> Agent
-                </div>
-            </div>
-            <?php echo $this->Form->select('user_id', $users, [
-                'empty' => 'Tous',
-                'class' => 'form-control form-control-sm',
-                'style' => 'width: 160px;',
-                'id' => 'user-filter'
-            ]); ?>
-        </div>
-    </div>
-    <div class="col-auto">
-        <?php
-        $offerIdParam = $this->request->getQuery('offer_id');
-        $selectedOfferIds = is_array($offerIdParam)
-            ? array_values(array_filter(array_map('intval', $offerIdParam)))
-            : ((int)$offerIdParam > 0 ? [(int)$offerIdParam] : []);
-        $offerLabel = count($selectedOfferIds) === 0 ? 'Toutes' : (count($selectedOfferIds) === 1 ? (string)($offers[$selectedOfferIds[0]] ?? '1 offre') : count($selectedOfferIds) . ' offres');
-        ?>
-        <div class="input-group input-group-sm mt-2 mb-2">
-            <div class="input-group-prepend">
-                <div class="input-group-text">
-                    <i class="bi bi-basket mr-1"></i> Offre
-                </div>
-            </div>
-            <div class="dropdown">
-                <button type="button" class="form-control form-control-sm dropdown-toggle text-left d-flex align-items-center" data-toggle="dropdown" id="offer-filter-toggle" style="width: 140px; min-width: 140px;" aria-haspopup="true" aria-expanded="false">
-                    <span class="offer-filter-label text-truncate"><?= h($offerLabel) ?></span>
-                </button>
-                <div class="dropdown-menu dropdown-menu-right py-1 px-2" style="max-height: 280px; overflow-y: auto; min-width: 200px;">
-                <div class="small mb-1 px-2">
-                    <a href="#" class="offer-filter-check-all">Tout</a> /
-                    <a href="#" class="offer-filter-uncheck-all">Rien</a>
-                </div>
-                <?php foreach ($offers as $offerId => $offerName) : ?>
-                    <div class="form-check dropdown-item-text py-0">
-                        <?php echo $this->Form->checkbox('offer_id[]', [
-                            'value' => $offerId,
-                            'id' => 'offer-filter-' . (int)$offerId,
-                            'class' => 'form-check-input offer-filter-cb',
-                            'checked' => in_array((int)$offerId, $selectedOfferIds, true),
-                            'hiddenField' => false,
-                        ]); ?>
-                        <label class="form-check-label small w-100" for="offer-filter-<?= (int)$offerId ?>"><?= h($offerName) ?></label>
-                    </div>
-                <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-auto">
-        <?php echo $this->Form->button('<i class="bi bi-search mr-1"></i> Rechercher', [
-            'type' => 'submit',
-            'class' => 'btn btn-primary btn-sm mt-2 mb-2',
-            'escapeTitle' => false
-        ]); ?>
-        <?php
-        // Bouton Réinitialiser
-        // On récupère l'action courante pour savoir si on est sur 'index' ou 'draft'
-        $currentAction = $this->request->getParam('action');
-        $resetUrl = ['action' => $currentAction];
-        
-        // Si on est sur 'draft', il faut conserver l'ID du job qui est dans 'pass'
-        if ($currentAction === 'draft') {
-            $pass = $this->request->getParam('pass');
-            if (!empty($pass)) {
-                $resetUrl[] = $pass[0];
-            }
+    <?= $this->Form->button('Rechercher', [
+        'type' => 'submit',
+        'class' => 'btn btn-grids-primary btn-sm',
+    ]) ?>
+    <?php
+    $resetUrl = ['action' => $currentAction];
+    if ($currentAction === 'draft') {
+        $pass = $this->request->getParam('pass');
+        if (!empty($pass)) {
+            $resetUrl[] = $pass[0];
+            $resetUrl['?'] = ['embed' => '1'];
         }
-        
-        echo $this->Html->link(
-            '<i class="bi bi-arrow-counterclockwise"></i>',
-            $resetUrl,
-            [
-                'class' => 'btn btn-outline-secondary btn-sm ml-1 mt-2 mb-2',
-                'escape' => false,
-                'title' => 'Réinitialiser les filtres'
-            ]
-        );
-        ?>
+    }
+    echo $this->Html->link(
+        '<i class="bi bi-arrow-counterclockwise"></i>',
+        $resetUrl,
+        ['class' => 'btn btn-grids-ghost btn-sm', 'escape' => false, 'title' => 'Réinitialiser']
+    );
+    ?>
+
+    <!-- Conteneur poussé à droite -->
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 0.75rem;">
+        <select id="sort-select" class="form-control form-control-sm" style="width: 130px;" title="Tri">
+            <option value="site_name" <?= $sortBy === 'site_name' ? 'selected' : '' ?>>Site (A-Z)</option>
+            <option value="last_name" <?= $sortBy === 'last_name' ? 'selected' : '' ?>>Nom (A-Z)</option>
+            <option value="user_code" <?= $sortBy === 'user_code' ? 'selected' : '' ?>>Code agent</option>
+        </select>
+        <button type="button" id="toggle-site-column" class="btn btn-grids-ghost btn-sm" title="Afficher ou masquer la colonne Site">
+            <span id="toggle-site-text">Masquer site</span>
+        </button>
+        <?php if (isset($canAlertsAdd) && $canAlertsAdd): ?>
+            <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#alertAddModal" style="padding: 0 0.75rem;">
+                <i class="bi bi-bell-fill pe-1"></i> Ajouter une alerte
+            </button>
+        <?php endif; ?>
     </div>
 </div>
-<?php echo $this->Form->end();
+<?php
+$chips = [];
+$chipBase = $this->request->getQueryParams();
+if (!empty($chipBase['site_id']) && isset($sites[(int)$chipBase['site_id']])) {
+    $next = $chipBase;
+    unset($next['site_id']);
+    $chips[] = ['label' => 'Site : ' . $sites[(int)$chipBase['site_id']], 'url' => $zoomBase + ['?' => $next]];
+}
+if (!empty($chipBase['user_id']) && isset($users[(int)$chipBase['user_id']])) {
+    $next = $chipBase;
+    unset($next['user_id']);
+    $chips[] = ['label' => 'Agent : ' . $users[(int)$chipBase['user_id']], 'url' => $zoomBase + ['?' => $next]];
+}
+if (count($selectedOfferIds) > 0) {
+    $next = $chipBase;
+    unset($next['offer_id']);
+    $chips[] = ['label' => 'Offre : ' . $offerLabel, 'url' => $zoomBase + ['?' => $next]];
+}
+if ($chips):
+?>
+<div class="grids-chips">
+    <?php foreach ($chips as $chip): ?>
+        <?= $this->Html->link(h($chip['label']) . ' ×', $chip['url'], ['class' => 'grids-chip', 'escape' => false]) ?>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+<?php echo $this->Form->end(); ?>
 
-// JavaScript pour le filtrage dynamique des agents par site
+<?php
 $this->Html->scriptStart(['block' => true]);
 ?>
 document.addEventListener('DOMContentLoaded', function() {
     const siteSelect = document.getElementById('site-filter');
     const userSelect = document.getElementById('user-filter');
-    const ajaxUrl = '<?= $this->Url->build(['controller' => 'Grids', 'action' => 'getUsersBySite', '_ext' => 'json']); ?>';
-    
-    // Sauvegarder la valeur initiale de l'agent sélectionné
-    const initialUserId = userSelect.value;
-    
-    // Fonction pour charger les agents
+    const form = document.querySelector('.grids-filters-form');
+    const ajaxUrl = <?= json_encode($this->Url->build(['controller' => 'Grids', 'action' => 'getUsersBySite', '_ext' => 'json'])) ?>;
+
+    function requestSubmitForm() {
+        if (form && typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+        } else if (form) {
+            form.submit();
+        }
+    }
+
     function loadUsers(siteId) {
-        const url = siteId ? `${ajaxUrl}?site_id=${encodeURIComponent(siteId)}` : ajaxUrl;
-        
-        fetch(url, {
-            headers: { 'Accept': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.users) {
-                // Sauvegarder la valeur actuelle
+        const url = siteId ? ajaxUrl + '?site_id=' + encodeURIComponent(siteId) : ajaxUrl;
+        fetch(url, { headers: { Accept: 'application/json' } })
+            .then((response) => response.json())
+            .then((data) => {
+                if (!data.success || !data.users || !userSelect) {
+                    return;
+                }
                 const currentValue = userSelect.value;
-                
-                // Vider le select
-                userSelect.innerHTML = '<option value=""> </option>';
-                
-                // Ajouter les nouveaux utilisateurs
-                data.users.forEach(user => {
+                userSelect.innerHTML = '<option value=""></option>';
+                data.users.forEach((user) => {
                     const option = document.createElement('option');
                     option.value = user.id;
                     option.textContent = user.name;
                     userSelect.appendChild(option);
                 });
-                
-                // Restaurer la sélection si l'utilisateur existe toujours dans la liste
-                if (currentValue) {
-                    const optionExists = Array.from(userSelect.options).some(opt => opt.value === currentValue);
-                    if (optionExists) {
-                        userSelect.value = currentValue;
-                    }
+                if (currentValue && Array.from(userSelect.options).some((opt) => opt.value === currentValue)) {
+                    userSelect.value = currentValue;
                 }
-            }
-        })
-        .catch(error => {
-            console.error('Erreur lors du chargement des agents:', error);
-        });
+            });
     }
-    
-    // Écouter les changements du select Site
+
     if (siteSelect && userSelect) {
-        siteSelect.addEventListener('change', function() {
+        siteSelect.addEventListener('change', function () {
             loadUsers(this.value);
-            // Soumission automatique du formulaire lors du changement de site
-            this.form.submit();
+            requestSubmitForm();
         });
-        
-        // Charger les agents filtrés si un site est déjà sélectionné au chargement
         if (siteSelect.value) {
             loadUsers(siteSelect.value);
         }
     }
-
-    // Soumission automatique pour les autres filtres (Agent, Offres)
-    const userFilter = document.getElementById('user-filter');
-    if (userFilter) {
-        userFilter.addEventListener('change', function() {
-            this.form.submit();
+    if (userSelect) {
+        userSelect.addEventListener('change', function () {
+            requestSubmitForm();
         });
     }
-    const offerDropdownMenu = document.querySelector('#offer-filter-toggle') && document.querySelector('#offer-filter-toggle').nextElementSibling;
+    const offerToggle = document.querySelector('#offer-filter-toggle');
+    const offerDropdownMenu = offerToggle ? offerToggle.nextElementSibling : null;
     if (offerDropdownMenu && offerDropdownMenu.classList.contains('dropdown-menu')) {
-        offerDropdownMenu.addEventListener('click', function(e) {
+        offerDropdownMenu.addEventListener('click', function (e) {
             e.stopPropagation();
         });
     }
-    document.querySelectorAll('input[name="offer_id[]"]').forEach(function(cb) {
-        cb.addEventListener('change', function() {
-            this.form.submit();
+    document.querySelectorAll('input[name="offer_id[]"]').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            requestSubmitForm();
         });
     });
-
-    // Tout cocher / Tout décocher pour les offres
     const checkAll = document.querySelector('.offer-filter-check-all');
     const uncheckAll = document.querySelector('.offer-filter-uncheck-all');
     if (checkAll) {
-        checkAll.addEventListener('click', function(e) {
+        checkAll.addEventListener('click', function (e) {
             e.preventDefault();
-            document.querySelectorAll('.offer-filter-cb').forEach(function(c) { c.checked = true; });
-            checkAll.closest('form').submit();
+            document.querySelectorAll('.offer-filter-cb').forEach(function (c) { c.checked = true; });
+            requestSubmitForm();
         });
     }
     if (uncheckAll) {
-        uncheckAll.addEventListener('click', function(e) {
+        uncheckAll.addEventListener('click', function (e) {
             e.preventDefault();
-            document.querySelectorAll('.offer-filter-cb').forEach(function(c) { c.checked = false; });
-            uncheckAll.closest('form').submit();
+            document.querySelectorAll('.offer-filter-cb').forEach(function (c) { c.checked = false; });
+            requestSubmitForm();
         });
     }
-
-    // Soumission automatique pour les dates (via DateRangePicker ou changement direct)
-    const dateInputs = document.querySelectorAll('#date-start, #date-end');
-    dateInputs.forEach(input => {
-        // Écouter l'événement 'apply.daterangepicker' spécifique à la librairie utilisée
-        $(input).on('apply.daterangepicker', function(ev, picker) {
-            $(this).closest('form').submit();
-        });
-        
-        // Fallback pour changement manuel (si pas de daterangepicker ou saisie clavier)
-        input.addEventListener('change', function() {
-            // Petit délai pour éviter double soumission si le daterangepicker déclenche aussi change
-            setTimeout(() => {
-                this.form.submit();
-            }, 100);
-        });
-    });
 });
 <?php
 $this->Html->scriptEnd();
-

@@ -200,7 +200,9 @@
         hideMenu();
         $meta.text(pending.agentName + ' — ' + pending.day);
         $list.html('<p class="pdh-loading text-muted">Chargement de l\'historique…</p>');
-        $modal.modal('show');
+        if ($modal && $modal.length && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            bootstrap.Modal.getOrCreateInstance($modal[0]).show();
+        }
 
         $.ajax({
             url: historyUrl,

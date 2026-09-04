@@ -22,26 +22,7 @@ class RegionsController extends AppController
         $query = $this->Regions->find()->contain(['Sites']);
         $regions = $this->paginate($query);
 
-        // Statistiques
-        $allRegions = $this->Regions->find('all')->contain(['Sites']);
-        $stats = [
-            'total' => $allRegions->count(),
-            'with_sites' => 0,
-            'without_sites' => 0,
-            'total_sites' => 0
-        ];
-        
-        foreach ($allRegions as $region) {
-            $siteCount = count($region->sites);
-            $stats['total_sites'] += $siteCount;
-            if ($siteCount > 0) {
-                $stats['with_sites']++;
-            } else {
-                $stats['without_sites']++;
-            }
-        }
-
-        $this->set(compact('regions', 'stats'));
+        $this->set(compact('regions'));
     }
 
     /**

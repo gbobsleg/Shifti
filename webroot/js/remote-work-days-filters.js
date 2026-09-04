@@ -74,7 +74,7 @@ $(document).ready(function() {
     }
     
     // Activation des tooltips Bootstrap
-    if (typeof $().tooltip === 'function') {
-        $('[data-toggle="tooltip"]').tooltip();
+    if (typeof window.initTooltips === 'function') {
+        window.initTooltips();
     }
 });

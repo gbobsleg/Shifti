@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use Cake\ORM\TableRegistry;
+
 /**
  * Config Optuna + flags Prophet figés V1 (alignés sur prophet_tuning_core.py).
  */
@@ -71,27 +73,52 @@ final class ProphetOptunaConfig
 
     /**
      * Texte UI : règles figées + adaptation historique.
+     *
+     * @param array<string, mixed>|null $optuna Config fusionnée ; si null, lit les paramètres WFM.
      */
-    public static function fixedRulesHelpHtml(): string
+    public static function fixedRulesHelpHtml(?array $optuna = null): string
     {
+        $settings = $optuna !== null ? self::merge($optuna) : self::currentOptunaSettings();
         $y = self::YEARLY_MIN_HISTORY_DAYS;
         $m = self::MONTHLY_MIN_HISTORY_DAYS;
+        $cutoffs = (int)$settings['n_cutoffs'];
+        $horizon = (int)$settings['test_horizon_days'];
+        $horizonLabel = $horizon > 1 ? 'jours' : 'jour';
 
-        return '<strong>Règles pendant le tuning (V1) :</strong> '
-            . 'Objectif Optuna : minimiser le <strong>WAPE</strong> (15 min, 3 cutoffs × 14 j). '
-            . 'mode <em>multiplicatif</em>, jours fériés FR, '
-            . 'saisonnalités <strong>hebdomadaire</strong> et <strong>journalière</strong> toujours ON. '
-            . "Saisonnalité <strong>annuelle</strong> : ON seulement si historique utile ≥ {$y} j "
-            . '(sinon OFF automatiquement). '
-            . "Saisonnalité <strong>mensuelle</strong> : ON seulement si historique utile ≥ {$m} j. "
-            . 'Les cases du profil Prophet ne sont pas respectées pendant la recherche ; '
-            . 'le brouillon appliqué reprend ces flags adaptés. '
-            . 'Params cherchés : '
-            . '<code>changepoint_prior_scale</code>, '
-            . '<code>seasonality_prior_scale</code>, '
-            . '<code>n_changepoints</code>, '
-            . '<code>monthly_fourier_order</code>. '
-            . '1er essai Optuna = profil officiel, réévalué sur les fenêtres de test du job.';
+        return '<div class="crud-help">'
+            . '<h3 class="crud-subsection-title">Indicateurs</h3>'
+            . '<ul>'
+            . '<li><strong>WAPE</strong> (objectif) : écart relatif moyen entre prévision et réel</li>'
+            . '<li><strong>MAE</strong> : écart moyen en volume</li>'
+            . '<li><strong>MAPE</strong> : écart moyen en pourcentage, point par point</li>'
+            . '</ul>'
+            . '<h3 class="crud-subsection-title">Déroulement</h3>'
+            . '<ul>'
+            . "<li>{$cutoffs} périodes de test de {$horizon} {$horizonLabel} sur l’historique</li>"
+            . '<li>Premier essai = profil actuel, réévalué sur ces périodes</li>'
+            . '<li>Quatre paramètres testés : sensibilité aux ruptures de tendance, '
+            . 'force de la saisonnalité, nombre de ruptures, finesse du cycle mensuel</li>'
+            . '</ul>'
+            . '<h3 class="crud-subsection-title">Saisonnalités pendant la recherche</h3>'
+            . '<ul>'
+            . '<li>Mode multiplicatif, jours fériés français</li>'
+            . '<li>Hebdomadaire et journalière : toujours actives</li>'
+            . "<li>Annuelle : si au moins {$y} jours d’historique utile</li>"
+            . "<li>Mensuelle : si au moins {$m} jours</li>"
+            . '</ul>'
+            . '<p>Les cases du profil Prophet ne sont pas suivies pendant la recherche. '
+            . 'Le brouillon appliqué reprend ces choix adaptés.</p>'
+            . '</div>';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function currentOptunaSettings(): array
+    {
+        $wfm = TableRegistry::getTableLocator()->get('WfmSettings')->find()->contain([])->first();
+
+        return self::fromStorage($wfm?->optuna_settings_json);
     }
 
     /**

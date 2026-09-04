@@ -49,7 +49,7 @@ $tabs = [
     ],
 ];
 ?>
-<ul class="nav nav-tabs mb-3" id="workspace-nav" role="tablist">
+<ul class="nav nav-tabs crud-tabs mb-3" id="workspace-nav" role="tablist">
     <?php foreach ($tabs as $key => $meta):
         if (!empty($meta['hideWhenEmpty']) && empty($meta['badge'])) continue;
     ?>
@@ -57,7 +57,7 @@ $tabs = [
             <?= $this->Html->link(
                 '<i class="bi bi-' . h($meta['icon']) . '"></i> ' . h($meta['label'])
                 . (!empty($meta['badge'])
-                    ? ' <span class="badge badge-' . h($meta['badgeClass'] ?? 'secondary') . ' badge-count ml-1">' . (int)$meta['badge'] . '</span>'
+                    ? ' <span class="badge bg-' . h($meta['badgeClass'] ?? 'secondary') . ' badge-count ms-1">' . (int)$meta['badge'] . '</span>'
                     : ''),
                 $tabUrl($key),
                 [

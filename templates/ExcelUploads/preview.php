@@ -260,7 +260,7 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
 <?php $this->start('tb_actions'); ?>
 <li class="nav-item">
     <?= $this->Html->link(
-        '<i class="bi bi-arrow-left mr-2"></i> Retour à l\'upload',
+        '<i class="bi bi-arrow-left me-2"></i> Retour à l\'upload',
         ['action' => 'upload'],
         ['class' => 'nav-link', 'escape' => false]
     ) ?>
@@ -567,56 +567,48 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
 }
 </style>
 
-<div class="excel-uploads preview content">
-    <div class="card shadow">
-        <div class="card-header d-flex justify-content-between align-items-center bg-light">
-            <h3 class="mb-0">
-                <i class="bi bi-eye text-primary"></i>
+<div class="crud-app excel-uploads preview content">
+    <div class="crud-header">
+        <div>
+            <h1>
                 Prévisualisation des données
-                <small class="text-muted ml-2">(<?= h($monthNames[$contextMonth]) ?> <?= $contextYear ?>)</small>
-            </h3>
-            <div>
-                <?= $this->Html->link(
-                    '<i class="bi bi-x-circle mr-1"></i> Annuler',
-                    ['action' => 'upload'],
-                    ['class' => 'btn btn-outline-secondary', 'escape' => false]
-                ) ?>
-            </div>
-        </div>
-        <div class="card-body">
+                <small class="crud-header-meta ms-2">(<?= h($monthNames[$contextMonth]) ?> <?= $contextYear ?>)</small>
+            </h1>
             <?php if (empty($groupedRanges)): ?>
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    Aucune donnée trouvée dans le fichier.
-                </div>
+                <p class="crud-header-meta">Aucune donnée trouvée dans le fichier.</p>
             <?php else: ?>
-                <div class="alert alert-info mb-3">
-                    <i class="bi bi-info-circle"></i>
-                    <strong><?= count($groupedRanges) ?></strong> plage(s) trouvée(s) pour <strong><?= $recognizedAgentsCount ?></strong> agent(s) reconnu(s). Vérifiez les données ci-dessous avant de procéder à l'enregistrement.
-                </div>
-
+                <p class="crud-header-meta">
+                    <span id="preview-range-count"><?= count($groupedRanges) ?></span> plage(s)
+                    pour <span id="preview-agent-count"><?= (int)$recognizedAgentsCount ?></span> agent(s) reconnu(s).
+                    Vérifiez avant d'enregistrer.
+                </p>
+            <?php endif; ?>
+        </div>
+        <div class="crud-header-actions">
+            <?= $this->Html->link(
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
+                ['action' => 'upload'],
+                ['class' => 'btn btn-outline-secondary', 'escape' => false]
+            ) ?>
+        </div>
+    </div>
+            <?php if (!empty($groupedRanges)): ?>
                 <?php if (!empty($unrecognizedAgents)): ?>
-                <!-- Section agents non reconnus -->
-                <div class="alert alert-warning mb-3">
-                    <div class="d-flex justify-content-between align-items-center" id="toggle-unrecognized" style="cursor: pointer;">
+                <div class="crud-warn">
+                    <div class="d-flex justify-content-between align-items-center gap-2" id="toggle-unrecognized" style="cursor: pointer;">
                         <span>
-                            <i class="bi bi-chevron-down mr-1" id="toggle-unrecognized-icon"></i>
-                            <i class="bi bi-person-x text-warning mr-1"></i>
-                            <strong><?= count($unrecognizedAgents) ?></strong> agent(s) non reconnu(s) en base de données
-                            <small class="text-muted ml-2">(cliquer pour <?= count($unrecognizedAgents) > 5 ? 'voir la liste' : 'masquer' ?>)</small>
+                            <i class="bi bi-chevron-down me-1" id="toggle-unrecognized-icon"></i>
+                            <strong><?= count($unrecognizedAgents) ?></strong> agent(s) non reconnu(s) — données non importées
+                            <small class="text-muted ms-2">(cliquer pour <?= count($unrecognizedAgents) > 5 ? 'voir la liste' : 'masquer' ?>)</small>
                         </span>
                         <button type="button" class="btn btn-sm btn-outline-secondary" id="copy-unrecognized" title="Copier la liste">
-                            <i class="bi bi-clipboard"></i> Copier
+                            Copier
                         </button>
                     </div>
-                    <div id="unrecognized-body" class="mt-3" <?= count($unrecognizedAgents) > 5 ? 'style="display: none;"' : '' ?>>
-                        <p class="small text-muted mb-2">
-                            Ces agents ont été détectés dans le fichier mais n'existent pas dans la base de données. 
-                            Leurs données n'ont pas été importées.
-                        </p>
+                    <div id="unrecognized-body" <?= count($unrecognizedAgents) > 5 ? 'style="display: none;"' : '' ?>>
                         <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
-                            <table class="table table-sm table-bordered mb-0 small">
-                                <thead class="thead-light">
+                            <table class="table table-sm mb-0 small">
+                                <thead>
                                     <tr>
                                         <th>Nom dans le fichier</th>
                                         <th>Code/Matricule</th>
@@ -636,23 +628,23 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                 </tbody>
                             </table>
                         </div>
-                        <p class="small text-muted mt-2 mb-0">
-                            <i class="bi bi-lightbulb"></i> <strong>Conseil :</strong> Vérifiez que les matricules existent dans l'application ou créez les utilisateurs manquants.
+                        <p class="text-muted mb-0 mt-2">
+                            Vérifiez les matricules ou créez les utilisateurs manquants.
                         </p>
                     </div>
                 </div>
                 <?php endif; ?>
 
                 <!-- Onglets -->
-                <ul class="nav nav-tabs" id="previewTabs" role="tablist">
+                <ul class="nav nav-tabs crud-tabs" id="previewTabs" role="tablist">
                     <li class="nav-item">
-                        <a class="nav-link active" id="list-tab" data-toggle="tab" href="#list-view" role="tab">
-                            <i class="bi bi-list-ul mr-1"></i> Vue Liste
+                        <a class="nav-link active" id="list-tab" data-bs-toggle="tab" href="#list-view" role="tab">
+                            <i class="bi bi-list-ul me-1"></i> Vue Liste
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" id="grid-tab" data-toggle="tab" href="#grid-view" role="tab">
-                            <i class="bi bi-grid-3x3 mr-1"></i> Vue Grille
+                        <a class="nav-link" id="grid-tab" data-bs-toggle="tab" href="#grid-view" role="tab">
+                            <i class="bi bi-grid-3x3 me-1"></i> Vue Grille
                         </a>
                     </li>
                 </ul>
@@ -663,12 +655,12 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                         <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <div class="d-flex gap-2 flex-wrap">
                                 <button type="button" class="btn btn-sm btn-danger" id="delete-selected" disabled>
-                                    <i class="bi bi-trash mr-1"></i> Supprimer les lignes sélectionnées
+                                    <i class="bi bi-trash me-1"></i> Supprimer les lignes sélectionnées
                                 </button>
                             </div>
                             <div class="d-flex gap-2 flex-wrap align-items-center">
                                 <label class="mb-0 small">
-                                    <i class="bi bi-funnel mr-1"></i> Filtres :
+                                    <i class="bi bi-funnel me-1"></i> Filtres :
                                 </label>
                                 <select class="form-control form-control-sm filter-select" id="filter-offer">
                                     <option value="">Toutes les offres</option>
@@ -683,7 +675,7 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                     <option value="">Tous les statuts</option>
                                 </select>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="reset-filters">
-                                    <i class="bi bi-x-circle mr-1"></i> Réinitialiser
+                                    <i class="bi bi-x-circle me-1"></i> Réinitialiser
                                 </button>
                             </div>
                         </div>
@@ -754,21 +746,21 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                             </td>
                                             <td class="py-2">
                                                 <?php if ($isValidated): ?>
-                                                    <span class="badge badge-success">Validé</span>
+                                                    <span class="badge bg-success">Validé</span>
                                                 <?php else: ?>
-                                                    <span class="badge badge-warning">Non validé</span>
+                                                    <span class="badge bg-warning">Non validé</span>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="py-2">
                                                 <?php
                                                 $statusLabel = 'Réel';
-                                                $statusClass = 'badge-info';
+                                                $statusClass = 'bg-info';
                                                 if ($demandStatus === 'forecast') {
                                                     $statusLabel = 'Prévisionnel';
-                                                    $statusClass = 'badge-warning';
+                                                    $statusClass = 'bg-warning';
                                                 } elseif ($demandStatus === 'cancellation') {
                                                     $statusLabel = 'Annulation';
-                                                    $statusClass = 'badge-secondary';
+                                                    $statusClass = 'bg-secondary';
                                                 }
                                                 ?>
                                                 <span class="badge <?= $statusClass ?>"><?= h($statusLabel) ?></span>
@@ -776,18 +768,18 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                             <td class="py-2"><?= h($userCode) ?></td>
                                             <td class="py-2"><?= h($userName) ?></td>
                                             <td class="py-2" data-sort-value="<?= $dateStart->getTimestamp() ?>">
-                                                <i class="bi bi-calendar-range mr-1"></i>
+                                                <i class="bi bi-calendar-range me-1"></i>
                                                 <?= $dateStart->i18nFormat('dd/MM/yyyy') ?>
                                                 <?php if (!$isFullDay): ?>
-                                                    <i class="bi bi-clock text-secondary ml-2 mr-1"></i>
+                                                    <i class="bi bi-clock text-secondary ms-2 me-1"></i>
                                                     <span class="text-muted"><?= $dateStart->i18nFormat('HH:mm') ?></span>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="py-2" data-sort-value="<?= $dateEnd->getTimestamp() ?>">
-                                                <i class="bi bi-calendar-range-fill mr-1"></i>
+                                                <i class="bi bi-calendar-range-fill me-1"></i>
                                                 <?= $dateEnd->i18nFormat('dd/MM/yyyy') ?>
                                                 <?php if (!$isFullDay): ?>
-                                                    <i class="bi bi-clock-fill text-secondary ml-2 mr-1"></i>
+                                                    <i class="bi bi-clock-fill text-secondary ms-2 me-1"></i>
                                                     <span class="text-muted"><?= $dateEnd->i18nFormat('HH:mm') ?></span>
                                                 <?php endif; ?>
                                             </td>
@@ -803,7 +795,7 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                     <div class="tab-pane fade" id="grid-view" role="tabpanel">
                         <!-- Légende dynamique basée sur les offres présentes -->
                         <div class="grid-legend">
-                            <strong class="mr-2">Offres :</strong>
+                            <strong class="me-2">Offres :</strong>
                             <?php foreach ($presentOffers as $offerId => $offerInfo): ?>
                                 <div class="legend-item">
                                     <div class="legend-box" style="background-color: <?= h($offerInfo['color']) ?>;"></div>
@@ -968,25 +960,22 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                         'id' => 'preview-form'
                     ]) ?>
                     <?= $this->Form->hidden('excluded_indices', ['id' => 'excluded-indices', 'value' => '']) ?>
-                    <?= $this->Form->button('<i class="bi bi-check-circle mr-2"></i> Enregistrer les données', [
+                    <?= $this->Form->button('Enregistrer les données', [
                         'type' => 'submit',
-                        'class' => 'btn btn-success btn-lg',
-                        'escapeTitle' => false
+                        'class' => 'btn btn-primary',
                     ]) ?>
                     <?= $this->Form->end() ?>
                     
                     <?= $this->Html->link(
-                        '<i class="bi bi-x-circle mr-2"></i> Annuler',
+                        'Annuler',
                         ['action' => 'upload'],
-                        ['class' => 'btn btn-outline-secondary btn-lg', 'escape' => false]
+                        ['class' => 'btn btn-outline-secondary']
                     ) ?>
                 </div>
                 
                 <!-- Spacer pour éviter que le footer sticky masque du contenu -->
                 <div class="preview-content-spacer" id="content-spacer"></div>
             <?php endif; ?>
-        </div>
-    </div>
 </div>
 
 <!-- Section des éléments supprimés (sticky footer) -->
@@ -994,14 +983,14 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
     <div class="card border-warning mb-0">
         <div class="card-header bg-warning-light d-flex justify-content-between align-items-center py-2">
             <span class="deleted-header-toggle" id="toggle-deleted-body" style="cursor: pointer;">
-                <i class="bi bi-chevron-down mr-1" id="toggle-deleted-icon"></i>
-                <i class="bi bi-trash text-warning mr-1"></i>
+                <i class="bi bi-chevron-down me-1" id="toggle-deleted-icon"></i>
+                <i class="bi bi-trash text-warning me-1"></i>
                 <strong>Éléments supprimés</strong>
-                <span class="badge badge-warning ml-2" id="deleted-count">0</span>
-                <small class="text-muted ml-2">(cliquer pour réduire)</small>
+                <span class="badge bg-warning ms-2" id="deleted-count">0</span>
+                <small class="text-muted ms-2">(cliquer pour réduire)</small>
             </span>
             <button type="button" class="btn btn-sm btn-outline-success" id="restore-all">
-                <i class="bi bi-arrow-counterclockwise mr-1"></i> Tout restaurer
+                <i class="bi bi-arrow-counterclockwise me-1"></i> Tout restaurer
             </button>
         </div>
         <div class="card-body p-0" id="deleted-body">
@@ -1037,9 +1026,9 @@ $(document).ready(function() {
         }).length;
         $('#delete-selected').prop('disabled', checkedCount === 0);
         if (checkedCount > 0) {
-            $('#delete-selected').html('<i class="bi bi-trash mr-1"></i> Supprimer ' + checkedCount + ' ligne(s) sélectionnée(s)');
+            $('#delete-selected').html('<i class="bi bi-trash me-1"></i> Supprimer ' + checkedCount + ' ligne(s) sélectionnée(s)');
         } else {
-            $('#delete-selected').html('<i class="bi bi-trash mr-1"></i> Supprimer les lignes sélectionnées');
+            $('#delete-selected').html('<i class="bi bi-trash me-1"></i> Supprimer les lignes sélectionnées');
         }
     }
     
@@ -1121,7 +1110,7 @@ $(document).ready(function() {
         
         // Mettre à jour les compteurs
         var remainingCount = $('#preview-table tbody tr:not(.d-none):not(.row-deleted)').length;
-        $('.alert-info strong').text(remainingCount);
+        $('#preview-range-count').text(remainingCount);
         updateDeletedSection();
         updateDeleteButton();
     }
@@ -1181,7 +1170,7 @@ $(document).ready(function() {
         $('#excluded-indices').val(excludedIndices.join(','));
         
         var remainingCount = $('#preview-table tbody tr:not(.d-none):not(.row-deleted)').length;
-        $('.alert-info strong').text(remainingCount);
+        $('#preview-range-count').text(remainingCount);
         
         updateDeletedSection();
         updateDeleteButton();
@@ -1326,7 +1315,7 @@ $(document).ready(function() {
         });
         
         var visibleCount = $('#preview-table tbody tr:not(.d-none):not(.row-deleted)').length;
-        $('.alert-info strong').text(visibleCount);
+        $('#preview-range-count').text(visibleCount);
         
         updateDeleteButton();
     }
@@ -1423,7 +1412,7 @@ $(document).ready(function() {
         $('#filter-demand-status').val('');
         $('#preview-table tbody tr').removeClass('d-none');
         var totalCount = $('#preview-table tbody tr').length;
-        $('.alert-info strong').text(totalCount);
+        $('#preview-range-count').text(totalCount);
         updateDeleteButton();
     });
     

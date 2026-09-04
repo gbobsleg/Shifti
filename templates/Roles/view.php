@@ -7,154 +7,111 @@
 <?php $this->assign('title', 'Détails du Rôle : ' . h($role->name)); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<div class="roles view content card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-shield-lock text-primary"></i>
+<div class="crud-app roles view content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-shield-lock"></i>
             <?= h($role->name) ?>
-        </h3>
-        <div class="btn-toolbar">
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-pencil mr-1"></i> Modifier',
-                ['action' => 'edit', $role->id],
-                ['class' => 'btn btn-primary mr-2', 'escape' => false]
-            ) ?>
-            <?= $this->Form->postLink(
-                '<i class="bi bi-trash mr-1"></i> Supprimer',
-                ['action' => 'delete', $role->id],
-                ['confirm' => 'Voulez-vous vraiment supprimer "' . h($role->name) . '" ?', 'class' => 'btn btn-danger mr-2', 'escape' => false]
-            ) ?>
-            <?= $this->Html->link(
-                '<i class="bi bi-list mr-1"></i> Liste',
-                ['action' => 'index'],
-                ['class' => 'btn btn-outline-secondary', 'escape' => false]
-            ) ?>
-        </div>
-    </div>
-    <div class="card-body">
-        <?php // --- Informations du rôle --- ?>
-        <div class="card border-primary mb-4">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-info-circle"></i> Informations du rôle
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="text-muted small mb-1"><i class="bi bi-tag"></i> Nom</label>
-                        <div><strong><?= h($role->name) ?></strong></div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="text-muted small mb-1"><i class="bi bi-sort-numeric-up"></i> Priorité</label>
-                        <div>
-                            <span class="badge badge-primary" style="font-size: 1rem;">
-                                <?= $this->Number->format($role->priority) ?>
-                            </span>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="text-muted small mb-1"><i class="bi bi-calendar-plus"></i> Créé le</label>
-                        <div><?= h($role->created ? $role->created->i18nFormat('dd/MM/yyyy HH:mm') : 'N/A') ?></div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="text-muted small mb-1"><i class="bi bi-calendar-check"></i> Modifié le</label>
-                        <div><?= h($role->modified ? $role->modified->i18nFormat('dd/MM/yyyy HH:mm') : 'N/A') ?></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <?php // --- Utilisateurs Associés --- ?>
-        <div class="card border-success">
-            <div class="card-header bg-success text-white">
-                <i class="bi bi-people"></i> Utilisateurs Associés
-                <?php if (!empty($role->users)): ?>
-                    <span class="badge badge-light ml-2"><?= count($role->users) ?></span>
-                <?php endif; ?>
-            </div>
-            <div class="card-body">
-                <?php if (!empty($role->users)): ?>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover table-sm">
-                            <thead>
-                            <tr>
-                                <th scope="col">Code</th>
-                                <th scope="col">Nom</th>
-                                <th scope="col">Prénom</th>
-                                <th scope="col">Site</th>
-                                <th scope="col">Email</th>
-                                <th scope="col" class="actions">Actions</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach ($role->users as $user): ?>
-                                <tr>
-                                    <td>
-                                        <span class="badge badge-secondary"><?= h($user->user_code) ?></span>
-                                    </td>
-                                    <td><strong><?= h($user->last_name) ?></strong></td>
-                                    <td><?= h($user->first_name) ?></td>
-                                    <td>
-                                        <?php if (isset($user->site->name)): ?>
-                                            <small class="text-muted">
-                                                <i class="bi bi-geo-alt"></i> <?= h($user->site->name) ?>
-                                            </small>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><small><?= h($user->email) ?></small></td>
-                                    <td class="actions">
-                                        <div class="dropdown actions-dropdown" data-entity-id="<?= (int)$user->id ?>">
-                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownUser<?= $user->id ?>" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                                <i class="bi bi-three-dots-vertical"></i> Actions
-                                            </button>
-                                            <div class="dropdown-menu dropdown-menu-right actions-dropdown-menu" data-entity-id="<?= (int)$user->id ?>" aria-labelledby="dropdownUser<?= $user->id ?>">
-                                                <?= $this->Html->link(
-                                                    '<i class="bi bi-eye mr-2"></i> Voir',
-                                                    ['controller' => 'Users', 'action' => 'view', $user->id],
-                                                    ['class' => 'dropdown-item', 'escape' => false]
-                                                ) ?>
-                                                <?= $this->Html->link(
-                                                    '<i class="bi bi-pencil mr-2"></i> Modifier',
-                                                    ['controller' => 'Users', 'action' => 'edit', $user->id],
-                                                    ['class' => 'dropdown-item', 'escape' => false]
-                                                ) ?>
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php else: ?>
-                    <div class="text-center py-4">
-                        <i class="bi bi-person-x" style="font-size: 3rem; color: #dee2e6;"></i>
-                        <p class="text-muted mt-3">Aucun utilisateur associé à ce rôle.</p>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <?php // --- Boutons d'action --- ?>
-        <div class="mt-4">
-            <?= $this->Html->link(
-                '<i class="bi bi-pencil mr-2"></i> Modifier',
+                '<i class="bi bi-pencil me-1"></i> Modifier',
                 ['action' => 'edit', $role->id],
                 ['class' => 'btn btn-primary', 'escape' => false]
             ) ?>
             <?= $this->Html->link(
-                '<i class="bi bi-arrow-left mr-2"></i> Retour à la liste',
+                '<i class="bi bi-list me-1"></i> Liste',
                 ['action' => 'index'],
-                ['class' => 'btn btn-outline-secondary ml-2', 'escape' => false]
+                ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
             <?= $this->Form->postLink(
-                '<i class="bi bi-trash mr-2"></i> Supprimer',
+                '<i class="bi bi-trash me-1"></i> Supprimer',
                 ['action' => 'delete', $role->id],
                 [
                     'confirm' => 'Voulez-vous vraiment supprimer "' . h($role->name) . '" ?',
-                    'class' => 'btn btn-outline-danger ml-2',
-                    'escape' => false
+                    'class' => 'btn btn-outline-danger',
+                    'escape' => false,
                 ]
             ) ?>
         </div>
     </div>
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">Informations</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Nom</dt>
+                <dd><?= h($role->name) ?></dd>
+            </div>
+            <div>
+                <dt>Priorité</dt>
+                <dd><?= $this->Number->format($role->priority) ?></dd>
+            </div>
+            <div>
+                <dt>Créé le</dt>
+                <dd><?= h($role->created ? $role->created->i18nFormat('dd/MM/yyyy HH:mm') : '—') ?></dd>
+            </div>
+            <div>
+                <dt>Modifié le</dt>
+                <dd><?= h($role->modified ? $role->modified->i18nFormat('dd/MM/yyyy HH:mm') : '—') ?></dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">
+            Utilisateurs Associés
+            <?php if (!empty($role->users)): ?>
+                (<?= count($role->users) ?>)
+            <?php endif; ?>
+        </h2>
+        <?php if (!empty($role->users)): ?>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm crud-table">
+                    <thead>
+                    <tr>
+                        <th scope="col">Code</th>
+                        <th scope="col">Nom</th>
+                        <th scope="col">Prénom</th>
+                        <th scope="col">Site</th>
+                        <th scope="col">Email</th>
+                        <th scope="col" class="actions">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($role->users as $user): ?>
+                        <tr>
+                            <td><?= h($user->user_code) ?></td>
+                            <td>
+                                <?= $this->Html->link(
+                                    $user->last_name,
+                                    ['controller' => 'Users', 'action' => 'view', $user->id],
+                                    ['class' => 'crud-row-link']
+                                ) ?>
+                            </td>
+                            <td><?= h($user->first_name) ?></td>
+                            <td><?= isset($user->site->name) ? h($user->site->name) : '—' ?></td>
+                            <td><?= h($user->email) ?></td>
+                            <td class="actions">
+                                <?= $this->Html->link(
+                                    '<i class="bi bi-pencil" aria-hidden="true"></i>',
+                                    ['controller' => 'Users', 'action' => 'edit', $user->id],
+                                    [
+                                        'class' => 'crud-action',
+                                        'escape' => false,
+                                        'title' => 'Modifier',
+                                        'aria-label' => 'Modifier',
+                                        'data-bs-toggle' => 'tooltip',
+                                    ]
+                                ) ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <p class="text-muted mb-0">Aucun utilisateur associé à ce rôle.</p>
+        <?php endif; ?>
+    </section>
 </div>

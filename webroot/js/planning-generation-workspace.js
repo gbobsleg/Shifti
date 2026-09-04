@@ -11,11 +11,8 @@
 
     var csrfToken = root.getAttribute('data-csrf-token') || '';
 
-    // Tooltips Bootstrap 4 (si le plugin jQuery est disponible)
-    if (typeof window.jQuery !== 'undefined' && typeof window.jQuery.fn.tooltip === 'function') {
-        window.jQuery(function () {
-            window.jQuery('[data-toggle="tooltip"]').tooltip();
-        });
+    if (typeof window.initTooltips === 'function') {
+        window.initTooltips();
     }
 
     // Copie CSV équité
@@ -224,8 +221,8 @@
         if (ko > 0) {
             var collapseEl = document.getElementById('ws-quality-compliance');
             if (collapseEl) {
-                if (typeof window.jQuery !== 'undefined' && typeof window.jQuery.fn.collapse === 'function') {
-                    window.jQuery(collapseEl).collapse('show');
+                if (typeof bootstrap !== 'undefined' && bootstrap.Collapse) {
+                    bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
                 } else {
                     collapseEl.classList.add('show');
                 }
@@ -322,7 +319,7 @@
 
         // Sync chevron aria-expanded on agent toggles
         panel.querySelectorAll('.excluded-agent-toggle').forEach(function (btn) {
-            var targetSel = btn.getAttribute('data-target');
+            var targetSel = btn.getAttribute('data-bs-target') || btn.getAttribute('data-target');
             if (!targetSel || typeof window.jQuery === 'undefined') {
                 return;
             }
@@ -447,7 +444,7 @@
         ['jobStatusBadge', 'workspaceStatusBadge'].forEach(function (id) {
             var el = document.getElementById(id);
             if (el) {
-                el.className = 'badge badge-' + badgeClass;
+                el.className = 'badge bg-' + badgeClass;
                 el.innerHTML = '<i class="bi bi-' + icon + '"></i> ' + status;
             }
         });

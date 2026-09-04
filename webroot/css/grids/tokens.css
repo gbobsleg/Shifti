@@ -1,0 +1,28 @@
+.grids-app {
+    --grids-accent: #318f9b;
+    --grids-accent-hover: #27757f;
+    --grids-bg: #ffffff;
+    --grids-well: #f4f6f7;
+    --grids-surface: #ffffff;
+    --grids-text: #1f2a30;
+    --grids-muted: #6b7a82;
+    --grids-border: #e2e8ea;
+    --grids-hour-line: #e8eef0;
+    --grids-radius: 6px;
+    --grids-slot-w: 16px;
+    --grids-row-h: 40px;
+    --grids-bar-pad: 7px;
+    --grids-agent-size: 0.75rem;
+    --grids-remote-bg: #eef6f7;
+    --grids-rail-width: 52px;
+    --grids-navbar: 56px;
+    --grids-chrome-h: 8rem;
+    --grids-z-nav: 1030;
+    --grids-z-chrome: 1020;
+    --grids-z-rail: 40;
+    --grids-z-save: 90;
+    --grids-pause: #94a3b8;
+    font-size: 0.875rem;
+    color: var(--grids-text);
+    background: var(--grids-bg);
+}

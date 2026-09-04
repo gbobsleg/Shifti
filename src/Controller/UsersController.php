@@ -226,29 +226,7 @@ class UsersController extends AppController
         $roles = $this->Users->Roles->find('list', ['limit' => 200])->toArray();
         $sites = $this->Users->Sites->find('list', ['limit' => 200])->toArray();
 
-        // Statistiques
-        $allUsers = $this->Users->find()->contain(['Roles'])->all();
-        $stats = [
-            'total' => $allUsers->count(),
-            'active' => $allUsers->filter(function($u) { return $u->active ?? true; })->count(),
-            'inactive' => $allUsers->filter(function($u) { return !($u->active ?? true); })->count(),
-        ];
-        
-        // Stats par rôle (top 3)
-        $roleStats = [];
-        foreach ($allUsers as $user) {
-            if ($user->role) {
-                $roleId = $user->role->id;
-                if (!isset($roleStats[$roleId])) {
-                    $roleStats[$roleId] = ['name' => $user->role->name, 'count' => 0];
-                }
-                $roleStats[$roleId]['count']++;
-            }
-        }
-        arsort($roleStats);
-        $stats['roles'] = array_slice($roleStats, 0, 3, true);
-
-        $this->set(compact('users', 'roles', 'sites', 'stats', 'filters'));
+        $this->set(compact('users', 'roles', 'sites', 'filters'));
     }
 
     /**

@@ -23,6 +23,19 @@
         el.style.display = visible ? '' : 'none';
     }
 
+    var STATUS_LABELS = {
+        none: 'Aucun',
+        queued: 'En file',
+        running: 'En cours',
+        completed: 'Terminé',
+        failed: 'Échec',
+        cancelled: 'Annulé'
+    };
+
+    function statusLabel(status) {
+        return STATUS_LABELS[status] || status;
+    }
+
     function pct(done, total) {
         if (!total || total <= 0) {
             return 0;
@@ -144,7 +157,7 @@
             var offer = data.offer || {};
 
             var status = job ? job.status : 'none';
-            setText(elStatus, status === 'none' ? 'Aucun job' : status);
+            setText(elStatus, statusLabel(status));
 
             var running = status === 'queued' || status === 'running';
             show(elProgressWrap, running || status === 'completed' || status === 'failed' || status === 'cancelled');
@@ -230,7 +243,7 @@
             }
 
             if (job && job.auto_applied && status === 'completed') {
-                setText(elMessage, 'Profil appliqué automatiquement (auto-apply).');
+                setText(elMessage, 'Profil appliqué automatiquement (paramètre WFM).');
             }
         }
 
@@ -298,13 +311,13 @@
             });
         }
 
-        bindPost(btnApply, urls.apply, 'Appliquer le brouillon Optuna comme profil Prophet officiel ?');
-        bindPost(btnReject, urls.reject, 'Rejeter le brouillon Optuna ?');
+        bindPost(btnApply, urls.apply, 'Appliquer le brouillon comme profil Prophet officiel ?');
+        bindPost(btnReject, urls.reject, 'Rejeter le brouillon ?');
         bindPost(btnRollback, urls.rollback, 'Restaurer le profil Prophet précédent ?');
         bindPost(
             btnCancel,
             urls.cancel,
-            'Annuler ce job Optuna ? S’il est en cours, l’arrêt prend effet après le trial en cours.'
+            'Annuler cette tâche ? Si elle est en cours, l’arrêt prend effet après l’essai en cours.'
         );
 
         refresh();

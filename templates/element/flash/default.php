@@ -4,36 +4,15 @@
  * @var array $params
  * @var string $message
  */
-$class = 'alert alert-info alert-dismissible fade show';
-if (!empty($params['class'])) {
-    // Permet de passer une classe personnalisée si besoin
-    $class = $params['class'];
-}
 if (!isset($params['escape']) || $params['escape'] !== false) {
     $message = h($message);
 }
-
-// Gestion de l'auto-dismiss
-$autoDismiss = '';
-// Vérifier si le paramètre existe (directement ou dans params, avec tiret ou underscore)
-$autoDismissValue = null;
-if (isset($params['auto-dismiss'])) {
-    $autoDismissValue = $params['auto-dismiss'];
-} elseif (isset($params['auto_dismiss'])) {
-    $autoDismissValue = $params['auto_dismiss'];
-} elseif (isset($params['params']['auto-dismiss'])) {
-    $autoDismissValue = $params['params']['auto-dismiss'];
-} elseif (isset($params['params']['auto_dismiss'])) {
-    $autoDismissValue = $params['params']['auto_dismiss'];
-}
-
-if ($autoDismissValue !== null && is_numeric($autoDismissValue) && $autoDismissValue > 0) {
-    $autoDismiss = ' data-auto-dismiss="' . (int)$autoDismissValue . '"';
+$class = 'flash-toast is-info';
+if (!empty($params['class'])) {
+    $class .= ' ' . $params['class'];
 }
 ?>
-<div class="<?= h($class) ?>" role="alert"<?= $autoDismiss ?>>
+<div class="<?= h($class) ?>" role="alert"<?= $this->element('flash/_dismiss_attr', ['params' => $params, 'defaultDelay' => 5000]) ?>>
     <?= $message ?>
-    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-        <span aria-hidden="true">&times;</span>
-    </button>
+    <button type="button" class="btn-close" data-flash-dismiss aria-label="Fermer"></button>
 </div>

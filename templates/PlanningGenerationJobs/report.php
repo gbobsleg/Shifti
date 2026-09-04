@@ -251,32 +251,32 @@
             <div class="card-header bg-white border-bottom">
                 <ul class="nav nav-tabs card-header-tabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <a class="nav-link active" id="overview-tab" data-toggle="tab" href="#overview" role="tab" aria-controls="overview" aria-selected="true">
+                        <a class="nav-link active" id="overview-tab" data-bs-toggle="tab" href="#overview" role="tab" aria-controls="overview" aria-selected="true">
                             <i class="bi bi-speedometer2"></i> Vue d'ensemble
                         </a>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <a class="nav-link" id="detail-tab" data-toggle="tab" href="#detail" role="tab" aria-controls="detail" aria-selected="false">
+                        <a class="nav-link" id="detail-tab" data-bs-toggle="tab" href="#detail" role="tab" aria-controls="detail" aria-selected="false">
                             <i class="bi bi-calendar3"></i> Détail par jour
                             <?php if ($stats['days_infeasible'] > 0 || $stats['days_error'] > 0): ?>
-                                <span class="badge badge-danger badge-count ml-1">
+                                <span class="badge bg-danger badge-count ms-1">
                                     <?= $stats['days_infeasible'] + $stats['days_error'] ?>
                                 </span>
                             <?php endif; ?>
                         </a>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <a class="nav-link" id="diagnostics-tab" data-toggle="tab" href="#diagnostics" role="tab" aria-controls="diagnostics" aria-selected="false">
+                        <a class="nav-link" id="diagnostics-tab" data-bs-toggle="tab" href="#diagnostics" role="tab" aria-controls="diagnostics" aria-selected="false">
                             <i class="bi bi-bug"></i> Diagnostics
                             <?php if ($stats['total_warnings'] > 0 || $stats['total_excluded_agents'] > 0): ?>
-                                <span class="badge badge-warning badge-count ml-1">
+                                <span class="badge bg-warning badge-count ms-1">
                                     <?= $stats['total_warnings'] + $stats['total_excluded_agents'] ?>
                                 </span>
                             <?php endif; ?>
                         </a>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <a class="nav-link" id="performance-tab" data-toggle="tab" href="#performance" role="tab" aria-controls="performance" aria-selected="false">
+                        <a class="nav-link" id="performance-tab" data-bs-toggle="tab" href="#performance" role="tab" aria-controls="performance" aria-selected="false">
                             <i class="bi bi-graph-up-arrow"></i> Performance
                         </a>
                     </li>
@@ -313,7 +313,7 @@
                                         ?>
                                         <span class="timeline-bar bg-<?= $color ?>" 
                                               style="flex: 1; min-width: 8px;"
-                                              data-toggle="tooltip" 
+                                              data-bs-toggle="tooltip" 
                                               data-placement="top"
                                               title="<?= h($item['date']) ?> : <?= h($title) ?>">
                                         </span>
@@ -568,12 +568,12 @@
                                         <tr>
                                             <td><strong><?= h((string)$d->date) ?></strong></td>
                                             <td>
-                                                <span class="badge badge-<?= $badge ?>">
+                                                <span class="badge bg-<?= $badge ?>">
                                                     <i class="bi bi-<?= $icon ?>"></i> <?= h($st) ?>
                                                 </span>
                                                 <?php foreach ($passBadges as $pb): ?>
-                                                    <span class="badge badge-<?= $pb['color'] ?> pass-badge"
-                                                          data-toggle="tooltip"
+                                                    <span class="badge bg-<?= $pb['color'] ?> pass-badge"
+                                                          data-bs-toggle="tooltip"
                                                           data-placement="top"
                                                           title="<?= h($pb['tooltip']) ?>">
                                                         <?= h($pb['short']) ?>
@@ -589,7 +589,7 @@
                                             </td>
                                             <td class="text-end">
                                                 <?php if ($dayData['schedule_count'] > 0): ?>
-                                                    <span class="badge badge-success"><?= number_format($dayData['schedule_count']) ?></span>
+                                                    <span class="badge bg-success"><?= number_format($dayData['schedule_count']) ?></span>
                                                 <?php else: ?>
                                                     <span class="text-muted">0</span>
                                                 <?php endif; ?>
@@ -600,16 +600,16 @@
                                                     <button
                                                         class="btn btn-sm btn-outline-secondary"
                                                         type="button"
-                                                        data-toggle="collapse"
-                                                        data-target="#<?= h($collapseId) ?>"
+                                                        data-bs-toggle="collapse"
+                                                        data-bs-target="#<?= h($collapseId) ?>"
                                                         aria-expanded="false"
                                                     >
                                                         <i class="bi bi-info-circle"></i>
                                                         <?php if ($dayData['excluded_count'] > 0): ?>
-                                                            <span class="badge badge-danger"><?= $dayData['excluded_count'] ?></span>
+                                                            <span class="badge bg-danger"><?= $dayData['excluded_count'] ?></span>
                                                         <?php endif; ?>
                                                         <?php if ($dayData['warnings_count'] > 0): ?>
-                                                            <span class="badge badge-warning"><?= $dayData['warnings_count'] ?></span>
+                                                            <span class="badge bg-warning"><?= $dayData['warnings_count'] ?></span>
                                                         <?php endif; ?>
                                                     </button>
                                                 <?php else: ?>
@@ -744,8 +744,8 @@
                             <div class="card mb-4">
                                 <div class="card-header bg-light d-flex justify-content-between align-items-center<?= $useCollapse ? ' cursor-pointer' : '' ?>"
                                      <?php if ($useCollapse): ?>
-                                     data-toggle="collapse"
-                                     data-target="#excluded-agents-collapse"
+                                     data-bs-toggle="collapse"
+                                     data-bs-target="#excluded-agents-collapse"
                                      aria-expanded="false"
                                      <?php endif; ?>>
                                     <h5 class="mb-0">
@@ -775,10 +775,10 @@
                                                             <td><strong>#<?= $agent['id'] ?></strong> <?= h($agent['name']) ?></td>
                                                             <td><?= h($agent['site']) ?></td>
                                                             <td>
-                                                                <span class="badge badge-danger"><?= h($agent['reason']) ?></span>
+                                                                <span class="badge bg-danger"><?= h($agent['reason']) ?></span>
                                                             </td>
                                                             <td class="text-end">
-                                                                <span class="badge badge-secondary"><?= $agent['count'] ?>x</span>
+                                                                <span class="badge bg-secondary"><?= $agent['count'] ?>x</span>
                                                             </td>
                                                             <td>
                                                                 <small class="text-muted">
@@ -803,8 +803,8 @@
                             <div class="card mb-4">
                                 <div class="card-header bg-light d-flex justify-content-between align-items-center<?= $useCollapse ? ' cursor-pointer' : '' ?>"
                                      <?php if ($useCollapse): ?>
-                                     data-toggle="collapse"
-                                     data-target="#warnings-collapse"
+                                     data-bs-toggle="collapse"
+                                     data-bs-target="#warnings-collapse"
                                      aria-expanded="false"
                                      <?php endif; ?>>
                                     <h5 class="mb-0">
@@ -831,7 +831,7 @@
                                                         <tr>
                                                             <td><?= h($warning['message']) ?></td>
                                                             <td class="text-end">
-                                                                <span class="badge badge-warning"><?= $warning['count'] ?>x</span>
+                                                                <span class="badge bg-warning"><?= $warning['count'] ?>x</span>
                                                             </td>
                                                             <td>
                                                                 <small class="text-muted">
@@ -918,7 +918,7 @@
                                                                          aria-valuenow="<?= $percentage ?>" 
                                                                          aria-valuemin="0" 
                                                                          aria-valuemax="100"
-                                                                         data-toggle="tooltip"
+                                                                         data-bs-toggle="tooltip"
                                                                          data-placement="top"
                                                                          title="<?= h($dateFull) ?> : <?= number_format($item['duration'], 2) ?>s">
                                                                         <span class="small" style="line-height: 24px; padding: 0 8px;">
@@ -990,11 +990,3 @@
     </div>
 </div>
 
-<?php $this->Html->scriptStart(['block' => true]); ?>
-// Initialiser les tooltips Bootstrap 4
-$(function () {
-    $('[data-toggle="tooltip"]').tooltip();
-});
-
-// Les tooltips sont déjà initialisés plus haut
-<?php $this->Html->scriptEnd(); ?>

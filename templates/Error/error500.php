@@ -18,8 +18,12 @@ $isForbiddenLike = is_string($message ?? null) && (
 if ($isForbiddenLike) :
     $this->assign('title', 'Accès refusé');
 ?>
-<h3 class="mb-3">Accès refusé</h3>
-<p class="text-muted mb-0">Vous n'êtes pas autorisé à consulter cette page.</p>
+<div class="crud-header">
+    <div>
+        <h1>Accès refusé</h1>
+        <p class="crud-header-meta">Vous n'êtes pas autorisé à consulter cette page.</p>
+    </div>
+</div>
 <?php
     return;
 endif;
@@ -41,8 +45,9 @@ if (Configure::read('debug')) :
     $this->end();
 endif;
 ?>
-<h2><?= __d('cake', 'An Internal Error Has Occurred.') ?></h2>
-<p class="error">
-    <strong><?= __d('cake', 'Error') ?>: </strong>
-    <?= h($message) ?>
-</p>
+<div class="crud-header">
+    <div>
+        <h1><?= __d('cake', 'An Internal Error Has Occurred.') ?></h1>
+        <p class="crud-header-meta"><?= h($message) ?></p>
+    </div>
+</div>

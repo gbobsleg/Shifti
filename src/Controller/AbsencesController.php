@@ -111,18 +111,7 @@ class AbsencesController extends AppController
         $this->paginate = ['limit' => 25, 'order' => ['Ranges.id' => 'desc']];
         $absences = $this->paginate($absences);
 
-        // Statistiques
-        $allAbsences = $this->Ranges->find('Offers', array_flip($offers))
-            ->contain(['Users', 'Offers'])->all();
-        $stats = [
-            'total' => $allAbsences->count(),
-            'this_month' => $allAbsences->filter(function($abs) {
-                $now = new \Cake\I18n\FrozenTime();
-                return $abs->date_start && $abs->date_start->month == $now->month && $abs->date_start->year == $now->year;
-            })->count(),
-        ];
-
-        $this->set(compact('absences', 'users', 'offers', 'stats'));
+        $this->set(compact('absences', 'users', 'offers'));
     }
 
     /**

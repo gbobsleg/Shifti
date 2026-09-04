@@ -8,125 +8,121 @@
 ?>
 <?php $this->assign('title', 'Modifier Utilisateur : ' . h($user->full_name)); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
+<?php $this->Html->script('users-form-tabs', ['block' => true]); ?>
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-pencil text-primary"></i>
-            Modifier <?= h($user->full_name) ?>
-        </h3>
+<div class="crud-app users form crud-app-wide content">
+    <div class="crud-header">
         <div>
+            <h1>
+                <i class="bi bi-pencil"></i>
+                Modifier <?= h($user->full_name) ?>
+            </h1>
+            <?= $this->element('users/header_dates', ['user' => $user]) ?>
+        </div>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-1"></i> Annuler',
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body">
-        <?= $this->Form->create($user) ?>
-        
-        <div class="row mb-4">
-            <?php // --- Section Informations générales --- ?>
-            <div class="col-md-8">
-                <div class="card border-primary h-100">
-                    <div class="card-header bg-primary text-white">
-                        <i class="bi bi-info-circle"></i> Informations générales
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label"><i class="bi bi-shield-lock"></i> Rôle</label>
-                                <?= $this->Form->control('role_id', [
-                                    'options' => $roles,
-                                    'label' => false,
-                                    'empty' => 'Choisir...',
-                                    'class' => 'form-control'
-                                ]) ?>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label"><i class="bi bi-person-badge"></i> Code Utilisateur</label>
-                                <?= $this->Form->control('user_code', [
-                                    'label' => false,
-                                    'class' => 'form-control'
-                                ]) ?>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label"><i class="bi bi-person"></i> Nom</label>
-                                <?= $this->Form->control('last_name', [
-                                    'label' => false,
-                                    'class' => 'form-control'
-                                ]) ?>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label"><i class="bi bi-person"></i> Prénom</label>
-                                <?= $this->Form->control('first_name', [
-                                    'label' => false,
-                                    'class' => 'form-control'
-                                ]) ?>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label"><i class="bi bi-geo-alt"></i> Site</label>
-                                <?= $this->Form->control('site_id', [
-                                    'options' => $sites,
-                                    'label' => false,
-                                    'empty' => 'Choisir...',
-                                    'class' => 'form-control'
-                                ]) ?>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label"><i class="bi bi-envelope"></i> Email</label>
-                                <?= $this->Form->control('email', [
-                                    'label' => false,
-                                    'class' => 'form-control'
-                                ]) ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <?php // --- Section Mot de passe --- ?>
-            <div class="col-md-4">
-                <?= $this->element('users/password', ['required' => false]) ?>
-            </div>
-        </div>
+    <?= $this->Form->create($user) ?>
+    <?= $this->element('users/tabs_nav') ?>
 
-        <?= $this->element('users/contracts', [
-            'userContracts' => $userContracts,
-        ]) ?>
-
-        <?= $this->element('users/skills', [
-            'offers' => $offers,
-            'userSkills' => $userSkills,
-        ]) ?>
-
-        <?= $this->element('users/contractual_availabilities', ['days' => $days]) ?>
-
-        <?= $this->element('users/remote_work', [
-            'remoteWorkSetting' => $remoteWorkSetting,
-            'fixedDays' => $fixedDays,
-            'timeStart' => $timeStart,
-            'timeEnd' => $timeEnd,
-            'startDate' => $startDate,
-            'endDate' => $endDate,
-            'daysOfWeek' => $daysOfWeek,
-            'userId' => (int)$user->id,
-        ]) ?>
-
-        <?php // --- Section Règle de rotation --- ?>
-        <div class="card border-warning mb-4">
-            <div class="card-header bg-warning text-dark">
-                <i class="bi bi-arrow-repeat"></i> Règle de rotation
-            </div>
-            <div class="card-body">
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="user-tab-identity" role="tabpanel" aria-labelledby="user-tab-identity-btn">
+            <section class="crud-section">
+                <h2 class="crud-section-title">Informations générales</h2>
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label"><i class="bi bi-arrow-repeat"></i> Règle de rotation</label>
+                        <label class="form-label">Rôle</label>
+                        <?= $this->Form->control('role_id', [
+                            'options' => $roles,
+                            'label' => false,
+                            'empty' => 'Choisir...',
+                            'class' => 'form-control'
+                        ]) ?>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Code Utilisateur</label>
+                        <?= $this->Form->control('user_code', [
+                            'label' => false,
+                            'class' => 'form-control'
+                        ]) ?>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Nom</label>
+                        <?= $this->Form->control('last_name', [
+                            'label' => false,
+                            'class' => 'form-control'
+                        ]) ?>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Prénom</label>
+                        <?= $this->Form->control('first_name', [
+                            'label' => false,
+                            'class' => 'form-control'
+                        ]) ?>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Site</label>
+                        <?= $this->Form->control('site_id', [
+                            'options' => $sites,
+                            'label' => false,
+                            'empty' => 'Choisir...',
+                            'class' => 'form-control'
+                        ]) ?>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Email</label>
+                        <?= $this->Form->control('email', [
+                            'label' => false,
+                            'class' => 'form-control'
+                        ]) ?>
+                    </div>
+                </div>
+            </section>
+            <?= $this->element('users/password', ['required' => false]) ?>
+        </div>
+
+        <div class="tab-pane fade" id="user-tab-contracts" role="tabpanel" aria-labelledby="user-tab-contracts-btn">
+            <?= $this->element('users/contracts', [
+                'userContracts' => $userContracts,
+            ]) ?>
+            <?= $this->element('users/contractual_availabilities', ['days' => $days]) ?>
+        </div>
+
+        <div class="tab-pane fade" id="user-tab-remote" role="tabpanel" aria-labelledby="user-tab-remote-btn">
+            <?= $this->element('users/remote_work', [
+                'remoteWorkSetting' => $remoteWorkSetting,
+                'fixedDays' => $fixedDays,
+                'timeStart' => $timeStart,
+                'timeEnd' => $timeEnd,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'daysOfWeek' => $daysOfWeek,
+                'userId' => (int)$user->id,
+            ]) ?>
+        </div>
+
+        <div class="tab-pane fade" id="user-tab-skills" role="tabpanel" aria-labelledby="user-tab-skills-btn">
+            <?= $this->element('users/skills', [
+                'offers' => $offers,
+                'userSkills' => $userSkills,
+            ]) ?>
+        </div>
+
+        <div class="tab-pane fade" id="user-tab-rotation" role="tabpanel" aria-labelledby="user-tab-rotation-btn">
+            <section class="crud-section">
+                <h2 class="crud-section-title">Règle de rotation</h2>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Règle de rotation</label>
                         <?= $this->Form->control('rotation_rule.rotation_rule_id', [
                             'type' => 'select',
                             'options' => ['' => '— Aucune —'] + $rotationRules,
@@ -138,7 +134,7 @@
                         <small class="text-muted">Modèle de rotation (1-1). L’éligibilité de chaque ligne (tel, livechat…) dépend des compétences (offres) de l’agent.</small>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label"><i class="bi bi-123"></i> Cible override (optionnel)</label>
+                        <label class="form-label">Cible personnalisée (optionnel)</label>
                         <?= $this->Form->control('rotation_rule.target_count_override', [
                             'type' => 'number',
                             'label' => false,
@@ -150,22 +146,21 @@
                         <small class="text-muted">Surcharge la cible de la ligne quota du modèle (ex: 2 au lieu de 3). Sans effet sur les lignes couverture.</small>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
-
-        <?php // --- Boutons d'action --- ?>
-        <div class="mt-3">
-            <?= $this->Form->button('<i class="bi bi-save mr-2"></i> Enregistrer', [
-                'class' => 'btn btn-primary mr-3',
-                'escapeTitle' => false
-            ]) ?>
-            <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-2"></i> Annuler',
-                ['action' => 'index'],
-                ['class' => 'btn btn-outline-secondary', 'escape' => false]
-            ) ?>
-        </div>
-        
-        <?= $this->Form->end() ?>
     </div>
+
+    <div class="crud-actions-bar">
+        <?= $this->Form->button('<i class="bi bi-save me-2"></i> Enregistrer', [
+            'class' => 'btn btn-primary',
+            'escapeTitle' => false
+        ]) ?>
+        <?= $this->Html->link(
+            '<i class="bi bi-x-circle me-2"></i> Annuler',
+            ['action' => 'index'],
+            ['class' => 'btn btn-outline-secondary', 'escape' => false]
+        ) ?>
+    </div>
+
+    <?= $this->Form->end() ?>
 </div>

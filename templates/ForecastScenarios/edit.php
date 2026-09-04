@@ -11,57 +11,55 @@
 
 
 
-<div class="forecast-scenarios edit content card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="mb-0">
-            <i class="bi bi-pencil text-primary"></i>
+<div class="crud-app forecast-scenarios form content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-pencil"></i>
             Éditer Scénario #<?= h($scenario->id) ?> — <?= h($scenario->name) ?>
-        </h3>
-        <div>
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-1"></i> Annuler',
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body">
-        <?php 
+        <?php
         // Map méthode par offre pour pré-remplir les sélecteurs
         $methodsByOffer = [];
         foreach ($scenario->forecast_scenarios_offers as $link) {
             $methodsByOffer[(int)$link->offer_id] = $link->forecast_method ?? 'historical';
         }
         ?>
-        <?php // --- Alerte statut actuel --- ?>
-        <div class="alert alert-info mb-4">
-            <div class="d-flex align-items-center">
-                <i class="bi bi-info-circle mr-3" style="font-size: 1.5rem;"></i>
-                <div>
-                    <strong>Statut actuel : <?= h(ucfirst($scenario->status)) ?></strong><br>
-                    <small>⚠️ La modification d'un scénario le repassera en statut <strong>Draft</strong>. Il faudra relancer un calcul.</small>
-                </div>
+        <?php
+        $statusLabels = [
+            'draft' => 'Brouillon',
+            'queued' => 'En file',
+            'running' => 'En cours',
+            'completed' => 'Terminé',
+            'failed' => 'Échec',
+        ];
+        ?>
+        <div class="crud-notice">
+            <div>
+                <strong>Statut actuel : <?= h($statusLabels[$scenario->status] ?? (string)$scenario->status) ?></strong>
+                — La modification d'un scénario le repassera en statut <strong>Brouillon</strong>. Il faudra relancer un calcul.
             </div>
         </div>
 
         <?= $this->Form->create($scenario) ?>
-        
-        <?php // ========== ACCORDION STRUCTURE ========== ?>
+
         <div class="accordion" id="scenarioAccordion">
-            
-            <?php // ========== 1. INFORMATIONS GÉNÉRALES ========== ?>
-            <div class="card mb-3 border-primary">
-                <div class="card-header bg-primary text-white" id="heading1">
-                    <h5 class="mb-0">
-                        <button class="btn btn-link text-white text-decoration-none w-100 text-left" type="button" 
-                                data-toggle="collapse" data-target="#collapse1" aria-expanded="true">
-                            <i class="bi bi-info-circle"></i> 1. Informations Générales
-                            <i class="bi bi-chevron-down float-right"></i>
-                        </button>
-                    </h5>
-                </div>
+
+            <section class="crud-section" id="heading1">
+                <h2 class="crud-section-title">
+                    <button class="btn btn-link text-decoration-none p-0" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="true">
+                        1. Informations Générales
+                    </button>
+                </h2>
                 <div id="collapse1" class="collapse show" aria-labelledby="heading1" data-parent="#scenarioAccordion">
-                    <div class="card-body">
                         <?= $this->Form->control('name', ['label' => 'Nom du scénario', 'class' => 'form-control']) ?>
                         <div class="row mt-3">
                             <div class="col-md-6">
@@ -136,23 +134,17 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
                 </div>
-            </div>
-            
-            <?php // ========== 2. OFFRES CONCERNÉES & MÉTHODE PAR OFFRE ========== ?>
-            <div class="card mb-3 border-success">
-                <div class="card-header bg-success text-white" id="heading2">
-                    <h5 class="mb-0">
-                        <button class="btn btn-link text-white text-decoration-none w-100 text-left collapsed" type="button" 
-                                data-toggle="collapse" data-target="#collapse2" aria-expanded="false">
-                            <i class="bi bi-tags"></i> 2. Offres Concernées
-                            <i class="bi bi-chevron-down float-right"></i>
-                        </button>
-                    </h5>
-                </div>
+            </section>
+
+            <section class="crud-section" id="heading2">
+                <h2 class="crud-section-title">
+                    <button class="btn btn-link text-decoration-none p-0 collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false">
+                        2. Offres Concernées
+                    </button>
+                </h2>
                 <div id="collapse2" class="collapse" aria-labelledby="heading2" data-parent="#scenarioAccordion">
-                    <div class="card-body">
                         <p class="small text-muted">
                             Cochez les offres à inclure dans le scénario et choisissez, pour chacune,
                             si les prévisions doivent être calculées en <strong>Moyenne historique</strong> ou avec <strong>Prophet</strong>.
@@ -237,7 +229,7 @@
                                         <tr>
                                             <td><strong><?= h($offers[$offerId] ?? "Offre #{$offerId}") ?></strong></td>
                                             <td class="text-center">
-                                                <span class="badge badge-<?= $volatility['level'] === 'high' ? 'danger' : ($volatility['level'] === 'medium' ? 'warning' : ($volatility['level'] === 'low' ? 'success' : 'secondary')) ?> badge-lg">
+                                                <span class="badge bg-<?= $volatility['level'] === 'high' ? 'danger' : ($volatility['level'] === 'medium' ? 'warning' : ($volatility['level'] === 'low' ? 'success' : 'secondary')) ?> badge-lg">
                                                     <?= h($volatility['coefficient']) ?>%
                                                 </span>
                                             </td>
@@ -277,39 +269,30 @@
                             </div>
                         </div>
                         <?php endif; ?>
-                    </div>
                 </div>
-            </div>
-            
-            <?php // (Section 3 supprimée: la méthode est maintenant choisie par offre dans la section 2) ?>
+            </section>
         </div>
 
-        <?php // ========== BOUTONS D'ACTION ========== ?>
-        <div class="mt-4 d-flex justify-content-between align-items-center p-3 bg-light border rounded">
-            <div>
-                <?= $this->Html->link(
-                    '<i class="bi bi-arrow-left"></i> Annuler', 
-                    ['action' => 'view', $scenario->id], 
-                    ['class' => 'btn btn-secondary', 'escape' => false]
-                ) ?>
-            </div>
-            <div>
-                <?= $this->Form->button('<i class="bi bi-save"></i> Enregistrer les modifications', [
-                    'class' => 'btn btn-primary btn-lg',
-                    'escapeTitle' => false
-                ]) ?>
-            </div>
+        <div class="crud-actions-bar">
+            <?= $this->Form->button('<i class="bi bi-save me-2"></i> Enregistrer les modifications', [
+                'class' => 'btn btn-primary',
+                'escapeTitle' => false
+            ]) ?>
+            <?= $this->Html->link(
+                '<i class="bi bi-x-circle me-2"></i> Annuler',
+                ['action' => 'view', $scenario->id],
+                ['class' => 'btn btn-outline-secondary', 'escape' => false]
+            ) ?>
         </div>
-        
+
         <?= $this->Form->end() ?>
-    </div>
 </div>
 
 <?php $this->Html->scriptStart(['block' => true]); ?>
 // JS simplifié : UI Prophet avancée supprimée, on conserve uniquement
 // le petit comportement visuel des chevrons sur les accordéons.
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('[data-toggle="collapse"]').forEach(function(button) {
+    document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function(button) {
         button.addEventListener('click', function() {
             const icon = this.querySelector('.bi-chevron-right, .bi-chevron-down');
             if (icon) {

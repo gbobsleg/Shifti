@@ -7,53 +7,50 @@
 
 
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-pencil text-primary"></i>
+<div class="crud-app fixed-activity-rules form content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-pencil"></i>
             <?= $rule->isNew() ? 'Nouvelle règle d\'activité fixe' : 'Éditer règle #' . h($rule->id) ?>
-        </h3>
-        <div class="d-flex align-items-center">
+        </h1>
+        <div class="crud-header-actions">
             <input type="hidden" name="active" value="0" form="rule-form">
-            <div class="custom-control custom-switch mr-3">
-                <input type="checkbox" class="custom-control-input" id="active-switch" name="active" value="1" form="rule-form" <?= $rule->active ? 'checked' : '' ?>>
-                <label class="custom-control-label" for="active-switch">
-                    <i class="bi bi-power"></i> Actif
-                </label>
+            <div class="form-check form-switch">
+                <input type="checkbox" class="form-check-input" id="active-switch" name="active" value="1" form="rule-form" <?= $rule->active ? 'checked' : '' ?>>
+                <label class="form-check-label" for="active-switch">Actif</label>
             </div>
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-1"></i> Annuler',
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body">
         <?= $this->Form->create($rule, ['id' => 'rule-form']) ?>
 
         <ul class="nav nav-tabs mb-4" id="rule-tabs" role="tablist">
             <li class="nav-item">
-                <a class="nav-link active" id="tab-scope-tab" data-toggle="tab" href="#tab-scope" role="tab" aria-controls="tab-scope" aria-selected="true">
+                <a class="nav-link active" id="tab-scope-tab" data-bs-toggle="tab" href="#tab-scope" role="tab" aria-controls="tab-scope" aria-selected="true">
                     <i class="bi bi-info-circle"></i> Portée &amp; activité
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" id="tab-schedule-tab" data-toggle="tab" href="#tab-schedule" role="tab" aria-controls="tab-schedule" aria-selected="false">
+                <a class="nav-link" id="tab-schedule-tab" data-bs-toggle="tab" href="#tab-schedule" role="tab" aria-controls="tab-schedule" aria-selected="false">
                     <i class="bi bi-clock"></i> Horaires &amp; fréquence
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" id="tab-equity-tab" data-toggle="tab" href="#tab-equity" role="tab" aria-controls="tab-equity" aria-selected="false">
+                <a class="nav-link" id="tab-equity-tab" data-bs-toggle="tab" href="#tab-equity" role="tab" aria-controls="tab-equity" aria-selected="false">
                     <i class="bi bi-people"></i> Couverture &amp; équité
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" id="tab-planning-tab" data-toggle="tab" href="#tab-planning" role="tab" aria-controls="tab-planning" aria-selected="false">
+                <a class="nav-link" id="tab-planning-tab" data-bs-toggle="tab" href="#tab-planning" role="tab" aria-controls="tab-planning" aria-selected="false">
                     <i class="bi bi-calendar2-range"></i> Planification &amp; repas
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" id="tab-incompat-tab" data-toggle="tab" href="#tab-incompat" role="tab" aria-controls="tab-incompat" aria-selected="false">
+                <a class="nav-link" id="tab-incompat-tab" data-bs-toggle="tab" href="#tab-incompat" role="tab" aria-controls="tab-incompat" aria-selected="false">
                     <i class="bi bi-x-octagon"></i> Incompatibilités
                 </a>
             </li>
@@ -406,21 +403,19 @@
             </div>
         </div>
 
-        <?php // --- Boutons d'action (barre sticky) --- ?>
-        <div class="mt-3 p-3 border-top" style="position: sticky; bottom: 0; background: #fff; z-index: 10;">
-            <?= $this->Form->button('<i class="bi bi-save mr-2"></i> Enregistrer', [
-                'class' => 'btn btn-primary mr-3',
+        <div class="crud-actions-bar">
+            <?= $this->Form->button('<i class="bi bi-save me-2"></i> Enregistrer', [
+                'class' => 'btn btn-primary',
                 'escapeTitle' => false
             ]) ?>
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-2"></i> Annuler',
+                '<i class="bi bi-x-circle me-2"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
 
         <?= $this->Form->end() ?>
-    </div>
 </div>
 
 <?php $this->Html->scriptStart(['block' => true]); ?>

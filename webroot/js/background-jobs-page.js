@@ -10,6 +10,17 @@
         forecast: 'Prévision',
         planning: 'Planning'
     };
+    var STATUS_LABELS = {
+        running: 'En cours',
+        queued: 'En file',
+        completed: 'Terminé',
+        finished: 'Terminé',
+        failed: 'Échec',
+        error: 'Erreur',
+        infeasible: 'Infaisable',
+        finished_with_errors: 'Terminé avec erreurs',
+        cancelled: 'Annulé'
+    };
 
     function qs(root, sel) {
         return root ? root.querySelector(sel) : null;
@@ -24,21 +35,21 @@
     function statusBadgeClass(status) {
         switch (String(status || '')) {
             case 'running':
-                return 'badge-primary';
+                return 'bg-primary';
             case 'queued':
-                return 'badge-warning';
+                return 'bg-warning';
             case 'completed':
             case 'finished':
-                return 'badge-success';
+                return 'bg-success';
             case 'failed':
             case 'error':
             case 'infeasible':
             case 'finished_with_errors':
-                return 'badge-danger';
+                return 'bg-danger';
             case 'cancelled':
-                return 'badge-secondary';
+                return 'bg-secondary';
             default:
-                return 'badge-secondary';
+                return 'bg-secondary';
         }
     }
 
@@ -58,7 +69,7 @@
 
     function renderActiveRows(items) {
         if (!items || !items.length) {
-            return '<tr><td colspan="7" class="text-muted text-center py-4">Aucun job actif.</td></tr>';
+            return '<tr><td colspan="7" class="crud-empty">Aucune tâche active.</td></tr>';
         }
         return items.map(function (item) {
             var type = TYPE_LABELS[item.type] || item.type || '—';
@@ -73,26 +84,29 @@
             var url = item.url || '#';
             var rowClass = isActiveStatus(status) ? 'table-row-active' : '';
             var actions =
-                '<a class="btn btn-sm btn-outline-primary" href="' + esc(url) + '">Ouvrir</a>';
+                '<a class="crud-action" href="' + esc(url) + '" title="Ouvrir" aria-label="Ouvrir">' +
+                '<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>';
             var canCancel = item.can_cancel === true || item.can_cancel === 1 || item.can_cancel === '1';
             if (!canCancel && item.type === 'optuna' && isActiveStatus(status) && item.id) {
                 canCancel = true;
             }
             if (canCancel && item.id) {
                 actions +=
-                    ' <button type="button" class="btn btn-sm btn-outline-danger ml-1"' +
-                    ' data-bj-cancel-optuna="' + esc(item.id) + '">Annuler</button>';
+                    ' <button type="button" class="crud-action crud-action-danger border-0 bg-transparent"' +
+                    ' title="Annuler" aria-label="Annuler"' +
+                    ' data-bj-cancel-optuna="' + esc(item.id) + '">' +
+                    '<i class="bi bi-x-circle" aria-hidden="true"></i></button>';
             }
 
             return (
                 '<tr class="' + rowClass + '">' +
-                    '<td><span class="badge badge-light border">' + esc(type) + '</span></td>' +
-                    '<td>' + esc(label) + err + '</td>' +
-                    '<td><span class="badge ' + statusBadgeClass(status) + '">' + esc(status) + '</span></td>' +
+                    '<td>' + esc(type) + '</td>' +
+                    '<td><a class="crud-row-link" href="' + esc(url) + '">' + esc(label) + '</a>' + err + '</td>' +
+                    '<td><span class="badge ' + statusBadgeClass(status) + '">' + esc(STATUS_LABELS[status] || status) + '</span></td>' +
                     '<td class="small">' + esc(progress) + '</td>' +
                     '<td class="small text-nowrap">' + esc(started) + '</td>' +
                     '<td class="small text-nowrap">' + esc(finished) + '</td>' +
-                    '<td>' + actions + '</td>' +
+                    '<td class="actions">' + actions + '</td>' +
                 '</tr>'
             );
         }).join('');

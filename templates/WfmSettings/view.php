@@ -9,15 +9,11 @@
 
 <?php
 $isStrict = $wfmSetting->strict_work_hours === null || $wfmSetting->strict_work_hours;
-$badgeClass = $isStrict ? 'badge-danger' : 'badge-success';
-$icon = $isStrict ? 'bi-lock' : 'bi-unlock';
-$label = $isStrict ? 'Strict' : 'Flexible';
+$strictLabel = $isStrict ? 'Strict (pas de fin anticipée)' : 'Flexible (fin anticipée autorisée)';
 
-// Drapeaux pour les pauses
 $breaksEnabled = $wfmSetting->enable_am_pm_breaks === null || $wfmSetting->enable_am_pm_breaks;
 $forbidSingletons = (bool)($wfmSetting->forbid_midday_singletons ?? false);
 
-// Paramètres Prophet par défaut (décodés une fois pour la vue)
 $prophetDefaults = [
     'history_start_date' => null,
     'history_end_date' => null,
@@ -44,513 +40,364 @@ if (is_string($rawProphet) && $rawProphet !== '') {
 } elseif (is_array($rawProphet)) {
     $prophetDefaults = array_merge($prophetDefaults, $rawProphet);
 }
+
+$dayNames = [
+    1 => 'Lundi',
+    2 => 'Mardi',
+    3 => 'Mercredi',
+    4 => 'Jeudi',
+    5 => 'Vendredi',
+    6 => 'Samedi',
+    7 => 'Dimanche',
+];
+$workedDays = $wfmSetting->worked_days_json ?? [];
+if (is_string($workedDays)) {
+    $workedDays = json_decode($workedDays, true) ?? [];
+}
+$workedDaysLabel = 'Non configuré';
+if (!empty($workedDays) && is_array($workedDays)) {
+    $workedDaysLabel = implode(', ', array_map(fn($d) => $dayNames[(int)$d] ?? $d, $workedDays));
+}
+
+$pauseOfferName = $wfmSetting->pause_offer->name ?? null;
+$lunchOfferName = $wfmSetting->lunch_offer->name ?? null;
+
+$optunaSettings = $optunaSettings ?? \App\Service\ProphetOptunaConfig::DEFAULTS;
+
+$solver = $wfmSetting->solver_settings_json;
+$solverDefaults = ['global' => 300, 'pass1' => 60, 'pass1_5' => 30, 'pass2' => 195];
+$g = $solver['global'] ?? $solverDefaults['global'];
+$p1 = $solver['pass1'] ?? $solverDefaults['pass1'];
+$p15 = $solver['pass1_5'] ?? $solverDefaults['pass1_5'];
+$p2 = $solver['pass2'] ?? $solverDefaults['pass2'];
+$sum = $p1 + $p15 + $p2;
+$limit = (int)$g - 15;
+$budgetOk = $sum <= $limit;
 ?>
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-gear text-primary"></i>
+<div class="crud-app wfm-settings view crud-app-wide content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-gear"></i>
             <?= h($wfmSetting->name) ?>
-            <span class="badge <?= $badgeClass ?> ml-2">
-                <i class="bi <?= $icon ?>"></i> <?= $label ?>
-            </span>
-        </h3>
-        <div class="btn-toolbar">
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-pencil mr-1"></i> Modifier',
+                '<i class="bi bi-pencil me-1"></i> Modifier',
                 ['action' => 'edit', $wfmSetting->id],
-                ['class' => 'btn btn-primary mr-2', 'escape' => false]
-            ) ?>
-            <?= $this->Form->postLink(
-                '<i class="bi bi-trash mr-1"></i> Supprimer',
-                ['action' => 'delete', $wfmSetting->id],
-                ['confirm' => 'Voulez-vous vraiment supprimer ce profil ?', 'class' => 'btn btn-danger mr-2', 'escape' => false]
+                ['class' => 'btn btn-primary', 'escape' => false]
             ) ?>
             <?= $this->Html->link(
-                '<i class="bi bi-list mr-1"></i> Liste',
+                '<i class="bi bi-list me-1"></i> Liste',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
+            ) ?>
+            <?= $this->Form->postLink(
+                '<i class="bi bi-trash me-1"></i> Supprimer',
+                ['action' => 'delete', $wfmSetting->id],
+                ['confirm' => 'Voulez-vous vraiment supprimer ce profil ?', 'class' => 'btn btn-outline-danger', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body">
-        <div class="row">
-            <?php // --- Qualité de Service --- ?>
-            <div class="col-md-6 mb-4">
-                <div class="card border-success">
-                    <div class="card-header bg-success text-white">
-                        <i class="bi bi-graph-up"></i> Qualité de Service
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="text-muted small mb-1"><i class="bi bi-percent"></i> Objectif QS</label>
-                            <div>
-                                <span class="badge badge-success" style="font-size: 1.2rem;">
-                                    <?= $this->Number->format($wfmSetting->service_level_percent) ?>%
-                                </span>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="text-muted small mb-1"><i class="bi bi-clock"></i> Délai QS</label>
-                            <div>
-                                <span class="badge badge-info" style="font-size: 1.2rem;">
-                                    <?= $this->Number->format($wfmSetting->service_level_seconds) ?>s
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">Qualité de service</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Objectif QS</dt>
+                <dd><?= $this->Number->format($wfmSetting->service_level_percent) ?>%</dd>
             </div>
-
-            <?php // --- Plage horaire de production --- ?>
-            <div class="col-md-6 mb-4">
-                <div class="card border-info">
-                    <div class="card-header bg-info text-white">
-                        <i class="bi bi-clock-history"></i> Plage horaire de production
-                    </div>
-                    <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-md-4">
-                                <label class="text-muted small mb-1">
-                                    <i class="bi bi-sunrise"></i> Début de journée
-                                </label>
-                                <div>
-                                    <span class="badge badge-primary" style="font-size: 1.1rem;">
-                                        <?= h($wfmSetting->day_start_time ?? 'N/A') ?>
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="text-muted small mb-1">
-                                    <i class="bi bi-arrow-left-right"></i> Pivot Matin/Après-midi
-                                </label>
-                                <div>
-                                    <span class="badge badge-warning" style="font-size: 1.1rem;">
-                                        <?= h($wfmSetting->half_day_pivot ?? '13:00:00') ?>
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="text-muted small mb-1">
-                                    <i class="bi bi-sunset"></i> Fin de journée
-                                </label>
-                                <div>
-                                    <span class="badge badge-primary" style="font-size: 1.1rem;">
-                                        <?= h($wfmSetting->day_end_time ?? 'N/A') ?>
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-md-4">
-                                <label class="text-muted small mb-1">
-                                    <i class="bi bi-grid-3x3"></i> Pas de grille (slot)
-                                </label>
-                                <div>
-                                    <span class="badge badge-secondary" style="font-size: 1.1rem;">
-                                        <?= (int)$slotMinutes ?> min
-                                    </span>
-                                </div>
-                                <small class="text-muted d-block mt-1">
-                                    fixe pour l'instant — non modifiable (prévisions, grille, solveurs)
-                                </small>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="text-muted small mb-1">
-                                <i class="bi bi-calendar-week"></i> Jours travaillés
-                            </label>
-                            <div>
-                                <?php
-                                $dayNames = [
-                                    1 => 'Lundi',
-                                    2 => 'Mardi',
-                                    3 => 'Mercredi',
-                                    4 => 'Jeudi',
-                                    5 => 'Vendredi',
-                                    6 => 'Samedi',
-                                    7 => 'Dimanche',
-                                ];
-                                $workedDays = $wfmSetting->worked_days_json ?? [];
-                                if (is_string($workedDays)) {
-                                    $workedDays = json_decode($workedDays, true) ?? [];
-                                }
-                                if (!empty($workedDays) && is_array($workedDays)) {
-                                    $workedDayNames = array_map(fn($d) => $dayNames[(int)$d] ?? $d, $workedDays);
-                                    echo '<span class="badge badge-info" style="font-size: 1rem;">' . h(implode(', ', $workedDayNames)) . '</span>';
-                                } else {
-                                    echo '<span class="text-muted">Non configuré</span>';
-                                }
-                                ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div>
+                <dt>Délai QS</dt>
+                <dd><?= $this->Number->format($wfmSetting->service_level_seconds) ?>s</dd>
             </div>
-        </div>
+        </dl>
+    </section>
 
-        <div class="row">
-            <?php // --- Règles Générales --- ?>
-            <div class="col-md-6 mb-4">
-                <div class="card border-warning">
-                    <div class="card-header bg-warning text-dark">
-                        <i class="bi bi-sliders"></i> Règles Générales
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="text-muted small mb-1"><i class="bi bi-percent"></i> Shrinkage planifié</label>
-                            <div>
-                                <span class="badge badge-warning" style="font-size: 1.2rem;">
-                                    <?= $this->Number->format($wfmSetting->shrinkage_percent) ?>%
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="text-muted small mb-1"><i class="bi bi-hourglass-split"></i> Durée min bloc travail</label>
-                            <div><?= $this->Number->format($wfmSetting->min_block_minutes) ?> minutes</div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="text-muted small mb-1"><i class="bi bi-hourglass"></i> Durée max bloc travail</label>
-                            <div><?= $this->Number->format($wfmSetting->max_block_minutes) ?> minutes</div>
-                        </div>
-
-                        <div class="mb-2">
-                            <label class="text-muted small mb-1">
-                                <i class="bi bi-lock"></i> Journée stricte (fin anticipée)
-                            </label>
-                            <div>
-                                <span class="badge <?= $isStrict ? 'badge-danger' : 'badge-success' ?>">
-                                    <i class="bi <?= $isStrict ? 'bi-lock' : 'bi-unlock' ?>"></i>
-                                    <?= $isStrict ? 'Strict (pas de fin anticipée)' : 'Flexible (fin anticipée autorisée)' ?>
-                                </span>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="text-muted small mb-1">
-                                <i class="bi bi-exclamation-octagon"></i> Interdire les blocs isolés 12h–14h
-                            </label>
-                            <div>
-                                <span class="badge <?= $forbidSingletons ? 'badge-warning' : 'badge-secondary' ?>">
-                                    <i class="bi <?= $forbidSingletons ? 'bi-shield-exclamation' : 'bi-slash-circle' ?>"></i>
-                                    <?= $forbidSingletons ? 'Activé' : 'Désactivé' ?>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Plage horaire de production</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Début de journée</dt>
+                <dd><?= h($wfmSetting->day_start_time ?? '—') ?></dd>
             </div>
-        </div>
-
-        <?php // --- Pauses --- ?>
-            <div class="card border-info mb-4">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-cup-hot"></i> Configuration des Pauses
+            <div>
+                <dt>Pivot matin / après-midi</dt>
+                <dd><?= h($wfmSetting->half_day_pivot ?? '13:00:00') ?></dd>
             </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="text-muted small mb-1"><i class="bi bi-toggle-on"></i> Planifier les pauses AM/PM</label>
-                    <div>
-                        <span class="badge <?= $breaksEnabled ? 'badge-success' : 'badge-secondary' ?>">
-                            <i class="bi <?= $breaksEnabled ? 'bi-check-circle' : 'bi-x-circle' ?>"></i>
-                            <?= $breaksEnabled ? 'Oui' : 'Non' ?>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="text-muted small mb-1"><i class="bi bi-cup-fill"></i> Offre utilisée pour les pauses AM/PM</label>
-                    <div>
-                        <?php
-                        $pauseOfferName = $wfmSetting->pause_offer->name ?? null;
-                        ?>
-                        <?php if ($pauseOfferName): ?>
-                            <span class="badge badge-primary">
-                                <i class="bi bi-tag"></i> <?= h($pauseOfferName) ?>
-                            </span>
-                        <?php else: ?>
-                            <span class="text-muted">Aucune offre de pauses définie</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="text-muted small mb-1"><i class="bi bi-egg-fried"></i> Offre utilisée pour le repas</label>
-                    <div>
-                        <?php
-                        $lunchOfferName = $wfmSetting->lunch_offer->name ?? null;
-                        ?>
-                        <?php if ($lunchOfferName): ?>
-                            <span class="badge badge-primary">
-                                <i class="bi bi-tag"></i> <?= h($lunchOfferName) ?>
-                            </span>
-                        <?php else: ?>
-                            <span class="text-muted">Aucune offre de repas définie</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="text-muted small mb-1"><i class="bi bi-sunrise"></i> Pause Matin (AM)</label>
-                        <div>
-                            <strong><?= $this->Number->format($wfmSetting->am_pause_duration_minutes) ?> min</strong>
-                            <br>
-                            <small class="text-muted">
-                                Entre <?= h($wfmSetting->am_pause_start_time) ?> et <?= h($wfmSetting->am_pause_end_time) ?>
-                            </small>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="text-muted small mb-1"><i class="bi bi-brightness-high"></i> Pause Déjeuner</label>
-                        <div>
-                            <strong><?= $this->Number->format($wfmSetting->lunch_duration_minutes) ?> min</strong>
-                            <br>
-                            <small class="text-muted">
-                                Entre <?= h($wfmSetting->lunch_start_time) ?> et <?= h($wfmSetting->lunch_end_time) ?>
-                            </small>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="text-muted small mb-1"><i class="bi bi-sunset"></i> Pause Après-Midi (PM)</label>
-                        <div>
-                            <strong><?= $this->Number->format($wfmSetting->pm_pause_duration_minutes) ?> min</strong>
-                            <br>
-                            <small class="text-muted">
-                                Entre <?= h($wfmSetting->pm_pause_start_time) ?> et <?= h($wfmSetting->pm_pause_end_time) ?>
-                            </small>
-                        </div>
-                    </div>
-                </div>
+            <div>
+                <dt>Fin de journée</dt>
+                <dd><?= h($wfmSetting->day_end_time ?? '—') ?></dd>
             </div>
-        </div>
-
-        <?php // --- Paramètres Prophet par défaut (système) --- ?>
-        <div class="card border-info mb-4">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-stars"></i> Paramètres Prophet par défaut (profil système)
-                </h5>
+            <div>
+                <dt>Pas de grille (slot)</dt>
+                <dd>
+                    <?= (int)$slotMinutes ?> min
+                    <div class="text-muted small">fixe pour l'instant — non modifiable (prévisions, grille, solveurs)</div>
+                </dd>
             </div>
-            <div class="card-body">
-                <p class="text-muted small">
-                    Ces paramètres servent de base à tous les profils Prophet par offre.  
-                    Ils sont utilisés lorsqu'un profil d'offre est incomplet ou non défini.
-                </p>
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6 class="text-primary">Modèle & changements</h6>
-                        <ul class="list-unstyled small mb-2">
-                            <li><strong>Mode:</strong> <?= h($prophetDefaults['seasonality_mode']) ?></li>
-                            <li><strong>n_changepoints:</strong> <?= h($prophetDefaults['n_changepoints']) ?></li>
-                            <li><strong>changepoint_prior_scale:</strong> <?= h($prophetDefaults['changepoint_prior_scale']) ?></li>
-                            <li><strong>seasonality_prior_scale:</strong> <?= h($prophetDefaults['seasonality_prior_scale']) ?></li>
-                            <li><strong>monthly_fourier_order:</strong> <?= h($prophetDefaults['monthly_fourier_order']) ?></li>
-                        </ul>
-                        <h6 class="text-primary">Plage historique (si définie)</h6>
-                        <p class="small mb-0">
-                            <?php if ($prophetDefaults['history_start_date'] || $prophetDefaults['history_end_date']): ?>
-                                <?= h($prophetDefaults['history_start_date'] ?? 'début auto') ?> →
-                                <?= h($prophetDefaults['history_end_date'] ?? 'fin auto') ?>
-                            <?php else: ?>
-                                <span class="text-muted">Historique complet</span>
-                            <?php endif; ?>
-                        </p>
-                    </div>
-                    <div class="col-md-6">
-                        <h6 class="text-primary">Saisonnalités & jours fériés</h6>
-                        <ul class="list-unstyled small mb-0">
-                            <?php
-                            $flags = [
-                                'yearly_seasonality' => 'Annuelle',
-                                'weekly_seasonality' => 'Hebdomadaire',
-                                'monthly_seasonality' => 'Mensuelle',
-                                'daily_seasonality' => 'Journalière',
-                            ];
-                            foreach ($flags as $key => $labelFlag):
-                                $enabled = (bool)$prophetDefaults[$key];
-                            ?>
-                                <li>
-                                    <strong><?= h($labelFlag) ?>:</strong>
-                                    <span class="badge badge-<?= $enabled ? 'success' : 'light' ?>">
-                                        <?= $enabled ? 'Activée' : 'Désactivée' ?>
-                                    </span>
-                                </li>
-                            <?php endforeach; ?>
-                            <?php $hol = (bool)$prophetDefaults['use_french_holidays']; ?>
-                            <li class="mt-1">
-                                <strong>Jours fériés FR:</strong>
-                                <span class="badge badge-<?= $hol ? 'success' : 'light' ?>">
-                                    <?= $hol ? 'Pris en compte' : 'Ignorés' ?>
-                                </span>
-                            </li>
-                        </ul>
-                    </div>
+            <div>
+                <dt>Jours travaillés</dt>
+                <dd><?= h($workedDaysLabel) ?></dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">Règles générales</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Shrinkage planifié</dt>
+                <dd><?= $this->Number->format($wfmSetting->shrinkage_percent) ?>%</dd>
+            </div>
+            <div>
+                <dt>Durée min bloc travail</dt>
+                <dd><?= $this->Number->format($wfmSetting->min_block_minutes) ?> minutes</dd>
+            </div>
+            <div>
+                <dt>Durée max bloc travail</dt>
+                <dd><?= $this->Number->format($wfmSetting->max_block_minutes) ?> minutes</dd>
+            </div>
+            <div>
+                <dt>Journée stricte (fin anticipée)</dt>
+                <dd><?= h($strictLabel) ?></dd>
+            </div>
+            <div>
+                <dt>Interdire les blocs isolés 12h–14h</dt>
+                <dd><?= $forbidSingletons ? 'Activé' : 'Désactivé' ?></dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">Configuration des pauses</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Planifier les pauses AM/PM</dt>
+                <dd><?= $breaksEnabled ? 'Oui' : 'Non' ?></dd>
+            </div>
+            <div>
+                <dt>Offre utilisée pour les pauses AM/PM</dt>
+                <dd><?= $pauseOfferName ? h($pauseOfferName) : 'Aucune offre de pauses définie' ?></dd>
+            </div>
+            <div>
+                <dt>Offre utilisée pour le repas</dt>
+                <dd><?= $lunchOfferName ? h($lunchOfferName) : 'Aucune offre de repas définie' ?></dd>
+            </div>
+            <div>
+                <dt>Pause matin (AM)</dt>
+                <dd>
+                    <?= $this->Number->format($wfmSetting->am_pause_duration_minutes) ?> min
+                    <div class="text-muted small">Entre <?= h($wfmSetting->am_pause_start_time) ?> et <?= h($wfmSetting->am_pause_end_time) ?></div>
+                </dd>
+            </div>
+            <div>
+                <dt>Pause déjeuner</dt>
+                <dd>
+                    <?= $this->Number->format($wfmSetting->lunch_duration_minutes) ?> min
+                    <div class="text-muted small">Entre <?= h($wfmSetting->lunch_start_time) ?> et <?= h($wfmSetting->lunch_end_time) ?></div>
+                </dd>
+            </div>
+            <div>
+                <dt>Pause après-midi (PM)</dt>
+                <dd>
+                    <?= $this->Number->format($wfmSetting->pm_pause_duration_minutes) ?> min
+                    <div class="text-muted small">Entre <?= h($wfmSetting->pm_pause_start_time) ?> et <?= h($wfmSetting->pm_pause_end_time) ?></div>
+                </dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">Paramètres Prophet par défaut (profil système)</h2>
+        <p class="text-muted">
+            Ces paramètres servent de base à tous les profils Prophet par offre.
+            Ils sont utilisés lorsqu'un profil d'offre est incomplet ou non défini.
+        </p>
+        <h3 class="crud-subsection-title">Modèle et changements</h3>
+        <dl class="crud-fields">
+            <div>
+                <dt>Mode</dt>
+                <dd><?= h($prophetDefaults['seasonality_mode']) ?></dd>
+            </div>
+            <div>
+                <dt>n_changepoints</dt>
+                <dd><?= h($prophetDefaults['n_changepoints']) ?></dd>
+            </div>
+            <div>
+                <dt>changepoint_prior_scale</dt>
+                <dd><?= h($prophetDefaults['changepoint_prior_scale']) ?></dd>
+            </div>
+            <div>
+                <dt>seasonality_prior_scale</dt>
+                <dd><?= h($prophetDefaults['seasonality_prior_scale']) ?></dd>
+            </div>
+            <div>
+                <dt>monthly_fourier_order</dt>
+                <dd><?= h($prophetDefaults['monthly_fourier_order']) ?></dd>
+            </div>
+            <div>
+                <dt>Plage historique</dt>
+                <dd>
+                    <?php if ($prophetDefaults['history_start_date'] || $prophetDefaults['history_end_date']): ?>
+                        <?= h($prophetDefaults['history_start_date'] ?? 'début auto') ?>
+                        →
+                        <?= h($prophetDefaults['history_end_date'] ?? 'fin auto') ?>
+                    <?php else: ?>
+                        Historique complet
+                    <?php endif; ?>
+                </dd>
+            </div>
+        </dl>
+        <h3 class="crud-subsection-title">Saisonnalités et jours fériés</h3>
+        <dl class="crud-fields">
+            <?php
+            $flags = [
+                'yearly_seasonality' => 'Annuelle',
+                'weekly_seasonality' => 'Hebdomadaire',
+                'monthly_seasonality' => 'Mensuelle',
+                'daily_seasonality' => 'Journalière',
+            ];
+            foreach ($flags as $key => $labelFlag):
+            ?>
+                <div>
+                    <dt><?= h($labelFlag) ?></dt>
+                    <dd><?= !empty($prophetDefaults[$key]) ? 'Activée' : 'Désactivée' ?></dd>
                 </div>
+            <?php endforeach; ?>
+            <div>
+                <dt>Jours fériés FR</dt>
+                <dd><?= !empty($prophetDefaults['use_french_holidays']) ? 'Pris en compte' : 'Ignorés' ?></dd>
             </div>
-        </div>
+        </dl>
+    </section>
 
-        <?php
-        $optunaSettings = $optunaSettings ?? \App\Service\ProphetOptunaConfig::DEFAULTS;
-        ?>
-        <div class="card border-warning mb-4">
-            <div class="card-header bg-warning">
-                <h5 class="mb-0"><i class="bi bi-cpu"></i> Tuning Optuna (moteur global)</h5>
-            </div>
-            <div class="card-body">
-                <p class="small text-muted mb-2">
-                    <?= \App\Service\ProphetOptunaConfig::fixedRulesHelpHtml() ?>
-                    Bornes = uniquement les 4 params tunables. Fuseau cron : Europe/Paris.
-                </p>
-                <?php if (!empty($optunaCronEstimate)): ?>
-                    <p class="small mb-2">
-                        Estimation vague :
-                        <?= (int)$optunaCronEstimate['enabled_offers'] ?> offre(s) ×
-                        <?= (int)$optunaCronEstimate['n_trials'] ?> trials ≈
-                        <strong><?= h($optunaCronEstimate['total_human']) ?></strong>
-                        <?php if (!empty($optunaCronEstimate['overflow_risk'])): ?>
-                            <span class="badge badge-warning">risque débordement journée</span>
-                        <?php endif; ?>
-                    </p>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Tuning Optuna (moteur global)</h2>
+        <p class="text-muted">
+            <?= \App\Service\ProphetOptunaConfig::fixedRulesHelpHtml() ?>
+            Bornes = uniquement les 4 params tunables. Fuseau cron : Europe/Paris.
+        </p>
+        <?php if (!empty($optunaCronEstimate)): ?>
+            <p class="text-muted">
+                Estimation vague :
+                <?= (int)$optunaCronEstimate['enabled_offers'] ?> offre(s) ×
+                <?= (int)$optunaCronEstimate['n_trials'] ?> trials ≈
+                <strong><?= h($optunaCronEstimate['total_human']) ?></strong>
+                <?php if (!empty($optunaCronEstimate['overflow_risk'])): ?>
+                    — risque de débordement journée
                 <?php endif; ?>
-                <div class="row small">
-                    <div class="col-md-6">
-                        <ul class="list-unstyled mb-0">
-                            <li><strong>Horizon test:</strong> <?= (int)$optunaSettings['test_horizon_days'] ?> j</li>
-                            <li><strong>Trials:</strong> <?= (int)$optunaSettings['n_trials'] ?></li>
-                            <li><strong>Cutoffs:</strong> <?= (int)$optunaSettings['n_cutoffs'] ?> (fixe V1)</li>
-                            <li><strong>Historique min:</strong> <?= (int)$optunaSettings['min_history_days'] ?> j</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <ul class="list-unstyled mb-0">
-                            <li><strong>Cron:</strong> <?= !empty($optunaSettings['cron_enabled']) ? 'ON' : 'OFF' ?>
-                                —
-                                <?php
-                                $wd = \App\Service\ProphetOptunaConfig::normalizeWeekdays($optunaSettings['cron_weekdays'] ?? [7]);
-                                $labels = [];
-                                foreach ($wd as $d) {
-                                    $labels[] = \App\Service\ProphetOptunaConfig::WEEKDAY_LABELS[$d] ?? (string)$d;
-                                }
-                                echo h(implode(', ', $labels));
-                                ?>
-                                à <?= sprintf('%02d:%02d', (int)$optunaSettings['cron_hour'], (int)$optunaSettings['cron_minute']) ?>
-                                (périodicité <?= (int)$optunaSettings['cron_period_days'] ?> j/offre)
-                            </li>
-                            <li><strong>Auto-apply:</strong> <?= !empty($optunaSettings['auto_apply']) ? 'ON' : 'OFF' ?>
-                                (seuil WAPE <?= h((string)$optunaSettings['auto_apply_min_mae_improvement_pct']) ?> %)</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <?php // --- Temps de recherche des Solveurs --- ?>
+            </p>
+        <?php endif; ?>
         <?php
-            $solver = $wfmSetting->solver_settings_json;
-            $solverDefaults = ['global' => 300, 'pass1' => 60, 'pass1_5' => 30, 'pass2' => 195];
-            $g = $solver['global'] ?? $solverDefaults['global'];
-            $p1 = $solver['pass1'] ?? $solverDefaults['pass1'];
-            $p15 = $solver['pass1_5'] ?? $solverDefaults['pass1_5'];
-            $p2 = $solver['pass2'] ?? $solverDefaults['pass2'];
-            $sum = $p1 + $p15 + $p2;
-            $limit = (int)$g - 15;
-            $budgetOk = $sum <= $limit;
+        $wd = \App\Service\ProphetOptunaConfig::normalizeWeekdays($optunaSettings['cron_weekdays'] ?? [7]);
+        $cronDayLabels = [];
+        foreach ($wd as $d) {
+            $cronDayLabels[] = \App\Service\ProphetOptunaConfig::WEEKDAY_LABELS[$d] ?? (string)$d;
+        }
         ?>
-        <div class="card border-<?= $budgetOk ? 'success' : 'danger' ?> mb-4">
-            <div class="card-header bg-<?= $budgetOk ? 'success' : 'danger' ?> text-white">
-                <i class="bi bi-cpu"></i> Temps de recherche des Solveurs (Timeouts en secondes)
+        <dl class="crud-fields">
+            <div>
+                <dt>Horizon test</dt>
+                <dd><?= (int)$optunaSettings['test_horizon_days'] ?> j</dd>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3 mb-2">
-                        <label class="text-muted small mb-1">
-                            <i class="bi bi-globe2"></i> Limite Globale infrastructure
-                        </label>
-                        <div>
-                            <span class="badge badge-primary" style="font-size: 1rem;">
-                                <?= h((string)$g) ?>s
-                            </span>
-                            <small class="text-muted d-block">Timeout HTTP côté PHP</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <label class="text-muted small mb-1">
-                            <i class="bi bi-1-circle-fill"></i> Passe 1 : Activités fixes
-                        </label>
-                        <div>
-                            <span class="badge badge-info" style="font-size: 1rem;">
-                                <?= h((string)$p1) ?>s
-                            </span>
-                            <small class="text-muted d-block">solve-fixed-activities</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <label class="text-muted small mb-1">
-                            <i class="bi bi-arrow-repeat"></i> Passe 1.5 : Rotation
-                        </label>
-                        <div>
-                            <span class="badge badge-info" style="font-size: 1rem;">
-                                <?= h((string)$p15) ?>s
-                            </span>
-                            <small class="text-muted d-block">solve-rotation</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <label class="text-muted small mb-1">
-                            <i class="bi bi-2-circle-fill"></i> Passe 2 : Couverture
-                        </label>
-                        <div>
-                            <span class="badge badge-info" style="font-size: 1rem;">
-                                <?= h((string)$p2) ?>s
-                            </span>
-                            <small class="text-muted d-block">solve-coverage</small>
-                        </div>
-                    </div>
-                </div>
-                <hr class="my-3">
-                <div class="row small">
-                    <div class="col-md-6">
-                        <strong><i class="bi bi-calculator"></i> Budget :</strong>
-                        P1 + P1.5 + P2 = <strong><?= (int)$sum ?>s</strong>
-                        ≤ Global - 15s = <strong><?= (int)$limit ?>s</strong>
-                    </div>
-                    <div class="col-md-6">
-                        <?php if ($budgetOk): ?>
-                            <span class="badge badge-success">
-                                <i class="bi bi-check-circle"></i> Budget respecté
-                            </span>
-                        <?php else: ?>
-                            <span class="badge badge-danger">
-                                <i class="bi bi-exclamation-triangle-fill"></i> Dépassement de <?= (int)($sum - $limit) ?>s
-                            </span>
-                        <?php endif; ?>
-                    </div>
-                </div>
+            <div>
+                <dt>Trials</dt>
+                <dd><?= (int)$optunaSettings['n_trials'] ?></dd>
             </div>
-        </div>
+            <div>
+                <dt>Cutoffs</dt>
+                <dd><?= (int)$optunaSettings['n_cutoffs'] ?> (fixe V1)</dd>
+            </div>
+            <div>
+                <dt>Historique min</dt>
+                <dd><?= (int)$optunaSettings['min_history_days'] ?> j</dd>
+            </div>
+            <div>
+                <dt>Cron</dt>
+                <dd>
+                    <?= !empty($optunaSettings['cron_enabled']) ? 'Oui' : 'Non' ?>
+                    —
+                    <?= h(implode(', ', $cronDayLabels)) ?>
+                    à <?= sprintf('%02d:%02d', (int)$optunaSettings['cron_hour'], (int)$optunaSettings['cron_minute']) ?>
+                    (périodicité <?= (int)$optunaSettings['cron_period_days'] ?> j/offre)
+                </dd>
+            </div>
+            <div>
+                <dt>Auto-apply</dt>
+                <dd>
+                    <?= !empty($optunaSettings['auto_apply']) ? 'Oui' : 'Non' ?>
+                    (seuil WAPE <?= h((string)$optunaSettings['auto_apply_min_mae_improvement_pct']) ?> %)
+                </dd>
+            </div>
+        </dl>
+    </section>
 
-        <?php // --- Boutons d'action --- ?>
-        <div class="mt-3">
-            <?= $this->Html->link(
-                '<i class="bi bi-pencil mr-2"></i> Modifier',
-                ['action' => 'edit', $wfmSetting->id],
-                ['class' => 'btn btn-primary mr-3', 'escape' => false]
-            ) ?>
-            <?= $this->Html->link(
-                '<i class="bi bi-list-ul mr-2"></i> Retour à la liste',
-                ['action' => 'index'],
-                ['class' => 'btn btn-outline-secondary', 'escape' => false]
-            ) ?>
-            <?= $this->Form->postLink(
-                '<i class="bi bi-trash mr-2"></i> Supprimer',
-                ['action' => 'delete', $wfmSetting->id],
-                [
-                    'confirm' => 'Voulez-vous vraiment supprimer "' . h($wfmSetting->name) . '" ?',
-                    'class' => 'btn btn-outline-danger float-right',
-                    'escape' => false
-                ]
-            ) ?>
-        </div>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Temps de recherche des solveurs (timeouts en secondes)</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Limite globale infrastructure</dt>
+                <dd>
+                    <?= h((string)$g) ?>s
+                    <div class="text-muted small">Timeout HTTP côté PHP</div>
+                </dd>
+            </div>
+            <div>
+                <dt>Passe 1 : activités fixes</dt>
+                <dd>
+                    <?= h((string)$p1) ?>s
+                    <div class="text-muted small">solve-fixed-activities</div>
+                </dd>
+            </div>
+            <div>
+                <dt>Passe 1.5 : rotation</dt>
+                <dd>
+                    <?= h((string)$p15) ?>s
+                    <div class="text-muted small">solve-rotation</div>
+                </dd>
+            </div>
+            <div>
+                <dt>Passe 2 : couverture</dt>
+                <dd>
+                    <?= h((string)$p2) ?>s
+                    <div class="text-muted small">solve-coverage</div>
+                </dd>
+            </div>
+            <div>
+                <dt>Budget</dt>
+                <dd>
+                    P1 + P1.5 + P2 = <?= (int)$sum ?>s ≤ globale − 15s = <?= (int)$limit ?>s
+                    —
+                    <?php if ($budgetOk): ?>
+                        respecté
+                    <?php else: ?>
+                        dépassement de <?= (int)($sum - $limit) ?>s
+                    <?php endif; ?>
+                </dd>
+            </div>
+        </dl>
+    </section>
+
+    <div class="crud-actions-bar">
+        <?= $this->Html->link(
+            '<i class="bi bi-pencil me-2"></i> Modifier',
+            ['action' => 'edit', $wfmSetting->id],
+            ['class' => 'btn btn-primary', 'escape' => false]
+        ) ?>
+        <?= $this->Html->link(
+            '<i class="bi bi-list-ul me-2"></i> Retour à la liste',
+            ['action' => 'index'],
+            ['class' => 'btn btn-outline-secondary', 'escape' => false]
+        ) ?>
+        <?= $this->Form->postLink(
+            '<i class="bi bi-trash me-2"></i> Supprimer',
+            ['action' => 'delete', $wfmSetting->id],
+            [
+                'confirm' => 'Voulez-vous vraiment supprimer "' . h($wfmSetting->name) . '" ?',
+                'class' => 'btn btn-outline-danger',
+                'escape' => false,
+            ]
+        ) ?>
     </div>
 </div>

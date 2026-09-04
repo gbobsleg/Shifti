@@ -153,7 +153,7 @@ class ProphetTuningJobsTable extends Table
         if (!$job) {
             return [
                 'ok' => false,
-                'message' => 'Job introuvable.',
+                'message' => 'Tâche introuvable.',
                 'job_id' => null,
                 'previous_status' => null,
             ];
@@ -164,12 +164,21 @@ class ProphetTuningJobsTable extends Table
             ProphetTuningJob::STATUS_QUEUED,
             ProphetTuningJob::STATUS_RUNNING,
         ], true)) {
+            $previousLabel = match ($previous) {
+                ProphetTuningJob::STATUS_QUEUED => 'en file',
+                ProphetTuningJob::STATUS_RUNNING => 'en cours',
+                ProphetTuningJob::STATUS_COMPLETED => 'terminé',
+                ProphetTuningJob::STATUS_FAILED => 'échec',
+                ProphetTuningJob::STATUS_CANCELLED => 'annulé',
+                default => $previous,
+            };
+
             return [
                 'ok' => false,
                 'message' => sprintf(
-                    'Le job #%d n’est pas annulable (statut « %s »).',
+                    'La tâche #%d n’est pas annulable (état « %s »).',
                     $jobId,
-                    $previous
+                    $previousLabel
                 ),
                 'job_id' => $jobId,
                 'previous_status' => $previous,
@@ -196,7 +205,7 @@ class ProphetTuningJobsTable extends Table
             return [
                 'ok' => false,
                 'message' => sprintf(
-                    'Impossible d’annuler le job #%d (statut déjà modifié).',
+                    'Impossible d’annuler la tâche #%d (état déjà modifié).',
                     $jobId
                 ),
                 'job_id' => $jobId,
@@ -206,7 +215,7 @@ class ProphetTuningJobsTable extends Table
 
         return [
             'ok' => true,
-            'message' => sprintf('Job #%d annulé.', $jobId),
+            'message' => sprintf('Tâche #%d annulée.', $jobId),
             'job_id' => $jobId,
             'previous_status' => $previous,
         ];

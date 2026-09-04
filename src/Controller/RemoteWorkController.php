@@ -124,44 +124,8 @@ class RemoteWorkController extends AppController
         // Pagination
         $this->paginate = ['limit' => 25, 'order' => ['Ranges.date_start' => 'DESC']];
         $remoteWorkDays = $this->paginate($remoteWorkDays);
-        
-        // Statistiques
-        $allDays = $RangesTable->find()
-            ->where(['offer_id' => $remoteWorkOfferId])
-            ->all();
-        
-        $stats = [
-            'total' => $allDays->count(),
-            'total_flexible' => 0,
-            'total_fixed' => 0,
-            'current_month' => 0,
-            'current_month_flexible' => 0,
-            'current_month_fixed' => 0,
-        ];
-        
-        $now = \Cake\I18n\FrozenTime::now();
-        $firstDayOfMonth = $now->startOfMonth();
-        $lastDayOfMonth = $now->endOfMonth();
-        
-        foreach ($allDays as $day) {
-            $isFixed = $day->comment && strpos($day->comment, '[AUTO-TAD]') === 0;
-            if ($isFixed) {
-                $stats['total_fixed']++;
-            } else {
-                $stats['total_flexible']++;
-            }
-            
-            if ($day->date_start >= $firstDayOfMonth && $day->date_start <= $lastDayOfMonth) {
-                $stats['current_month']++;
-                if ($isFixed) {
-                    $stats['current_month_fixed']++;
-                } else {
-                    $stats['current_month_flexible']++;
-                }
-            }
-        }
-        
-        $this->set(compact('remoteWorkDays', 'users', 'stats', 'remoteWorkOfferId', 'rangeType'));
+
+        $this->set(compact('remoteWorkDays', 'users', 'remoteWorkOfferId', 'rangeType'));
     }
 
     /**

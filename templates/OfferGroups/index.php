@@ -7,113 +7,143 @@
 <?php $this->assign('title', 'Groupes d\'offres'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<div class="offerGroups index content card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-diagram-3 text-info"></i>
-            Groupes d'offres
-        </h3>
+<div class="crud-app offerGroups index content">
+    <div class="crud-header">
         <div>
+            <h1>
+                <i class="bi bi-diagram-3"></i>
+                Groupes d'offres
+            </h1>
+            <p class="crud-header-meta"><?= $this->Paginator->counter('{{count}} groupes') ?></p>
+        </div>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-plus-circle mr-1"></i> Nouveau groupe',
+                '<i class="bi bi-plus-circle me-1"></i> Nouveau groupe',
                 ['action' => 'add'],
-                ['class' => 'btn btn-success', 'escape' => false]
+                ['class' => 'btn btn-primary', 'escape' => false]
             ) ?>
-            <?= $this->Html->link(
-                '<i class="bi bi-basket mr-1"></i> Offres',
-                ['controller' => 'Offers', 'action' => 'index'],
-                ['class' => 'btn btn-outline-secondary', 'escape' => false]
-            ) ?>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="bi bi-list-ul"></i> Raccourcis
+                </button>
+                <div class="dropdown-menu dropdown-menu-end">
+                    <?= $this->Html->link(
+                        '<i class="bi bi-basket me-2"></i> Offres',
+                        ['controller' => 'Offers', 'action' => 'index'],
+                        ['class' => 'dropdown-item', 'escape' => false]
+                    ) ?>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="card-body">
-        <p class="text-muted">
-            Un groupe lie des offres membres et un profil mixte pour la passe 2
-            (forecast sur les membres ou sur le groupe avec ratios manuels).
-        </p>
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th><?= $this->Paginator->sort('name', 'Nom') ?></th>
-                        <th>Offre mixte</th>
-                        <th>Membres</th>
-                        <th><?= $this->Paginator->sort('forecast_source', 'Source forecast') ?></th>
-                        <th>Préf. mixte</th>
-                        <th class="actions">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($offerGroups as $group): ?>
-                        <tr>
-                            <td><strong><?= h($group->name) ?></strong></td>
-                            <td>
-                                <?php if (!empty($group->mixed_offer)): ?>
-                                    <?= $this->Html->link(
-                                        h($group->mixed_offer->name),
-                                        ['controller' => 'Offers', 'action' => 'view', $group->mixed_offer_id]
-                                    ) ?>
-                                <?php else: ?>
-                                    <span class="text-muted">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php
-                                $names = [];
-                                foreach ($group->offer_group_members ?? [] as $m) {
-                                    $names[] = h($m->offer->name ?? ('#' . $m->offer_id));
-                                }
-                                echo $names ? implode(', ', $names) : '<span class="text-muted">—</span>';
-                                ?>
-                            </td>
-                            <td>
-                                <?php if ($group->forecast_source === 'group'): ?>
-                                    <span class="badge badge-primary">Groupe (ratio)</span>
-                                <?php else: ?>
-                                    <span class="badge badge-secondary">Membres</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?= $group->prefer_mixed
-                                    ? '<span class="badge badge-success">ON</span>'
-                                    : '<span class="badge badge-light">OFF</span>' ?>
-                            </td>
-                            <td class="actions">
-                                <?= $this->Html->link(
-                                    '<i class="bi bi-eye"></i>',
-                                    ['action' => 'view', $group->id],
-                                    ['escape' => false, 'class' => 'btn btn-sm btn-outline-info', 'title' => 'Voir']
-                                ) ?>
-                                <?= $this->Html->link(
-                                    '<i class="bi bi-pencil"></i>',
-                                    ['action' => 'edit', $group->id],
-                                    ['escape' => false, 'class' => 'btn btn-sm btn-outline-primary', 'title' => 'Modifier']
-                                ) ?>
-                                <?= $this->Form->postLink(
-                                    '<i class="bi bi-trash"></i>',
-                                    ['action' => 'delete', $group->id],
-                                    [
-                                        'escape' => false,
-                                        'class' => 'btn btn-sm btn-outline-danger',
-                                        'confirm' => 'Supprimer le groupe « ' . h($group->name) . ' » ?',
-                                        'title' => 'Supprimer',
-                                    ]
-                                ) ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <div class="paginator mt-3">
-            <ul class="pagination justify-content-center">
-                <?= $this->Paginator->first('<< ' . 'Première') ?>
-                <?= $this->Paginator->prev('< ' . 'Précédente') ?>
-                <?= $this->Paginator->numbers() ?>
-                <?= $this->Paginator->next('Suivante' . ' >') ?>
-                <?= $this->Paginator->last('Dernière' . ' >>') ?>
-            </ul>
-            <p class="text-center"><?= $this->Paginator->counter('Page {{page}} sur {{pages}}, affichant {{current}} enregistrement(s) sur {{count}} au total') ?></p>
-        </div>
+
+    <p class="text-muted">
+        Un groupe lie des offres membres et un profil mixte pour la passe 2
+        (prévision sur les membres ou sur le groupe avec ratios manuels).
+    </p>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-sm crud-table">
+            <?php
+            $columns = ['Nom', 'Offre mixte', 'Membres', 'Source prévision', 'Préf. mixte', 'Actions'];
+            $colCount = count($columns);
+            ?>
+            <thead>
+            <tr>
+                <th scope="col"><?= $this->Paginator->sort('name', $columns[0]) ?></th>
+                <th scope="col"><?= h($columns[1]) ?></th>
+                <th scope="col"><?= h($columns[2]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('forecast_source', $columns[3]) ?></th>
+                <th scope="col"><?= h($columns[4]) ?></th>
+                <th scope="col" class="actions"><?= h($columns[5]) ?></th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php if (count($offerGroups) === 0): ?>
+                <tr>
+                    <td colspan="<?= (int)$colCount ?>" class="crud-empty">
+                        <p>Aucun groupe.</p>
+                        <?= $this->Html->link(
+                            '<i class="bi bi-plus-circle me-1"></i> Créer un groupe',
+                            ['action' => 'add'],
+                            ['class' => 'btn btn-sm btn-primary', 'escape' => false]
+                        ) ?>
+                    </td>
+                </tr>
+            <?php endif; ?>
+            <?php foreach ($offerGroups as $group): ?>
+                <tr>
+                    <td>
+                        <?= $this->Html->link(
+                            $group->name,
+                            ['action' => 'view', $group->id],
+                            ['class' => 'crud-row-link']
+                        ) ?>
+                    </td>
+                    <td>
+                        <?php if (!empty($group->mixed_offer)): ?>
+                            <?= $this->Html->link(
+                                $group->mixed_offer->name,
+                                ['controller' => 'Offers', 'action' => 'view', $group->mixed_offer_id]
+                            ) ?>
+                        <?php else: ?>
+                            —
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php
+                        $names = [];
+                        foreach ($group->offer_group_members ?? [] as $m) {
+                            $names[] = h($m->offer->name ?? ('#' . $m->offer_id));
+                        }
+                        echo $names ? implode(', ', $names) : '—';
+                        ?>
+                    </td>
+                    <td>
+                        <?= $group->forecast_source === 'group' ? 'Groupe (ratio)' : 'Membres' ?>
+                    </td>
+                    <td>
+                        <?= $group->prefer_mixed ? 'Oui' : 'Non' ?>
+                    </td>
+                    <td class="actions">
+                        <?= $this->Html->link(
+                            '<i class="bi bi-pencil" aria-hidden="true"></i>',
+                            ['action' => 'edit', $group->id],
+                            [
+                                'class' => 'crud-action',
+                                'escape' => false,
+                                'title' => 'Modifier',
+                                'aria-label' => 'Modifier',
+                                'data-bs-toggle' => 'tooltip',
+                            ]
+                        ) ?>
+                        <?= $this->Form->postLink(
+                            '<i class="bi bi-trash" aria-hidden="true"></i>',
+                            ['action' => 'delete', $group->id],
+                            [
+                                'confirm' => 'Supprimer le groupe « ' . h($group->name) . ' » ?',
+                                'class' => 'crud-action crud-action-danger',
+                                'escape' => false,
+                                'title' => 'Supprimer',
+                                'aria-label' => 'Supprimer',
+                                'data-bs-toggle' => 'tooltip',
+                            ]
+                        ) ?>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="paginator">
+        <ul class="pagination justify-content-center">
+            <?= $this->Paginator->first('<< ' . 'Première') ?>
+            <?= $this->Paginator->prev('< ' . 'Précédente') ?>
+            <?= $this->Paginator->numbers() ?>
+            <?= $this->Paginator->next('Suivante' . ' >') ?>
+            <?= $this->Paginator->last('Dernière' . ' >>') ?>
+        </ul>
+        <p><?= $this->Paginator->counter('Page {{page}} sur {{pages}}, affichant {{current}} sur {{count}}') ?></p>
     </div>
 </div>

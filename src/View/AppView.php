@@ -26,7 +26,7 @@ class AppView extends View
 
         $this->loadHelper('Form', [
             'className' => 'BootstrapUI.Form',
-            'bootstrapVersion' => '4',
+            'bootstrapVersion' => '5',
             'useCdn' => false,
             'loadCss' => false,
             'loadJs' => false
@@ -34,7 +34,7 @@ class AppView extends View
 
         $this->loadHelper('Paginator', [
             'className' => 'BootstrapUI.Paginator',
-            'bootstrapVersion' => '4',
+            'bootstrapVersion' => '5',
             'useCdn' => false,
             'loadCss' => false,
             'loadJs' => false

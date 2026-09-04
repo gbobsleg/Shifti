@@ -9,43 +9,41 @@
 $lines = $rule->rotation_rule_lines ?? [];
 $daysOptions = [1 => 'Lun', 2 => 'Mar', 3 => 'Mer', 4 => 'Jeu', 5 => 'Ven', 6 => 'Sam', 7 => 'Dim'];
 ?>
-<div class="card border-info mb-4">
-    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-layers"></i> Lignes d’activité (priorité = ordre)</span>
-        <button type="button" class="btn btn-sm btn-light" id="btn-add-rotation-line">
+<section class="crud-section">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="crud-section-title mb-0">Lignes d’activité (priorité = ordre)</h2>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-add-rotation-line">
             <i class="bi bi-plus-circle"></i> Ajouter une ligne
         </button>
     </div>
-    <div class="card-body">
-        <p class="text-muted small mb-3">
-            Rang 1 protégé d’abord. Quota = cible par agent (ex. 2×3 h téléphonie).
-            Couverture = need + équité (ex. livechat 9–12 / 14–17).
-        </p>
-        <div id="rotation-lines" data-next-index="<?= count($lines) ?>">
-            <?php foreach ($lines as $idx => $line): ?>
-                <?= $this->element('RotationRules/line_row', [
-                    'idx' => $idx,
-                    'line' => $line,
-                    'offers' => $offers,
-                    'daysOptions' => $daysOptions,
-                    'defaultTimeWindowStart' => $defaultTimeWindowStart,
-                    'defaultTimeWindowEnd' => $defaultTimeWindowEnd,
-                ]) ?>
-            <?php endforeach; ?>
-        </div>
-        <?php // <template> : hors de l’arbre du formulaire, donc non soumis. Un div.d-none enverrait une ligne quota fantôme. ?>
-        <template id="rotation-line-template">
+    <p class="text-muted small mb-3">
+        Rang 1 protégé d’abord. Quota = cible par agent (ex. 2×3 h téléphonie).
+        Couverture = need + équité (ex. livechat 9–12 / 14–17).
+    </p>
+    <div id="rotation-lines" data-next-index="<?= count($lines) ?>">
+        <?php foreach ($lines as $idx => $line): ?>
             <?= $this->element('RotationRules/line_row', [
-                'idx' => '__INDEX__',
-                'line' => null,
+                'idx' => $idx,
+                'line' => $line,
                 'offers' => $offers,
                 'daysOptions' => $daysOptions,
                 'defaultTimeWindowStart' => $defaultTimeWindowStart,
                 'defaultTimeWindowEnd' => $defaultTimeWindowEnd,
             ]) ?>
-        </template>
+        <?php endforeach; ?>
     </div>
-</div>
+    <?php // <template> : hors de l’arbre du formulaire, donc non soumis. Un div.d-none enverrait une ligne quota fantôme. ?>
+    <template id="rotation-line-template">
+        <?= $this->element('RotationRules/line_row', [
+            'idx' => '__INDEX__',
+            'line' => null,
+            'offers' => $offers,
+            'daysOptions' => $daysOptions,
+            'defaultTimeWindowStart' => $defaultTimeWindowStart,
+            'defaultTimeWindowEnd' => $defaultTimeWindowEnd,
+        ]) ?>
+    </template>
+</section>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const wrap = document.getElementById('rotation-lines');

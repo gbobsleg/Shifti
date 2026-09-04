@@ -25,21 +25,21 @@
     function statusBadgeClass(status) {
         switch (String(status || '')) {
             case 'running':
-                return 'badge-primary';
+                return 'bg-primary';
             case 'queued':
-                return 'badge-warning';
+                return 'bg-warning';
             case 'completed':
             case 'finished':
-                return 'badge-success';
+                return 'bg-success';
             case 'failed':
             case 'error':
             case 'infeasible':
             case 'finished_with_errors':
-                return 'badge-danger';
+                return 'bg-danger';
             case 'cancelled':
-                return 'badge-secondary';
+                return 'bg-secondary';
             default:
-                return 'badge-secondary';
+                return 'bg-secondary';
         }
     }
 
@@ -75,7 +75,7 @@
         html += '<div class="dropdown-divider"></div>';
         html +=
             '<a class="dropdown-item text-primary" href="' + esc(seeAllUrl || '#') + '">' +
-                '<i class="bi bi-arrow-right-circle mr-1"></i> Voir tout' +
+                '<i class="bi bi-arrow-right-circle me-1"></i> Voir tout' +
             '</a>';
         return html;
     }
@@ -106,7 +106,7 @@
             '<span class="dropdown-item-text text-danger small">' + esc(message || 'Chargement impossible') + '</span>' +
             '<div class="dropdown-divider"></div>' +
             '<a class="dropdown-item text-primary" href="' + esc(seeAllUrl || '#') + '">' +
-                '<i class="bi bi-arrow-right-circle mr-1"></i> Voir tout' +
+                '<i class="bi bi-arrow-right-circle me-1"></i> Voir tout' +
             '</a>'
         );
     }
@@ -157,8 +157,8 @@
             var count = Number(n) || 0;
             if (elCount) {
                 elCount.textContent = String(count);
-                elCount.classList.toggle('badge-warning', count > 0);
-                elCount.classList.toggle('badge-secondary', count === 0);
+                elCount.classList.toggle('bg-warning', count > 0);
+                elCount.classList.toggle('bg-secondary', count === 0);
                 elCount.classList.toggle('d-none', false);
             }
             root.classList.toggle('bj-badge-idle', count === 0);

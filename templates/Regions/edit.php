@@ -7,59 +7,50 @@
 <?php $this->assign('title', 'Modifier Région : ' . h($region->name)); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<div class="regions form content card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-pencil text-primary"></i>
+<div class="crud-app regions form content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-pencil"></i>
             Modifier la Région
-        </h3>
-        <div>
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-1"></i> Annuler',
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body">
-        <?= $this->Form->create($region) ?>
-        
-        <div class="card border-primary mb-4">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-diagram-3"></i> Informations de la région
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label"><i class="bi bi-tag"></i> Nom</label>
-                    <?= $this->Form->control('name', [
-                        'label' => false,
-                        'class' => 'form-control',
-                        'required' => true
-                    ]) ?>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label"><i class="bi bi-hash"></i> Numéro</label>
-                    <?= $this->Form->control('number', [
-                        'label' => false,
-                        'class' => 'form-control',
-                        'required' => true
-                    ]) ?>
-                </div>
-            </div>
-        </div>
-
-        <div class="mt-3">
-            <?= $this->Form->button('<i class="bi bi-save mr-2"></i> Sauvegarder', [
-                'class' => 'btn btn-success mr-3',
-                'escapeTitle' => false
+    <?= $this->Form->create($region) ?>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Informations de la région</h2>
+        <div class="mb-3">
+            <label class="form-label">Nom</label>
+            <?= $this->Form->control('name', [
+                'label' => false,
+                'class' => 'form-control',
+                'required' => true,
             ]) ?>
-            <?= $this->Html->link(
-                '<i class="bi bi-x-circle mr-2"></i> Annuler',
-                ['action' => 'index'],
-                ['class' => 'btn btn-outline-secondary', 'escape' => false]
-            ) ?>
         </div>
-        
-        <?= $this->Form->end() ?>
+        <div class="mb-3">
+            <label class="form-label">Numéro</label>
+            <?= $this->Form->control('number', [
+                'label' => false,
+                'class' => 'form-control',
+                'required' => true,
+            ]) ?>
+        </div>
+    </section>
+    <div class="crud-actions-bar">
+        <?= $this->Form->button('<i class="bi bi-save me-2"></i> Enregistrer', [
+            'class' => 'btn btn-primary',
+            'escapeTitle' => false,
+        ]) ?>
+        <?= $this->Html->link(
+            '<i class="bi bi-x-circle me-2"></i> Annuler',
+            ['action' => 'index'],
+            ['class' => 'btn btn-outline-secondary', 'escape' => false]
+        ) ?>
     </div>
+    <?= $this->Form->end() ?>
 </div>

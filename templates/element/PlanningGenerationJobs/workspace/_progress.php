@@ -60,7 +60,7 @@ if (!empty($job->options_json)) {
     }
 }
 ?>
-<div class="card shadow mb-3" id="workspace-progress"
+<section class="crud-section" id="workspace-progress"
      data-job-id="<?= (int)$job->id ?>"
      data-status-url="<?= h($this->Url->build(['action' => 'status', (int)$job->id, '_ext' => 'json'])) ?>"
      data-started-at="<?= $startedAtTs !== null ? (int)$startedAtTs : '' ?>"
@@ -70,44 +70,42 @@ if (!empty($job->options_json)) {
      data-ignore-rotation="<?= !empty($options['ignore_rotation']) ? '1' : '0' ?>"
      data-ignore-forecast="<?= !empty($options['ignore_forecast_solver']) ? '1' : '0' ?>"
      data-initial-status="<?= h($status) ?>">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <span class="realtime-indicator <?= $isRunning ? '' : 'inactive' ?>" id="realtimeIndicator"></span>
-            <i class="bi bi-activity"></i> Progression
-        </h5>
-        <span id="jobStatusBadge" class="badge badge-<?= $badge ?>">
-            <i class="bi bi-<?= $icon ?>"></i> <?= h($status) ?>
+    <h2 class="crud-section-title">
+        <span class="realtime-indicator <?= $isRunning ? '' : 'inactive' ?>" id="realtimeIndicator"></span>
+        Progression
+        <span class="crud-section-actions">
+            <span id="jobStatusBadge" class="badge bg-<?= $badge ?>">
+                <i class="bi bi-<?= $icon ?>"></i> <?= h($status) ?>
+            </span>
         </span>
+    </h2>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span><strong id="jobProgressText"><?= $processedDays ?> / <?= $totalDays ?></strong> jours</span>
+        <span class="text-muted" id="jobProgressPercent"><?= $progress ?>%</span>
     </div>
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <span><strong id="jobProgressText"><?= $processedDays ?> / <?= $totalDays ?></strong> jours</span>
-            <span class="text-muted" id="jobProgressPercent"><?= $progress ?>%</span>
-        </div>
-        <div class="progress mb-3" style="height: 24px;">
-            <div id="jobProgressBar"
-                 class="progress-bar <?= $isRunning ? 'progress-bar-striped progress-bar-animated' : '' ?> <?= $progressBarClass ?>"
-                 role="progressbar"
-                 style="width: <?= $progress ?>%"
-                 aria-valuenow="<?= $progress ?>"
-                 aria-valuemin="0"
-                 aria-valuemax="100">
-                <span id="jobProgressBarLabel"><?= $progress ?>%</span>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-4 mb-2">
-                <label class="text-muted small mb-1 d-block">Jour en cours</label>
-                <div class="h6 mb-0" id="jobCurrentDate"><?= h((string)($job->current_day ?? '—')) ?></div>
-            </div>
-            <div class="col-md-4 mb-2">
-                <label class="text-muted small mb-1 d-block">Étape</label>
-                <div class="mb-0 small" id="jobCurrentStep"><?= h((string)($job->current_step ?? '—')) ?></div>
-            </div>
-            <div class="col-md-4 mb-2">
-                <label class="text-muted small mb-1 d-block">Temps restant estimé</label>
-                <div><strong id="jobEta">—</strong></div>
-            </div>
+    <div class="progress mb-3" style="height: 8px;">
+        <div id="jobProgressBar"
+             class="progress-bar <?= $isRunning ? 'progress-bar-striped progress-bar-animated' : '' ?> <?= $progressBarClass ?>"
+             role="progressbar"
+             style="width: <?= $progress ?>%"
+             aria-valuenow="<?= $progress ?>"
+             aria-valuemin="0"
+             aria-valuemax="100">
+            <span id="jobProgressBarLabel" class="visually-hidden"><?= $progress ?>%</span>
         </div>
     </div>
-</div>
+    <dl class="crud-fields">
+        <div>
+            <dt>Jour en cours</dt>
+            <dd id="jobCurrentDate"><?= h((string)($job->current_day ?? '—')) ?></dd>
+        </div>
+        <div>
+            <dt>Étape</dt>
+            <dd id="jobCurrentStep"><?= h((string)($job->current_step ?? '—')) ?></dd>
+        </div>
+        <div>
+            <dt>Temps restant estimé</dt>
+            <dd id="jobEta">—</dd>
+        </div>
+    </dl>
+</section>

@@ -9,14 +9,19 @@
 <?php $this->assign('title', 'Modifier le groupe : ' . h($offerGroup->name)); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<div class="offerGroups form content card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-pencil text-primary"></i>
+<div class="crud-app offerGroups form content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-pencil"></i>
             Modifier : <?= h($offerGroup->name) ?>
-        </h3>
+        </h1>
+        <div class="crud-header-actions">
+            <?= $this->Html->link(
+                '<i class="bi bi-x-circle me-1"></i> Annuler',
+                ['action' => 'index'],
+                ['class' => 'btn btn-outline-secondary', 'escape' => false]
+            ) ?>
+        </div>
     </div>
-    <div class="card-body">
-        <?= $this->element('OfferGroups/form') ?>
-    </div>
+    <?= $this->element('OfferGroups/form') ?>
 </div>

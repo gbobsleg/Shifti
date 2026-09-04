@@ -14,37 +14,33 @@ $appName = (string)Configure::read('App.name', 'Shifti');
     <?= $this->Html->meta(['link' => '/favicon.svg', 'rel' => 'icon', 'type' => 'image/svg+xml']) ?>
     <?= $this->Html->meta(['link' => '/favicon-32.png', 'rel' => 'icon', 'type' => 'image/png', 'sizes' => '32x32']) ?>
     <?= $this->Html->meta('icon', '/favicon.ico') ?>
-    <?= $this->Html->css('bootstrap.spacelab.min') ?>
+    <?= $this->Html->css('bootstrap.min') ?>
+    <?= $this->Html->css('app/shell', ['timestamp' => 'force']) ?>
+    <?= $this->Html->css('app/crud') ?>
     <?= $this->Html->css('cake') ?>
     <?= $this->Html->css('navbar') ?>
     <?= $this->fetch('meta') ?>
     <?= $this->fetch('css') ?>
     <style>
         body {
-            background-color: #f8f9fa;
+            background-color: #f4f6f7;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+        .login-logo {
+            animation: none;
         }
         .login-container {
             width: 100%;
             max-width: 420px;
             margin: 24px;
         }
-        .flash-container {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1050;
-            max-width: 520px;
-            width: calc(100% - 40px);
-        }
     </style>
 </head>
 <body>
-    <div class="flash-container">
+    <div class="flash-container flash-container--login">
         <?= $this->Flash->render() ?>
     </div>
 
@@ -53,14 +49,9 @@ $appName = (string)Configure::read('App.name', 'Shifti');
     </div>
 
     <?= $this->Html->script('jquery-3.6.0.min') ?>
-    <?= $this->Html->script('https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js') ?>
-
-    <?php $this->Html->scriptStart(['block' => 'script']); ?>
-    setTimeout(function(){
-        var alerts = document.querySelectorAll('.alert');
-        alerts.forEach(function(a){ a.style.transition='opacity .5s'; a.style.opacity='0'; });
-    }, 5000);
-    <?php $this->Html->scriptEnd(); ?>
+    <?= $this->Html->script('https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js') ?>
+    <?= $this->Html->script('app/tooltips') ?>
+    <?= $this->Html->script('flash-auto-dismiss', ['timestamp' => 'force']) ?>
 
     <?= $this->fetch('script') ?>
 </body>

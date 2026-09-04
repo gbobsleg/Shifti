@@ -2,55 +2,9 @@
  * Styles pour la page de visualisation des données historiques
  */
 
-.historical-visualize .filters-section {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.historical-visualize .stat-card {
-    padding: 1rem;
-    transition: all 0.3s ease;
-}
-
-.historical-visualize .stat-card:hover {
-    transform: translateY(-2px);
-}
-
-.historical-visualize .stat-icon {
-    font-size: 2rem;
-    display: block;
-    margin-bottom: 0.5rem;
-}
-
-.historical-visualize .chart-section {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.historical-visualize .chart-section .card {
-    transition: all 0.3s ease;
-}
-
-.historical-visualize .chart-section .card:hover {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
-.historical-visualize .statistics-section .card {
-    transition: all 0.3s ease;
-}
-
-.historical-visualize .statistics-section .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
 .historical-visualize .preset-btn {
     margin-right: 0.25rem;
     margin-bottom: 0.25rem;
-}
-
-.historical-visualize .preset-btn:hover {
-    background-color: #007bff;
-    color: white;
-    border-color: #007bff;
 }
 
 .historical-visualize .form-check {
@@ -62,33 +16,24 @@
     cursor: not-allowed;
 }
 
-/* Loading indicator */
 #loading-indicator {
     min-height: 300px;
 }
 
-/* Granularity hint styling */
 #granularity-hint {
     font-weight: 500;
-    transition: all 0.3s ease;
 }
 
 #granularity-hint.text-warning {
-    color: #ff9800 !important;
+    color: #b45309 !important;
 }
 
 #granularity-hint.text-success {
-    color: #28a745 !important;
+    color: #27757f !important;
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
-    .historical-visualize .stat-card {
-        margin-bottom: 1rem;
-    }
-    
-    .historical-visualize .stat-icon {
-        font-size: 1.5rem;
+    .historical-visualize .crud-fields {
+        grid-template-columns: 1fr 1fr;
     }
 }
-

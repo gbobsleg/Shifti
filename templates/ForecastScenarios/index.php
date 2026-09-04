@@ -4,11 +4,19 @@
 ?>
 <?php $this->assign('title', 'Scénarios'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
+<?php
+$statusLabels = [
+    'draft' => 'Brouillon',
+    'queued' => 'En file',
+    'running' => 'En cours',
+    'completed' => 'Terminé',
+    'failed' => 'Échec',
+];
+?>
 
 <?php $this->Html->script('forecast-scenarios', ['block' => true]); ?>
 
 <style>
-/* Fonds subtils pour les lignes de scénarios selon leur statut */
 .table-row-draft {
     background-color: rgba(108, 117, 125, 0.03);
 }
@@ -27,162 +35,93 @@
     margin-top: 0.35rem;
     max-width: 220px;
 }
-/* Effet hover plus marqué */
-.forecast-scenarios .table-hover tbody tr:hover {
-    background-color: rgba(0, 123, 255, 0.08) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transition: all 0.2s ease;
-}
 </style>
 
-<div class="forecast-scenarios index content card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="mb-0">
-            <i class="bi bi-diagram-3 text-primary"></i> Scénarios
-        </h3>
+<div class="crud-app forecast-scenarios index content">
+    <div class="crud-header">
         <div>
+            <h1>
+                <i class="bi bi-diagram-3"></i>
+                Scénarios
+            </h1>
+            <p class="crud-header-meta"><?= $this->Paginator->counter('{{count}} scénarios') ?></p>
+        </div>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-plus-circle mr-1"></i> Nouveau Scénario',
+                '<i class="bi bi-plus-circle me-1"></i> Nouveau Scénario',
                 ['action' => 'add'],
-                ['class' => 'btn btn-success', 'escape' => false]
+                ['class' => 'btn btn-primary', 'escape' => false]
             ) ?>
         </div>
     </div>
-    <div class="card-body" id="scenarioListContent">
-        <?php // --- Cards de statistiques --- ?>
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card border-primary">
-                    <div class="card-body text-center py-3">
-                        <i class="bi bi-diagram-3 text-primary" style="font-size: 2rem;"></i>
-                        <h3 class="mb-0 mt-2"><?= $stats['total'] ?></h3>
-                        <small class="text-muted">Total</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="card border-success">
-                    <div class="card-body text-center py-3">
-                        <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
-                        <h3 class="mb-0 mt-2"><?= $stats['completed'] ?></h3>
-                        <small class="text-muted">Completed</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="card border-warning">
-                    <div class="card-body text-center py-3">
-                        <i class="bi bi-arrow-repeat text-warning" style="font-size: 2rem;"></i>
-                        <h3 class="mb-0 mt-2"><?= (int)$stats['running'] + (int)($stats['queued'] ?? 0) ?></h3>
-                        <small class="text-muted">Queue / Running</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="card border-secondary">
-                    <div class="card-body text-center py-3">
-                        <i class="bi bi-file-earmark text-secondary" style="font-size: 2rem;"></i>
-                        <h3 class="mb-0 mt-2"><?= $stats['draft'] ?></h3>
-                        <small class="text-muted">Draft</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-info">
-                    <div class="card-body text-center py-3">
-                        <i class="bi bi-broadcast text-info" style="font-size: 2rem;"></i>
-                        <h3 class="mb-0 mt-2"><?= $stats['published'] ?></h3>
-                        <small class="text-muted">Publiés</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <?php // --- Toolbar de filtrage --- ?>
-        <?= $this->Form->create(null, ['type' => 'get', 'class' => 'filters-toolbar mb-4 p-3 bg-light border rounded']) ?>
-            <div class="row">
-                <div class="col-md-5 mb-2">
-                    <label for="search-name" class="form-label small text-muted mb-1">
-                        <i class="bi bi-search"></i> Nom
-                    </label>
+    <div id="scenarioListContent">
+        <?= $this->Form->create(null, ['type' => 'get', 'class' => 'filters-toolbar mb-3']) ?>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label for="search-name" class="form-label small text-muted mb-1">Nom</label>
                     <?= $this->Form->text('search_name', [
                         'class' => 'form-control form-control-sm',
                         'placeholder' => 'Rechercher par nom...',
-                        'value' => $this->request->getQuery('search_name')
+                        'value' => $this->request->getQuery('search_name'),
+                        'id' => 'search-name',
                     ]) ?>
                 </div>
-                <div class="col-md-3 mb-2">
-                    <label for="status" class="form-label small text-muted mb-1">
-                        <i class="bi bi-tag"></i> Statut
-                    </label>
+                <div class="col-md-3">
+                    <label for="status" class="form-label small text-muted mb-1">Statut</label>
                     <?= $this->Form->select('status', [
-                        'draft' => 'Draft',
-                        'queued' => 'Queued',
-                        'running' => 'Running',
-                        'completed' => 'Completed',
-                        'failed' => 'Failed'
+                        'draft' => 'Brouillon',
+                        'queued' => 'En file',
+                        'running' => 'En cours',
+                        'completed' => 'Terminé',
+                        'failed' => 'Échec'
                     ], [
                         'empty' => 'Tous les statuts',
                         'class' => 'form-control form-control-sm',
-                        'value' => $this->request->getQuery('status')
+                        'value' => $this->request->getQuery('status'),
+                        'id' => 'status',
                     ]) ?>
                 </div>
-                <div class="col-md-2 mb-2 d-flex flex-column align-items-stretch">
-                    <?= $this->Form->button('<i class="bi bi-search"></i> Filtrer', [
+                <div class="col-md-4 d-flex gap-2">
+                    <?= $this->Form->button('Filtrer', [
                         'type' => 'submit',
-                        'class' => 'btn btn-sm btn-primary mb-1',
-                        'escapeTitle' => false
+                        'class' => 'btn btn-sm btn-primary',
                     ]) ?>
-                    <?= $this->Html->link('<i class="bi bi-arrow-counterclockwise"></i> Réinitialiser', 
-                        ['action' => 'index'], 
-                        ['class' => 'btn btn-sm btn-outline-secondary', 'escape' => false]
+                    <?= $this->Html->link(
+                        'Réinitialiser',
+                        ['action' => 'index'],
+                        ['class' => 'btn btn-sm btn-outline-secondary']
                     ) ?>
-                </div>
-            </div>
-            <div class="row mt-2">
-                <div class="col-12">
-                    <small class="text-muted">
-                        <i class="bi bi-info-circle"></i> 
-                        <?= $this->Paginator->counter('{{count}} scénario(s) au total, affichant {{current}} sur cette page') ?>
-                    </small>
                 </div>
             </div>
         <?= $this->Form->end() ?>
         <div class="table-responsive">
-            <table class="table table-striped table-hover table-sm">
+            <table class="table table-hover table-sm crud-table">
+                <?php
+                $columns = ['Nom', 'Date début', 'Date fin', 'Statut', 'Modifié le', 'Actions'];
+                $colCount = count($columns);
+                ?>
                 <thead>
                     <tr>
-                        <th scope="col"><?= $this->Paginator->sort('id', 'ID') ?></th>
-                        <th scope="col"><?= $this->Paginator->sort('name', 'Nom') ?></th>
-                        <th scope="col"><?= $this->Paginator->sort('start_date', 'Date début') ?></th>
-                        <th scope="col"><?= $this->Paginator->sort('end_date', 'Date fin') ?></th>
-                        <th scope="col"><?= $this->Paginator->sort('status', 'Statut') ?></th>
-                        <th scope="col"><?= $this->Paginator->sort('modified', 'Modifié le') ?></th>
-                        <th scope="col" class="actions">Actions</th>
+                        <th scope="col"><?= $this->Paginator->sort('name', $columns[0]) ?></th>
+                        <th scope="col"><?= $this->Paginator->sort('start_date', $columns[1]) ?></th>
+                        <th scope="col"><?= $this->Paginator->sort('end_date', $columns[2]) ?></th>
+                        <th scope="col"><?= $this->Paginator->sort('status', $columns[3]) ?></th>
+                        <th scope="col"><?= $this->Paginator->sort('modified', $columns[4]) ?></th>
+                        <th scope="col" class="actions"><?= h($columns[5]) ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (count($scenarios) === 0): ?>
                         <tr>
-                            <td colspan="7" class="text-center py-5">
-                                <div class="empty-state">
-                                    <i class="bi bi-diagram-3" style="font-size: 4rem; color: #dee2e6;"></i>
-                                    <h4 class="mt-3 text-muted">Aucun scénario trouvé</h4>
-                                    <p class="text-muted">
-                                        <?php if ($this->request->getQuery()): ?>
-                                            Aucun scénario ne correspond aux critères de recherche.
-                                        <?php else: ?>
-                                            Commencez par créer votre premier scénario de prévision.
-                                        <?php endif; ?>
-                                    </p>
-                                    <?php if (!$this->request->getQuery()): ?>
-                                        <?= $this->Html->link(
-                                            '<i class="bi bi-plus-circle mr-2"></i> Créer mon premier scénario',
-                                            ['action' => 'add'],
-                                            ['class' => 'btn btn-primary mt-2', 'escape' => false]
-                                        ) ?>
-                                    <?php endif; ?>
-                                </div>
+                            <td colspan="<?= (int)$colCount ?>" class="crud-empty">
+                                <p><?= $this->request->getQuery() ? 'Aucun scénario ne correspond aux critères de recherche.' : 'Aucun scénario.' ?></p>
+                                <?php if (!$this->request->getQuery()): ?>
+                                    <?= $this->Html->link(
+                                        '<i class="bi bi-plus-circle me-1"></i> Créer un scénario',
+                                        ['action' => 'add'],
+                                        ['class' => 'btn btn-sm btn-primary', 'escape' => false]
+                                    ) ?>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endif; ?>
@@ -219,8 +158,13 @@
                             data-scenario-id="<?= (int)$s->id ?>"
                             data-status="<?= h((string)$s->status) ?>"
                             data-status-url="<?= h($this->Url->build(['action' => 'status', $s->id, '_ext' => 'json'])) ?>">
-                            <td><?= $this->Number->format($s->id) ?></td>
-                            <td><?= h($s->name) ?></td>
+                            <td>
+                                <?= $this->Html->link(
+                                    $s->name,
+                                    ['action' => 'view', $s->id],
+                                    ['class' => 'crud-row-link']
+                                ) ?>
+                            </td>
                             <td>
                                 <?= h($s->start_date ? (new \Cake\I18n\FrozenDate($s->start_date))->i18nFormat('dd/MM/yyyy') : '') ?>
                                 <?php if ($s->start_date && $s->end_date): 
@@ -237,28 +181,28 @@
                             <td><?= h($s->end_date ? (new \Cake\I18n\FrozenDate($s->end_date))->i18nFormat('dd/MM/yyyy') : '') ?></td>
                             <td>
                                 <?php
-                                $badgeClass = 'badge-secondary';
+                                $badgeClass = 'bg-secondary';
                                 $badgeIcon = 'bi-file-earmark';
                                 if ($s->status === 'queued') {
-                                    $badgeClass = 'badge-warning';
+                                    $badgeClass = 'bg-warning';
                                     $badgeIcon = 'bi-hourglass-split';
                                 } elseif ($s->status === 'running') {
-                                    $badgeClass = 'badge-warning';
+                                    $badgeClass = 'bg-warning';
                                     $badgeIcon = 'bi-arrow-repeat';
                                 } elseif ($s->status === 'completed') {
-                                    $badgeClass = 'badge-success';
+                                    $badgeClass = 'bg-success';
                                     $badgeIcon = 'bi-check-circle';
                                 } elseif ($s->status === 'failed') {
-                                    $badgeClass = 'badge-danger';
+                                    $badgeClass = 'bg-danger';
                                     $badgeIcon = 'bi-exclamation-triangle';
                                 }
                                 $isPublished = !empty($s->forecast_scenario_publications);
                                 ?>
                                 <span class="badge <?= $badgeClass ?> scenario-status-badge">
-                                    <i class="bi <?= $badgeIcon ?>"></i> <span class="scenario-status-text"><?= h(ucfirst($s->status)) ?></span>
+                                    <i class="bi <?= $badgeIcon ?>"></i> <span class="scenario-status-text"><?= h($statusLabels[$s->status] ?? $s->status) ?></span>
                                 </span>
                                 <?php if ($isPublished): ?>
-                                    <span class="badge badge-info ml-1" data-toggle="tooltip" title="Publié (<?= count($s->forecast_scenario_publications) ?> jour(s))">
+                                    <span class="badge bg-info ms-1" data-bs-toggle="tooltip" title="Publié (<?= count($s->forecast_scenario_publications) ?> jour(s))">
                                         <i class="bi bi-broadcast"></i> Publié
                                     </span>
                                 <?php endif; ?>
@@ -291,21 +235,21 @@
                                         $tooltipText .= ' - MAPE moyenne: ' . $metrics['mape'] . '%';
                                     }
                                 ?>
-                                    <span class="badge badge-primary mt-1" data-toggle="tooltip" title="<?= h($tooltipText) ?>">
+                                    <span class="badge bg-primary mt-1" data-bs-toggle="tooltip" title="<?= h($tooltipText) ?>">
                                         <i class="bi bi-stars"></i> Prophet (toutes offres)
                                     </span>
                                 <?php elseif ($hasProphet && $hasHistorical): ?>
-                                    <span class="badge badge-primary mt-1" data-toggle="tooltip" title="Certaines offres en Prophet, d'autres en moyenne historique">
+                                    <span class="badge bg-primary mt-1" data-bs-toggle="tooltip" title="Certaines offres en Prophet, d'autres en moyenne historique">
                                         <i class="bi bi-arrow-left-right"></i> Mixte
                                     </span>
                                 <?php else: ?>
-                                    <span class="badge badge-secondary mt-1" data-toggle="tooltip" title="Moyenne historique par jour de semaine pour toutes les offres">
+                                    <span class="badge bg-secondary mt-1" data-bs-toggle="tooltip" title="Moyenne historique par jour de semaine pour toutes les offres">
                                         <i class="bi bi-clock-history"></i> Historique
                                     </span>
                                 <?php endif; ?>
                                 <div class="scenario-inline-progress<?= $isInProgress ? '' : ' d-none' ?>">
                                     <div class="d-flex align-items-center text-warning mb-1">
-                                        <div class="spinner-border spinner-border-sm mr-2" role="status"></div>
+                                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
                                         <span class="scenario-progress-label"><?= $s->status === 'queued' ? 'En file…' : 'Calcul…' ?></span>
                                     </div>
                                     <div>
@@ -344,37 +288,37 @@
                                         $timeAgo = 'Il y a ' . $years . ' an' . ($years > 1 ? 's' : '');
                                     }
                                 ?>
-                                    <span data-toggle="tooltip" title="<?= h($s->modified->i18nFormat('dd/MM/yyyy HH:mm')) ?>">
+                                    <span data-bs-toggle="tooltip" title="<?= h($s->modified->i18nFormat('dd/MM/yyyy HH:mm')) ?>">
                                         <?= h($timeAgo) ?>
                                     </span>
                                 <?php endif; ?>
                             </td>
                             <td class="actions">
                                 <div class="dropdown actions-dropdown" data-entity-id="<?= (int)$s->id ?>">
-                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownActions<?= $s->id ?>" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownActions<?= $s->id ?>" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                         <i class="bi bi-three-dots-vertical"></i> Actions
                                     </button>
-                                    <div class="dropdown-menu dropdown-menu-right actions-dropdown-menu" data-entity-id="<?= (int)$s->id ?>" aria-labelledby="dropdownActions<?= $s->id ?>">
+                                    <div class="dropdown-menu dropdown-menu-end actions-dropdown-menu" data-entity-id="<?= (int)$s->id ?>" aria-labelledby="dropdownActions<?= $s->id ?>">
                                         <?= $this->Html->link(
-                                            '<i class="bi bi-eye mr-2"></i> Voir',
+                                            '<i class="bi bi-eye me-2"></i> Voir',
                                             ['action' => 'view', $s->id],
                                             ['class' => 'dropdown-item', 'escape' => false]
                                         ) ?>
                                         <?= $this->Html->link(
-                                            '<i class="bi bi-pencil mr-2"></i> Modifier',
+                                            '<i class="bi bi-pencil me-2"></i> Modifier',
                                             ['action' => 'edit', $s->id],
                                             ['class' => 'dropdown-item', 'escape' => false]
                                         ) ?>
                                         <?php if ($canLaunch): ?>
                                             <?= $this->Html->link(
-                                                '<i class="bi bi-play-circle mr-2"></i> Lancer',
+                                                '<i class="bi bi-play-circle me-2"></i> Lancer',
                                                 ['action' => 'run', $s->id],
                                                 ['class' => 'dropdown-item scenario-run-link', 'escape' => false]
                                             ) ?>
                                         <?php endif; ?>
                                         <div class="dropdown-divider"></div>
                                         <?= $this->Form->postLink(
-                                            '<i class="bi bi-trash mr-2"></i> Supprimer',
+                                            '<i class="bi bi-trash me-2"></i> Supprimer',
                                             ['action' => 'delete', $s->id],
                                             [
                                                 'confirm' => 'Supprimer le scénario #' . $s->id . ' ?',
@@ -391,7 +335,7 @@
             </table>
         </div>
 
-        <div class="paginator mt-3">
+        <div class="paginator">
             <ul class="pagination justify-content-center">
                 <?= $this->Paginator->first('<< ' . 'Première') ?>
                 <?= $this->Paginator->prev('< ' . 'Précédente') ?>
@@ -399,14 +343,14 @@
                 <?= $this->Paginator->next('Suivante' . ' >') ?>
                 <?= $this->Paginator->last('Dernière' . ' >>') ?>
             </ul>
-            <p class="text-center"><?= $this->Paginator->counter('Page {{page}} sur {{pages}}, affichant {{current}} enregistrement(s) sur {{count}} au total') ?></p>
+            <p><?= $this->Paginator->counter('Page {{page}} sur {{pages}}, affichant {{current}} sur {{count}}') ?></p>
         </div>
     </div>
-    <div id="queueIndicator" class="card-body text-center p-5 d-none">
-        <div class="spinner-border text-success" style="width: 3rem; height: 3rem;" role="status">
-            <span class="sr-only">Mise en file...</span>
+    <div id="queueIndicator" class="text-center p-5 d-none">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Mise en file...</span>
         </div>
-        <h4 class="mt-3 text-success mb-2">
+        <h4 class="mt-3 mb-2">
             <i class="bi bi-hourglass-split"></i> Mise en file d'attente…
         </h4>
         <p class="text-muted mb-0">
@@ -451,14 +395,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var badge = row.querySelector('.scenario-status-badge');
         var statusText = row.querySelector('.scenario-status-text');
+        var statusLabels = {
+            draft: 'Brouillon',
+            queued: 'En file',
+            running: 'En cours',
+            completed: 'Terminé',
+            failed: 'Échec'
+        };
         if (statusText) {
-            statusText.textContent = status ? status.charAt(0).toUpperCase() + status.slice(1) : '';
+            statusText.textContent = statusLabels[status] || status;
         }
         if (badge) {
             badge.className = 'badge scenario-status-badge ' + (
-                status === 'completed' ? 'badge-success' :
-                status === 'failed' ? 'badge-danger' :
-                (status === 'running' || status === 'queued') ? 'badge-warning' : 'badge-secondary'
+                status === 'completed' ? 'bg-success' :
+                status === 'failed' ? 'bg-danger' :
+                (status === 'running' || status === 'queued') ? 'bg-warning' : 'bg-secondary'
             );
         }
 

@@ -33,45 +33,9 @@ class FixedActivityRulesController extends AppController
         $this->paginate = ['limit' => 25];
         $rules = $this->paginate($query);
 
-        // Stats
-        $allRules = $this->fetchTable('FixedActivityRules')->find()->all();
-        $total = $allRules->count();
-        $active = 0;
-        $inactive = 0;
-        $perSite = 0;
-        $pooled = 0;
-        $global = 0;
-        
-        foreach ($allRules as $rule) {
-            if ($rule->active) {
-                $active++;
-            } else {
-                $inactive++;
-            }
-            
-            $mode = $rule->site_mode ?? 'per_site';
-            if ($mode === 'per_site') {
-                $perSite++;
-            } elseif ($mode === 'pooled') {
-                $pooled++;
-            } elseif ($mode === 'global') {
-                $global++;
-            }
-        }
-        
-        $stats = [
-            'total' => $total,
-            'active' => $active,
-            'inactive' => $inactive,
-            'per_site' => $perSite,
-            'pooled' => $pooled,
-            'global' => $global,
-        ];
-
-        // Options pour les filtres
         $offers = $this->fetchTable('Offers')->find('list')->order(['name' => 'ASC'])->toArray();
 
-        $this->set(compact('rules', 'stats', 'offers'));
+        $this->set(compact('rules', 'offers'));
     }
 
     public function add()

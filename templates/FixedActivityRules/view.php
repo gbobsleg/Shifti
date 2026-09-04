@@ -5,26 +5,13 @@
 <?php $this->assign('title', 'Détail activité fixe'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-
-
 <?php
-// Préparation des données
 $modeLabels = [
     'per_site' => 'Par site',
     'pooled' => 'Mutualisé',
-    'global' => 'Global (tous sites)'
+    'global' => 'Global (tous sites)',
 ];
 $modeLabel = $modeLabels[$rule->site_mode ?? 'per_site'] ?? $rule->site_mode;
-
-$modeBadgeClass = 'badge-info';
-$modeIcon = 'bi-building';
-if ($rule->site_mode === 'pooled') {
-    $modeBadgeClass = 'badge-warning';
-    $modeIcon = 'bi-diagram-3';
-} elseif ($rule->site_mode === 'global') {
-    $modeBadgeClass = 'badge-dark';
-    $modeIcon = 'bi-globe';
-}
 
 $sitesDisplay = implode(', ', array_map(fn($s) => $s->name, (array)$rule->sites));
 if (empty($sitesDisplay) && $rule->site_mode === 'global') {
@@ -53,226 +40,161 @@ if ($rule->start_time && $rule->end_time) {
     $diff = $start->diff($end);
     $durationDisplay = $diff->format('%Hh%I');
 }
+
+$offerDefault = !empty($rule->offer->equity_enabled);
+if ($rule->equity_enabled === true) {
+    $equityLabel = 'Activée';
+} elseif ($rule->equity_enabled === false) {
+    $equityLabel = 'Désactivée';
+} else {
+    $equityLabel = 'Hérite (Offre: ' . ($offerDefault ? 'activée' : 'désactivée') . ')';
+}
 ?>
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-calendar-check text-primary"></i>
-            Règle #<?= h($rule->id) ?> - <?= h($rule->offer->name ?? 'N/A') ?>
-        </h3>
-        <div class="btn-toolbar">
+<div class="crud-app fixed-activity-rules view content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-calendar-check"></i>
+            <?= h($rule->offer->name ?? 'Règle #' . $rule->id) ?>
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-pencil mr-1"></i> Modifier',
+                '<i class="bi bi-pencil me-1"></i> Modifier',
                 ['action' => 'edit', $rule->id],
-                ['class' => 'btn btn-primary mr-2', 'escape' => false]
-            ) ?>
-            <?= $this->Form->postLink(
-                '<i class="bi bi-trash mr-1"></i> Supprimer',
-                ['action' => 'delete', $rule->id],
-                ['confirm' => 'Voulez-vous vraiment supprimer cette règle ?', 'class' => 'btn btn-danger mr-2', 'escape' => false]
+                ['class' => 'btn btn-primary', 'escape' => false]
             ) ?>
             <?= $this->Html->link(
-                '<i class="bi bi-list mr-1"></i> Liste',
+                '<i class="bi bi-list me-1"></i> Liste',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
+            <?= $this->Form->postLink(
+                '<i class="bi bi-trash me-1"></i> Supprimer',
+                ['action' => 'delete', $rule->id],
+                [
+                    'confirm' => 'Voulez-vous vraiment supprimer cette règle ?',
+                    'class' => 'btn btn-outline-danger',
+                    'escape' => false,
+                ]
+            ) ?>
         </div>
     </div>
-    <div class="card-body">
-        <ul class="nav nav-tabs mb-4" id="rule-tabs" role="tablist">
-            <li class="nav-item">
-                <a class="nav-link active" id="tab-scope-tab" data-toggle="tab" href="#tab-scope" role="tab" aria-controls="tab-scope" aria-selected="true">
-                    <i class="bi bi-info-circle"></i> Portée &amp; activité
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" id="tab-schedule-tab" data-toggle="tab" href="#tab-schedule" role="tab" aria-controls="tab-schedule" aria-selected="false">
-                    <i class="bi bi-clock"></i> Horaires &amp; fréquence
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" id="tab-equity-tab" data-toggle="tab" href="#tab-equity" role="tab" aria-controls="tab-equity" aria-selected="false">
-                    <i class="bi bi-people"></i> Couverture &amp; équité
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" id="tab-planning-tab" data-toggle="tab" href="#tab-planning" role="tab" aria-controls="tab-planning" aria-selected="false">
-                    <i class="bi bi-calendar2-range"></i> Planification &amp; repas
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" id="tab-incompat-tab" data-toggle="tab" href="#tab-incompat" role="tab" aria-controls="tab-incompat" aria-selected="false">
-                    <i class="bi bi-x-octagon"></i> Incompatibilités
-                </a>
-            </li>
-        </ul>
 
-        <div class="tab-content">
-            <?php // --- Onglet 1 : Portée & activité --- ?>
-            <div class="tab-pane fade show active" id="tab-scope" role="tabpanel" aria-labelledby="tab-scope-tab">
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-tag"></i> Offre</div>
-                    <div class="col-md-9"><strong><?= h($rule->offer->name ?? 'N/A') ?></strong></div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-diagram-3"></i> Mode</div>
-                    <div class="col-md-9">
-                        <span class="badge <?= $modeBadgeClass ?>">
-                            <i class="bi <?= $modeIcon ?>"></i> <?= h($modeLabel) ?>
-                        </span>
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-building"></i> Sites concernés</div>
-                    <div class="col-md-9"><?= h($sitesDisplay) ?></div>
-                </div>
-                <div class="row">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-power"></i> Statut</div>
-                    <div class="col-md-9">
-                        <?php if ($rule->active): ?>
-                            <span class="badge badge-success"><i class="bi bi-check-circle"></i> Actif</span>
-                        <?php else: ?>
-                            <span class="badge badge-secondary"><i class="bi bi-x-circle"></i> Inactif</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Portée &amp; activité</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Offre</dt>
+                <dd><?= h($rule->offer->name ?? '—') ?></dd>
             </div>
+            <div>
+                <dt>Mode</dt>
+                <dd><?= h($modeLabel) ?></dd>
+            </div>
+            <div>
+                <dt>Sites concernés</dt>
+                <dd><?= h($sitesDisplay) ?></dd>
+            </div>
+            <div>
+                <dt>Statut</dt>
+                <dd><?= $rule->active ? 'Actif' : 'Inactif' ?></dd>
+            </div>
+        </dl>
+    </section>
 
-            <?php // --- Onglet 2 : Horaires & fréquence --- ?>
-            <div class="tab-pane fade" id="tab-schedule" role="tabpanel" aria-labelledby="tab-schedule-tab">
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-clock-history"></i> Heure de début</div>
-                    <div class="col-md-9"><strong><?= h(substr($rule->start_time ?? '', 0, 5)) ?></strong></div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-clock-fill"></i> Heure de fin</div>
-                    <div class="col-md-9"><strong><?= h(substr($rule->end_time ?? '', 0, 5)) ?></strong></div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-hourglass-split"></i> Durée</div>
-                    <div class="col-md-9"><strong><?= h($durationDisplay) ?></strong></div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-hash"></i> Quantité</div>
-                    <div class="col-md-9">
-                        <span class="badge badge-primary" style="font-size: 1.2rem;"><?= h($rule->quantity) ?></span>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-calendar-week"></i> Jours de la semaine</div>
-                    <div class="col-md-9"><?= h($daysDisplay) ?></div>
-                </div>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Horaires &amp; fréquence</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Heure de début</dt>
+                <dd><?= h(substr($rule->start_time ?? '', 0, 5)) ?></dd>
             </div>
+            <div>
+                <dt>Heure de fin</dt>
+                <dd><?= h(substr($rule->end_time ?? '', 0, 5)) ?></dd>
+            </div>
+            <div>
+                <dt>Durée</dt>
+                <dd><?= h($durationDisplay) ?></dd>
+            </div>
+            <div>
+                <dt>Quantité</dt>
+                <dd><?= h($rule->quantity) ?></dd>
+            </div>
+            <div>
+                <dt>Jours de la semaine</dt>
+                <dd><?= h($daysDisplay) ?></dd>
+            </div>
+        </dl>
+    </section>
 
-            <?php // --- Onglet 3 : Couverture & équité --- ?>
-            <div class="tab-pane fade" id="tab-equity" role="tabpanel" aria-labelledby="tab-equity-tab">
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-exclamation-triangle"></i> Couverture</div>
-                    <div class="col-md-9">
-                        <?php if ($rule->allow_shortfall): ?>
-                            <span class="badge badge-secondary"><i class="bi bi-check-circle"></i> Couverture optionnelle</span>
-                        <?php else: ?>
-                            <span class="badge badge-danger"><i class="bi bi-x-circle"></i> Couverture obligatoire</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-people"></i> Équité (période)</div>
-                    <div class="col-md-9">
-                        <?php
-                        $offerDefault = !empty($rule->offer->equity_enabled);
-                        if ($rule->equity_enabled === true) {
-                            echo '<span class="badge badge-success"><i class="bi bi-check-circle"></i> Activée</span>';
-                        } elseif ($rule->equity_enabled === false) {
-                            echo '<span class="badge badge-light text-muted"><i class="bi bi-x-circle"></i> Désactivée</span>';
-                        } else {
-                            echo '<span class="badge badge-info"><i class="bi bi-arrow-repeat"></i> Hérite</span>';
-                            echo ' <small class="text-muted">(Offre: ' . ($offerDefault ? 'activée' : 'désactivée') . ')</small>';
-                        }
-                        ?>
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-diagram-2"></i> Groupe d'équité</div>
-                    <div class="col-md-9"><?= h($rule->equity_group_id ?: '—') ?></div>
-                </div>
-                <div class="row">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-sort-numeric-down"></i> Ordre de résolution</div>
-                    <div class="col-md-9">
-                        <span class="badge badge-light text-dark"><?= h((int)($rule->sort_order ?? 0)) ?></span>
-                    </div>
-                </div>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Couverture &amp; équité</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Couverture</dt>
+                <dd><?= $rule->allow_shortfall ? 'Couverture optionnelle' : 'Couverture obligatoire' ?></dd>
             </div>
+            <div>
+                <dt>Équité (période)</dt>
+                <dd><?= h($equityLabel) ?></dd>
+            </div>
+            <div>
+                <dt>Groupe d'équité</dt>
+                <dd><?= h($rule->equity_group_id ?: '—') ?></dd>
+            </div>
+            <div>
+                <dt>Ordre de résolution</dt>
+                <dd><?= h((int)($rule->sort_order ?? 0)) ?></dd>
+            </div>
+        </dl>
+    </section>
 
-            <?php // --- Onglet 4 : Planification & repas --- ?>
-            <div class="tab-pane fade" id="tab-planning" role="tabpanel" aria-labelledby="tab-planning-tab">
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-scissors"></i> Scindable (relais)</div>
-                    <div class="col-md-9">
-                        <?php if ($rule->is_splittable): ?>
-                            <span class="badge badge-info"><i class="bi bi-check-circle"></i> Oui</span>
-                        <?php else: ?>
-                            <span class="badge badge-light text-muted"><i class="bi bi-x-circle"></i> Non</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-layout-three-columns"></i> Blocs intra-journée</div>
-                    <div class="col-md-9">
-                        <?php $blocks = $rule->fixed_activity_blocks ?? []; ?>
-                        <?php if (!empty($blocks)): ?>
-                            <ul class="list-unstyled mb-0">
-                                <?php foreach ($blocks as $b): ?>
-                                    <li>
-                                        <span class="badge badge-light border">
-                                            <?= h(substr($b->start_time ?? '', 0, 5)) ?> – <?= h(substr($b->end_time ?? '', 0, 5)) ?>
-                                        </span>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php else: ?>
-                            <span class="text-muted">Aucun bloc</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-cup-hot"></i> Repas à recouvrir</div>
-                    <div class="col-md-9">
-                        <?php if ($rule->lunch_overlap_allowed): ?>
-                            <span class="badge badge-success"><i class="bi bi-check-circle"></i> Autorisé</span>
-                        <?php else: ?>
-                            <span class="badge badge-light text-muted"><i class="bi bi-x-circle"></i> Interdit</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-arrow-left-right"></i> Position du repas</div>
-                    <div class="col-md-9"><?= h($lunchAttach) ?></div>
-                </div>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Planification &amp; repas</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Scindable (relais)</dt>
+                <dd><?= $rule->is_splittable ? 'Oui' : 'Non' ?></dd>
             </div>
+            <div>
+                <dt>Blocs intra-journée</dt>
+                <dd>
+                    <?php $blocks = $rule->fixed_activity_blocks ?? []; ?>
+                    <?php if (!empty($blocks)): ?>
+                        <?php foreach ($blocks as $b): ?>
+                            <?= h(substr($b->start_time ?? '', 0, 5)) ?> – <?= h(substr($b->end_time ?? '', 0, 5)) ?><br>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        Aucun bloc
+                    <?php endif; ?>
+                </dd>
+            </div>
+            <div>
+                <dt>Repas à recouvrir</dt>
+                <dd><?= $rule->lunch_overlap_allowed ? 'Autorisé' : 'Interdit' ?></dd>
+            </div>
+            <div>
+                <dt>Position du repas</dt>
+                <dd><?= h($lunchAttach) ?></dd>
+            </div>
+        </dl>
+    </section>
 
-            <?php // --- Onglet 5 : Incompatibilités --- ?>
-            <div class="tab-pane fade" id="tab-incompat" role="tabpanel" aria-labelledby="tab-incompat-tab">
-                <div class="row">
-                    <div class="col-md-3 text-muted small"><i class="bi bi-slash-circle"></i> Offres incompatibles</div>
-                    <div class="col-md-9">
-                        <?php $incOffers = $rule->incompatible_offers ?? []; ?>
-                        <?php if (!empty($incOffers)): ?>
-                            <ul class="list-unstyled mb-0">
-                                <?php foreach ($incOffers as $o): ?>
-                                    <li>
-                                        <span class="badge badge-danger"><i class="bi bi-x-octagon"></i> <?= h($o->name) ?></span>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php else: ?>
-                            <span class="text-muted">Aucune incompatibilité</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
+    <section class="crud-section">
+        <h2 class="crud-section-title">Incompatibilités</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Offres incompatibles</dt>
+                <dd>
+                    <?php $incOffers = $rule->incompatible_offers ?? []; ?>
+                    <?php if (!empty($incOffers)): ?>
+                        <?= h(implode(', ', array_map(fn($o) => $o->name, (array)$incOffers))) ?>
+                    <?php else: ?>
+                        Aucune incompatibilité
+                    <?php endif; ?>
+                </dd>
             </div>
-        </div>
-    </div>
+        </dl>
+    </section>
 </div>
-

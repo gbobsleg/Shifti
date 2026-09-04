@@ -73,33 +73,7 @@ class AlertsController extends AppController
         $this->paginate = ['limit' => 25, 'order' => ['Alerts.id' => 'desc']];
         $alerts = $this->paginate($alerts);
 
-        // Statistiques
-        $allAlerts = $this->Alerts->find()->all();
-        $stats = [
-            'total' => $allAlerts->count(),
-            'urgent' => 0,
-            'important' => 0,
-            'info' => 0,
-            'active' => 0,
-        ];
-        
-        // Comptage par priorité et alertes actives
-        $today = new \Cake\I18n\FrozenDate();
-        foreach ($allAlerts as $alert) {
-            if ($alert->priority == 1) {
-                $stats['urgent']++;
-            } elseif ($alert->priority == 2) {
-                $stats['important']++;
-            } elseif ($alert->priority == 3) {
-                $stats['info']++;
-            }
-            
-            if ($alert->date_start <= $today && $alert->date_end >= $today) {
-                $stats['active']++;
-            }
-        }
-
-        $this->set(compact('alerts', 'stats'));
+        $this->set(compact('alerts'));
     }
 
     /**

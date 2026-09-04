@@ -35,22 +35,7 @@ class UserAvailabilitiesController extends AppController
         }
         
         $userAvailabilities = $this->paginate($query);
-        
-        // Statistiques
-        $allAvailabilities = $this->UserAvailabilities->find()->all();
-        $stats = [
-            'total' => $allAvailabilities->count(),
-            'by_day' => [],
-        ];
-        
-        // Comptage par jour
-        $days = [1 => 'Lundi', 2 => 'Mardi', 3 => 'Mercredi', 4 => 'Jeudi', 5 => 'Vendredi', 6 => 'Samedi', 7 => 'Dimanche'];
-        foreach ($days as $dayNum => $dayName) {
-            $stats['by_day'][$dayNum] = $allAvailabilities->filter(function($avail) use ($dayNum) {
-                return $avail->day_of_week == $dayNum;
-            })->count();
-        }
-        
+
         // Liste des utilisateurs pour les filtres
         $users = $this->UserAvailabilities->Users->find('list', [
             'keyField' => 'id',
@@ -60,7 +45,7 @@ class UserAvailabilitiesController extends AppController
             'order' => ['Users.last_name' => 'ASC']
         ])->toArray();
 
-        $this->set(compact('userAvailabilities', 'stats', 'users'));
+        $this->set(compact('userAvailabilities', 'users'));
     }
 
     /**

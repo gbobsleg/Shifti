@@ -22,10 +22,9 @@ $draftUrl = $this->Url->build(['action' => 'draft', (int)$job->id, '?' => $draft
 ?>
 <?php if ($isLive): ?>
     <?= $this->element('PlanningGenerationJobs/workspace/_progress') ?>
-    <div class="alert alert-info mb-0">
-        <i class="bi bi-info-circle"></i>
+    <p class="crud-header-meta mb-0">
         Génération en cours. Le brouillon sera disponible ici dès que le job sera terminé.
-    </div>
+    </p>
 <?php else: ?>
     <div class="d-flex justify-content-end align-items-center mb-2">
         <?= $this->Html->link(

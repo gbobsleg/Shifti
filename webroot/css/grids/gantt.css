@@ -1,0 +1,222 @@
+.grids-app table.quarter {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+    margin-bottom: 1.25rem;
+    background: var(--grids-surface);
+    table-layout: auto;
+}
+
+.grids-app table.quarter,
+.grids-app table.quarter > thead > tr > th,
+.grids-app table.quarter > tbody > tr > td,
+.grids-app table.quarter > tbody > tr > th {
+    border: 0;
+}
+
+.grids-app table.quarter .th_col1 {
+    min-width: calc(var(--grids-slot-w) * 4);
+    font-size: 0.80rem;
+    font-weight: 500;
+    color: var(--grids-muted);
+    text-align: center;
+    border-bottom: 1px solid var(--grids-border);
+    background: var(--grids-surface);
+}
+
+.grids-app table.quarter .th_col2 {
+    width: auto;
+    font-size: 0.6rem;
+    color: var(--grids-muted);
+    text-align: center;
+    font-weight: 400;
+    background: var(--grids-surface);
+}
+
+.grids-app table.quarter .th_col2.site-column,
+.grids-app table.quarter .th_col2.site-column + .th_col2 {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.grids-app.is-zoom-hour table.quarter thead tr:last-child {
+    display: none;
+}
+
+.grids-app table.quarter .th_row {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: var(--grids-surface);
+    text-align: left;
+    white-space: nowrap;
+    font-size: var(--grids-agent-size);
+    font-weight: 500;
+    min-width: 160px;
+    width: 160px;
+    max-width: 160px;
+    padding: 0 0.45rem;
+    border-right: 1px solid var(--grids-border);
+}
+
+.grids-app table.quarter .th_row:not(.site-column) {
+    max-width: 180px;
+    width: 180px;
+    min-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.grids-app table.quarter .th_row.site-column {
+    left: 0;
+    min-width: 96px;
+    width: 96px;
+    max-width: 96px;
+    z-index: 11;
+    font-weight: 500;
+}
+
+.grids-app table.quarter .th_row.site-column + .th_row {
+    left: 96px;
+}
+
+.grids-app.hide-site-column table.quarter .th_row.site-column + .th_row {
+    left: 0;
+}
+
+.grids-app table.quarter .th_row.is-remote {
+    background: var(--grids-remote-bg);
+    color: var(--grids-text);
+}
+
+.grids-app table.quarter tr.tr_quarter.is-remote-row {
+    background: var(--grids-remote-bg);
+}
+
+.grids-app table.quarter .th_row.is-remote i {
+    color: var(--grids-muted);
+    font-size: 0.75rem;
+    margin-right: 0.2rem;
+}
+
+/* ── cellule de base ── */
+.grids-app table.quarter .td_quarter {
+    width: auto;
+    min-width: var(--grids-slot-w);
+    height: var(--grids-row-h);
+    padding: 0 !important;
+    cursor: pointer;
+    position: relative;
+    vertical-align: middle;
+    background-color: transparent;
+}
+
+/* filet horaire : uniquement sur les créneaux vides */
+.grids-app table.quarter .td_quarter.hour-end {
+    box-shadow: inset -1px 0 0 rgba(31, 42, 48, 0.12);
+}
+
+/* pas de filet sur une cellule qui porte une couleur */
+.grids-app table.quarter .td_quarter.bar-start.hour-end,
+.grids-app table.quarter .td_quarter.bar-mid.hour-end,
+.grids-app table.quarter .td_quarter.bar-end.hour-end,
+.grids-app table.quarter .td_quarter.bar-single.hour-end,
+.grids-app table.quarter .td_quarter.bar-pause.hour-end,
+.grids-app table.quarter .td_quarter.bar-lunch.hour-end {
+    box-shadow: none;
+}
+
+.grids-app table.quarter tr.tr_quarter {
+    border-bottom: 1px solid #f0f3f4;
+}
+
+/* ── barres production : inset vertical, angles droits partout sauf extrémités de journée ── */
+.grids-app table.quarter .td_quarter.bar-start,
+.grids-app table.quarter .td_quarter.bar-mid,
+.grids-app table.quarter .td_quarter.bar-end,
+.grids-app table.quarter .td_quarter.bar-single {
+    padding: var(--grids-bar-pad) 0 !important;
+    background-clip: content-box !important;
+}
+
+/* premier créneau de la journée : arrondi côté gauche uniquement */
+.grids-app table.quarter .td_quarter.bar-day-start {
+    border-top-left-radius: var(--grids-radius) calc(var(--grids-bar-pad) + var(--grids-radius));
+    border-bottom-left-radius: var(--grids-radius) calc(var(--grids-bar-pad) + var(--grids-radius));
+}
+
+/* dernier créneau de la journée : arrondi côté droit uniquement */
+.grids-app table.quarter .td_quarter.bar-day-end {
+    border-top-right-radius: var(--grids-radius) calc(var(--grids-bar-pad) + var(--grids-radius));
+    border-bottom-right-radius: var(--grids-radius) calc(var(--grids-bar-pad) + var(--grids-radius));
+}
+
+/* ── pauses / repas : inset plus marqué ── */
+.grids-app table.quarter .td_quarter.bar-pause,
+.grids-app table.quarter .td_quarter.bar-lunch {
+    background-color: var(--grids-pause) !important;
+    box-shadow: none;
+}
+
+.grids-app table.quarter .td_quarter.bar-pause.bar-start,
+.grids-app table.quarter .td_quarter.bar-pause.bar-mid,
+.grids-app table.quarter .td_quarter.bar-pause.bar-end,
+.grids-app table.quarter .td_quarter.bar-pause.bar-single,
+.grids-app table.quarter .td_quarter.bar-lunch.bar-start,
+.grids-app table.quarter .td_quarter.bar-lunch.bar-mid,
+.grids-app table.quarter .td_quarter.bar-lunch.bar-end,
+.grids-app table.quarter .td_quarter.bar-lunch.bar-single {
+    padding: calc(var(--grids-bar-pad) + 4px) 0 !important;
+    background-clip: content-box !important;
+}
+
+/* Pour les pauses au début ou à la fin de la journée, le border-radius s'adapte à leur padding plus grand (rayon intérieur 4px) */
+.grids-app table.quarter .td_quarter.bar-pause.bar-day-start,
+.grids-app table.quarter .td_quarter.bar-lunch.bar-day-start {
+    border-top-left-radius: 4px calc(var(--grids-bar-pad) + 4px + 4px);
+    border-bottom-left-radius: 4px calc(var(--grids-bar-pad) + 4px + 4px);
+}
+
+.grids-app table.quarter .td_quarter.bar-pause.bar-day-end,
+.grids-app table.quarter .td_quarter.bar-lunch.bar-day-end {
+    border-top-right-radius: 4px calc(var(--grids-bar-pad) + 4px + 4px);
+    border-bottom-right-radius: 4px calc(var(--grids-bar-pad) + 4px + 4px);
+}
+
+/* ── hachures indisponibilité ── */
+.grids-app table.quarter .td_quarter.td_unavailable {
+    background: repeating-linear-gradient(
+        45deg,
+        #f0f0f0,
+        #f0f0f0 8px,
+        #e4e4e4 8px,
+        #e4e4e4 16px
+    );
+    cursor: pointer;
+}
+
+/* ── label de barre ── */
+.grids-app table.quarter .bar-label {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: #fff;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.grids-app table.quarter .th_title,
+.grids-app table.quarter thead tr:first-child th {
+    background: transparent;
+    color: var(--grids-muted);
+    font-size: 0.80rem;
+    font-weight: 700;
+    text-align: left;
+    padding: 0.3rem 0.25rem;
+}

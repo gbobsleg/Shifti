@@ -3,28 +3,7 @@
  * @var \App\View\AppView $this
  * @var \Cake\Datasource\ResultSetInterface|\Cake\Collection\CollectionInterface $jobs
  */
-
-// Calcul des statistiques
-$totalJobs = is_countable($jobs) ? count($jobs) : iterator_count($jobs);
-$finishedJobs = 0;
-$runningJobs = 0;
-$errorJobs = 0;
-$finishedStatuses = ['finished', 'finished_with_errors'];
-$runningStatuses = ['running', 'queued'];
-$errorStatuses = ['error', 'infeasible'];
-
-foreach ($jobs as $job) {
-    $status = (string)$job->status;
-    if (in_array($status, $finishedStatuses, true)) {
-        $finishedJobs++;
-    } elseif (in_array($status, $runningStatuses, true)) {
-        $runningJobs++;
-    } elseif (in_array($status, $errorStatuses, true)) {
-        $errorJobs++;
-    }
-}
-
-$successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0;
+$jobCount = is_countable($jobs) ? count($jobs) : iterator_count($jobs);
 ?>
 <?php $this->assign('title', 'Générations de planning'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
@@ -32,14 +11,6 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
 <?php $this->Html->script('planning-generation-jobs-filters', ['block' => true]); ?>
 
 <style>
-.kpi-card {
-    transition: transform 0.2s, box-shadow 0.2s;
-    border-left: 4px solid;
-}
-.kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
-}
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
@@ -47,113 +18,30 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
 .spinning {
     animation: spin 1s linear infinite;
 }
-.kpi-value {
-    font-size: 2.5rem;
-    font-weight: 700;
-    line-height: 1;
-}
-.kpi-label {
-    font-size: 0.9rem;
-    color: #6c757d;
-    margin-top: 0.5rem;
-}
 </style>
 
-<div class="row">
-    <div class="col-12">
-        <!-- KPI Cards -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card shadow kpi-card border-left-primary">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="kpi-value text-primary"><?= number_format($totalJobs) ?></div>
-                                <div class="kpi-label">Total jobs</div>
-                            </div>
-                            <i class="bi bi-list-task text-primary" style="font-size: 2.5rem; opacity: 0.2;"></i>
-                        </div>
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                Derniers 50 jobs
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow kpi-card border-left-success">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="kpi-value text-success"><?= number_format($finishedJobs) ?></div>
-                                <div class="kpi-label">Jobs terminés</div>
-                            </div>
-                            <i class="bi bi-check-circle-fill text-success" style="font-size: 2.5rem; opacity: 0.2;"></i>
-                        </div>
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                <?= $successRate ?>% de réussite
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow kpi-card border-left-info">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="kpi-value text-info"><?= number_format($runningJobs) ?></div>
-                                <div class="kpi-label">Jobs en cours</div>
-                            </div>
-                            <i class="bi bi-arrow-repeat text-info" style="font-size: 2.5rem; opacity: 0.2;"></i>
-                        </div>
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                Running ou en attente
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow kpi-card border-left-danger">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="kpi-value text-danger"><?= number_format($errorJobs) ?></div>
-                                <div class="kpi-label">Jobs en erreur</div>
-                            </div>
-                            <i class="bi bi-x-circle-fill text-danger" style="font-size: 2.5rem; opacity: 0.2;"></i>
-                        </div>
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                Erreur ou infaisable
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<div class="crud-app planning-generation-jobs index content">
+    <div class="crud-header">
+        <div>
+            <h1>
+                <i class="bi bi-list-task"></i>
+                Générations de planning
+            </h1>
+            <p class="crud-header-meta"><?= (int)$jobCount ?> générations</p>
         </div>
+        <div class="crud-header-actions">
+            <button type="button" class="btn btn-outline-secondary" id="refreshBtn" title="Actualiser les statuts">
+                <i class="bi bi-arrow-clockwise"></i> Actualiser
+            </button>
+            <?= $this->Html->link(
+                '<i class="bi bi-plus-circle me-1"></i> Nouvelle génération',
+                ['action' => 'add'],
+                ['class' => 'btn btn-primary', 'escape' => false]
+            ) ?>
+        </div>
+    </div>
 
-        <div class="card shadow planning-generation-jobs-index">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h3 class="mb-0"><i class="bi bi-list-task text-primary"></i> Générations de planning</h3>
-                <div class="d-flex" style="gap: 0.5rem;">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="refreshBtn" title="Actualiser les statuts">
-                        <i class="bi bi-arrow-clockwise"></i> Actualiser
-                    </button>
-                    <?= $this->Html->link(
-                        '<i class="bi bi-plus-circle"></i> Nouveau job',
-                        ['action' => 'add'],
-                        ['class' => 'btn btn-primary', 'escape' => false]
-                    ) ?>
-                </div>
-            </div>
-            <div class="card-body">
-                <!-- Formulaire de filtres -->
-                <?= $this->Form->create(null, ['type' => 'get', 'class' => 'mb-4']) ?>
+                <?= $this->Form->create(null, ['type' => 'get', 'class' => 'filters-toolbar mb-3']) ?>
                 <div class="row">
                     <div class="col-md-2">
                         <?= $this->Form->control('status', [
@@ -222,7 +110,7 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
                 <?= $this->Form->end() ?>
 
                 <?php if (empty($jobs) || (is_countable($jobs) && count($jobs) === 0)): ?>
-                    <div class="alert alert-info mb-0">Aucun job.</div>
+                    <p class="crud-empty mb-0">Aucune génération.</p>
                 <?php else: ?>
                     <!-- Actions en masse -->
                     <?php
@@ -252,8 +140,8 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-striped table-hover align-middle">
-                            <thead class="table-light">
+                        <table class="table table-hover table-sm crud-table align-middle">
+                            <thead>
                             <tr>
                                 <th style="width: 40px;">
                                     <input type="checkbox" id="selectAll" title="Tout sélectionner">
@@ -272,6 +160,15 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
                             <?php foreach ($jobs as $job): ?>
                                 <?php
                                 $status = (string)$job->status;
+                                $statusLabels = [
+                                    'finished' => 'Terminé',
+                                    'finished_with_errors' => 'Terminé avec erreurs',
+                                    'running' => 'En cours',
+                                    'queued' => 'En attente',
+                                    'error' => 'Erreur',
+                                    'infeasible' => 'Infaisable',
+                                ];
+                                $statusLabel = $statusLabels[$status] ?? $status;
                                 $badge = 'secondary';
                                 $icon = 'clock';
                                 if ($status === 'finished' || $status === 'finished_with_errors') {
@@ -317,32 +214,38 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
                                 ?>
                                 <tr>
                                     <td>
-                                        <input type="checkbox" name="ids[]" value="<?= (int)$job->id ?>" class="job-checkbox" <?= (string)$job->status === 'running' ? 'disabled title="Job en cours"' : '' ?>>
+                                        <input type="checkbox" name="ids[]" value="<?= (int)$job->id ?>" class="job-checkbox" <?= (string)$job->status === 'running' ? 'disabled title="Génération en cours"' : '' ?>>
                                     </td>
-                                    <td><strong>#<?= (int)$job->id ?></strong></td>
+                                    <td>
+                                        <?= $this->Html->link(
+                                            '#' . (int)$job->id,
+                                            ['action' => 'view', (int)$job->id],
+                                            ['class' => 'crud-row-link']
+                                        ) ?>
+                                    </td>
                                     <td>
                                         <?= h((string)$job->start_date) ?> → <?= h((string)$job->end_date) ?>
                                     </td>
                                     <td><?= h($job->wfm_setting->name ?? '') ?></td>
                                     <td>
-                                        <span class="badge badge-<?= $ignoreFixed ? 'secondary' : 'success' ?>" title="Passe 1 : Activités fixes">
+                                        <span class="badge bg-<?= $ignoreFixed ? 'secondary' : 'success' ?>" title="Passe 1 : Activités fixes">
                                             P1 <?= $ignoreFixed ? '<i class="bi bi-x"></i>' : '<i class="bi bi-check"></i>' ?>
                                         </span>
-                                        <span class="badge badge-<?= $ignoreRotation ? 'secondary' : 'success' ?>" title="Passe 1.5 : Rotations">
+                                        <span class="badge bg-<?= $ignoreRotation ? 'secondary' : 'success' ?>" title="Passe 1.5 : Rotations">
                                             P1.5 <?= $ignoreRotation ? '<i class="bi bi-x"></i>' : '<i class="bi bi-check"></i>' ?>
                                         </span>
-                                        <span class="badge badge-<?= $ignoreForecast ? 'secondary' : 'success' ?>" title="Passe 2 : Prévisions">
+                                        <span class="badge bg-<?= $ignoreForecast ? 'secondary' : 'success' ?>" title="Passe 2 : Prévisions">
                                             P2 <?= $ignoreForecast ? '<i class="bi bi-x"></i>' : '<i class="bi bi-check"></i>' ?>
                                         </span>
                                         <?php if ($debugSolvers): ?>
-                                        <span class="badge badge-warning" title="Mode debug activé">
+                                        <span class="badge bg-warning" title="Mode débogage activé">
                                             <i class="bi bi-bug"></i>
                                         </span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <span class="badge badge-<?= $badge ?>">
-                                            <i class="bi bi-<?= $icon ?>"></i> <?= h($status) ?>
+                                        <span class="badge bg-<?= $badge ?>">
+                                            <i class="bi bi-<?= $icon ?>"></i> <?= h($statusLabel) ?>
                                         </span>
                                     </td>
                                     <td class="text-end">
@@ -370,12 +273,12 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
                                     </td>
                                     <td class="actions text-end">
                                         <div class="dropup actions-dropdown" data-entity-id="<?= (int)$job->id ?>">
-                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownActions<?= $job->id ?>" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownActions<?= $job->id ?>" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                                 <i class="bi bi-three-dots-vertical"></i> Actions
                                             </button>
-                                            <div class="dropdown-menu dropdown-menu-right actions-dropdown-menu" data-entity-id="<?= (int)$job->id ?>" aria-labelledby="dropdownActions<?= $job->id ?>">
+                                            <div class="dropdown-menu dropdown-menu-end actions-dropdown-menu" data-entity-id="<?= (int)$job->id ?>" aria-labelledby="dropdownActions<?= $job->id ?>">
                                                 <?= $this->Html->link(
-                                                    '<i class="bi bi-folder2-open mr-2"></i> Ouvrir',
+                                                    '<i class="bi bi-folder2-open me-2"></i> Ouvrir',
                                                     ['action' => 'view', (int)$job->id],
                                                     ['class' => 'dropdown-item', 'escape' => false]
                                                 ) ?>
@@ -383,13 +286,13 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
                                                 <a href="#" 
                                                    class="dropdown-item text-primary job-retry-link" 
                                                    data-job-id="<?= (int)$job->id ?>"
-                                                   data-confirm="Relancer ce job ? Il sera remis en file d'attente et traité depuis le début."
+                                                   data-confirm="Relancer cette génération ? Elle sera remise en file d'attente et traitée depuis le début."
                                                    data-url="<?= $this->Url->build(['action' => 'retry', (int)$job->id]) ?>">
-                                                    <i class="bi bi-arrow-clockwise mr-2"></i> Relancer
+                                                    <i class="bi bi-arrow-clockwise me-2"></i> Relancer
                                                 </a>
                                                 <?php if ($status !== 'running'): ?>
                                                     <?= $this->Html->link(
-                                                        '<i class="bi bi-pencil mr-2"></i> Modifier',
+                                                        '<i class="bi bi-pencil me-2"></i> Modifier',
                                                         ['action' => 'edit', (int)$job->id],
                                                         ['class' => 'dropdown-item text-warning', 'escape' => false]
                                                     ) ?>
@@ -397,9 +300,9 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
                                                     <a href="#" 
                                                        class="dropdown-item text-danger job-delete-link" 
                                                        data-job-id="<?= (int)$job->id ?>"
-                                                       data-confirm="Supprimer ce job ? Le brouillon et le détail des jours seront supprimés."
+                                                       data-confirm="Supprimer cette génération ? Le brouillon et le détail des jours seront supprimés."
                                                        data-url="<?= $this->Url->build(['action' => 'delete', (int)$job->id]) ?>">
-                                                        <i class="bi bi-trash mr-2"></i> Supprimer
+                                                        <i class="bi bi-trash me-2"></i> Supprimer
                                                     </a>
                                                 <?php endif; ?>
                                             </div>
@@ -412,9 +315,6 @@ $successRate = $totalJobs > 0 ? round(($finishedJobs / $totalJobs) * 100, 1) : 0
                     </div>
                     <?= $this->Form->end() ?>
                 <?php endif; ?>
-            </div>
-        </div>
-    </div>
 </div>
 
 <?php

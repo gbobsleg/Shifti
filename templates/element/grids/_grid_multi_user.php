@@ -21,19 +21,9 @@ for ($i = 0; $i <= $days; $i++):
         $dayRangesBegin = $dayRangesBegin->addDays(1);
         continue;
     }
-    
-    // Afficher le graphique pour ce jour (si les variables sont définies)
-    if (isset($offers_list, $publishedByDate, $canLoadSeries)):
-        echo $this->element('grids/_single_day_chart', [
-            'dayDate' => $dayRangesBegin,
-            'offers_list' => $offers_list,
-            'publishedByDate' => $publishedByDate,
-            'canLoadSeries' => $canLoadSeries
-        ]);
-    endif;
 ?>
-    <table class="table table-bordered quarter table-hover">
-        <thead class="thead-light">
+    <table class="quarter">
+        <thead>
             <tr>
                 <th scope="col" colspan="50" class="text-center th_title">Planning du <?= $dayRangesBegin->i18nFormat('EEEE dd MMMM yyyy'); ?></th>
             </tr>
@@ -131,7 +121,7 @@ for ($i = 0; $i <= $days; $i++):
                 }
             }
         ?>
-            <tr class="tr_quarter" data_user="<?= $user->id ?>">
+            <tr class="tr_quarter<?= !empty($this->Grids->isUserInRemoteWork($user, $dayRangesBegin)['is_remote']) ? ' is-remote-row' : '' ?>" data_user="<?= $user->id ?>">
                 <?php echo $this->Grids->writeTrUser($user, $offers_name, $dayRangesBegin, (string)$rangesProperty);?>
             </tr>
         <?php endforeach; ?>

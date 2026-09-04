@@ -1,0 +1,445 @@
+body:has(.crud-app) {
+    background: var(--shell-bg, #f4f6f7);
+}
+
+.crud-app {
+    --crud-accent: #318f9b;
+    --crud-accent-hover: #27757f;
+    --crud-bg: #f4f6f7;
+    --crud-surface: #ffffff;
+    --crud-text: #1f2a30;
+    --crud-muted: #6b7a82;
+    --crud-border: #e2e8ea;
+    --crud-radius: 6px;
+    color: var(--crud-text);
+    background: var(--crud-surface);
+    border: 1px solid var(--crud-border);
+    border-radius: var(--crud-radius);
+    padding: 1.25rem 1.5rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.crud-app.view,
+.crud-app.form {
+    max-width: 52rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.crud-app .crud-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--crud-border);
+}
+
+.crud-app .crud-header h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.crud-app .crud-header-meta {
+    margin: 0.15rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--crud-muted);
+}
+
+.crud-app .crud-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.crud-app .btn,
+.crud-app .btn-sm {
+    --bs-btn-padding-y: 0.28rem;
+    --bs-btn-padding-x: 0.65rem;
+    --bs-btn-font-size: 0.8125rem;
+    --bs-btn-border-radius: var(--crud-radius);
+}
+
+.crud-app .crud-swatch {
+    display: inline-block;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 3px;
+    border: 1px solid rgba(31, 42, 48, 0.18);
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+.crud-app .crud-color {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.crud-app .crud-color-hex {
+    font-size: 0.75rem;
+    color: var(--crud-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.crud-app .crud-table {
+    margin-bottom: 0;
+    border-color: var(--crud-border);
+}
+
+.crud-app .crud-table thead th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--crud-muted);
+    border-bottom-color: var(--crud-border);
+    background: var(--crud-bg);
+    white-space: nowrap;
+}
+
+.crud-app .crud-table tbody td {
+    border-color: var(--crud-border);
+    vertical-align: middle;
+}
+
+/* FormHelper enveloppe chaque contrôle dans .mb-3 : ça décale date/heure vs boutons / labels. */
+.crud-app .crud-table td .mb-3,
+.crud-app .crud-table td .form-group,
+.crud-app .form-row > [class*="col-"] > .mb-3,
+.crud-app .d-flex > .mb-3,
+.crud-app .d-flex > .form-group {
+    margin-bottom: 0;
+}
+
+.crud-app .crud-table .form-control-sm[type="date"],
+.crud-app .crud-table .form-control-sm[type="time"],
+.crud-app .d-flex .form-control-sm[type="date"],
+.crud-app .d-flex .form-control-sm[type="time"] {
+    width: auto;
+    max-width: 12rem;
+    height: calc(1.5em + 0.5rem + 2px);
+    min-height: calc(1.5em + 0.5rem + 2px);
+}
+
+.crud-app .crud-table .btn-group {
+    flex-wrap: nowrap;
+}
+
+.crud-app .crud-table .btn-group .btn,
+.crud-app .crud-table td .btn {
+    white-space: nowrap;
+    height: calc(1.5em + 0.5rem + 2px);
+    display: inline-flex;
+    align-items: center;
+}
+
+.crud-app .crud-table.table-hover tbody tr:hover {
+    background-color: rgba(49, 143, 155, 0.06);
+}
+
+.crud-app a.crud-row-link {
+    color: var(--crud-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.crud-app a.crud-row-link:hover {
+    color: var(--crud-accent);
+    text-decoration: underline;
+}
+
+.crud-app .crud-table td.actions {
+    white-space: nowrap;
+}
+
+.crud-app .crud-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    margin-right: 0.1rem;
+    font-size: 0.9375rem;
+    color: var(--crud-muted);
+    text-decoration: none;
+    border-radius: var(--crud-radius);
+}
+
+.crud-app .crud-action:last-child {
+    margin-right: 0;
+}
+
+.crud-app .crud-action:hover {
+    color: var(--crud-accent);
+    background: rgba(49, 143, 155, 0.08);
+    text-decoration: none;
+}
+
+.crud-app .crud-action-danger:hover {
+    color: #b42318;
+    background: rgba(180, 35, 24, 0.08);
+}
+
+.crud-app .crud-empty {
+    padding: 1.5rem 0.75rem;
+    text-align: center;
+    color: var(--crud-muted);
+}
+
+.crud-app .crud-empty p {
+    margin: 0 0 0.75rem;
+}
+
+.crud-app .crud-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.25rem;
+}
+
+.crud-app .crud-section-title {
+    margin: 0 0 0.85rem;
+    padding-bottom: 0.4rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--crud-text);
+    border-bottom: 1px solid var(--crud-border);
+}
+
+.crud-app .crud-section-title[data-bs-toggle="collapse"] {
+    cursor: pointer;
+    user-select: none;
+}
+
+.crud-app .crud-section-title .crud-section-actions {
+    float: right;
+    font-weight: 500;
+}
+
+.crud-app .crud-subsection-title {
+    margin: 1rem 0 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--crud-muted);
+}
+
+.crud-app .crud-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--crud-border);
+    font-size: 0.875rem;
+}
+
+.crud-app .crud-warn {
+    margin-bottom: 1rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--crud-border);
+    border-left: 3px solid #b45309;
+    border-radius: var(--crud-radius);
+    background: #faf8f5;
+    font-size: 0.8125rem;
+    color: var(--crud-text);
+}
+
+.crud-app .crud-warn > #unrecognized-body,
+.crud-app .crud-warn .table {
+    margin-top: 0.5rem;
+}
+
+.crud-app .crud-dl {
+    margin: 0;
+}
+
+.crud-app .crud-dl dt {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--crud-muted);
+    margin-top: 0.65rem;
+}
+
+.crud-app .crud-dl dt:first-child {
+    margin-top: 0;
+}
+
+.crud-app .crud-dl dd {
+    margin: 0.1rem 0 0;
+}
+
+.crud-app .crud-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.7rem 1.5rem;
+    margin: 0;
+}
+
+.crud-app .crud-fields > div {
+    min-width: 0;
+}
+
+.crud-app .crud-fields dt {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--crud-muted);
+    margin: 0;
+}
+
+.crud-app .crud-fields dd {
+    margin: 0.15rem 0 0;
+}
+
+.crud-app .crud-actions-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--crud-border);
+}
+
+.crud-app .paginator {
+    margin-top: 1rem;
+}
+
+.crud-app .paginator p {
+    margin: 0.5rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--crud-muted);
+    text-align: center;
+}
+
+/* BS 5 compile --bs-pagination-active-* en bleu #0d6efd : --bs-primary teal ne suffit pas. */
+.crud-app .pagination {
+    --bs-pagination-padding-x: 0.65rem;
+    --bs-pagination-padding-y: 0.3rem;
+    --bs-pagination-font-size: 0.8125rem;
+    --bs-pagination-color: var(--crud-accent);
+    --bs-pagination-bg: var(--crud-surface);
+    --bs-pagination-border-width: 1px;
+    --bs-pagination-border-color: var(--crud-border);
+    --bs-pagination-border-radius: var(--crud-radius);
+    --bs-pagination-hover-color: var(--crud-accent-hover);
+    --bs-pagination-hover-bg: rgba(49, 143, 155, 0.06);
+    --bs-pagination-hover-border-color: var(--crud-border);
+    --bs-pagination-focus-color: var(--crud-accent-hover);
+    --bs-pagination-focus-bg: rgba(49, 143, 155, 0.08);
+    --bs-pagination-focus-box-shadow: 0 0 0 0.2rem rgba(49, 143, 155, 0.22);
+    --bs-pagination-active-color: #fff;
+    --bs-pagination-active-bg: var(--crud-accent);
+    --bs-pagination-active-border-color: var(--crud-accent);
+    --bs-pagination-disabled-color: var(--crud-muted);
+    --bs-pagination-disabled-bg: var(--crud-bg);
+    --bs-pagination-disabled-border-color: var(--crud-border);
+    margin-bottom: 0;
+    gap: 0.25rem;
+}
+
+.crud-app .pagination .page-link {
+    border-radius: var(--crud-radius);
+}
+
+/* Infobulle ancrée au texte : un label/span en block prend toute la colonne. */
+.crud-app .crud-help {
+    margin-bottom: 1rem;
+    font-size: 0.8125rem;
+    color: var(--crud-muted);
+}
+
+.crud-app .crud-help .crud-subsection-title {
+    margin-top: 0.75rem;
+}
+
+.crud-app .crud-help .crud-subsection-title:first-child {
+    margin-top: 0;
+}
+
+.crud-app .crud-help ul {
+    margin: 0 0 0.35rem;
+    padding-left: 1.15rem;
+}
+
+.crud-app .crud-help li {
+    margin-bottom: 0.2rem;
+}
+
+.crud-app .crud-help p {
+    margin: 0.5rem 0 0;
+}
+
+.crud-app label[data-bs-toggle="tooltip"],
+.crud-app span[data-bs-toggle="tooltip"],
+.crud-app dt[data-bs-toggle="tooltip"] {
+    display: inline-block;
+    width: max-content;
+    max-width: 100%;
+}
+
+.crud-app details.crud-details > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.crud-app details.crud-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.crud-app details.crud-details > summary::before {
+    content: "▸";
+    display: inline-block;
+    width: 0.9rem;
+    color: var(--crud-muted);
+    font-weight: 500;
+}
+
+.crud-app details.crud-details[open] > summary::before {
+    content: "▾";
+}
+
+.crud-app .crud-details-meta {
+    margin-left: 0.4rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--crud-muted);
+}
+
+.crud-app .crud-tabs {
+    border-bottom: 1px solid var(--crud-border);
+    margin-bottom: 1rem;
+    gap: 0.15rem;
+}
+
+.crud-app .crud-tabs .nav-link {
+    color: var(--crud-muted);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    font-size: 0.8125rem;
+    padding: 0.4rem 0.75rem;
+    background: transparent;
+}
+
+.crud-app .crud-tabs .nav-link:hover {
+    color: var(--crud-accent);
+    border-color: transparent;
+    background: transparent;
+}
+
+.crud-app .crud-tabs .nav-link.active {
+    color: var(--crud-accent);
+    background: transparent;
+    border-color: transparent transparent var(--crud-accent);
+    font-weight: 600;
+}
+
+.crud-app.view.crud-app-wide,
+.crud-app.form.crud-app-wide {
+    max-width: none;
+}

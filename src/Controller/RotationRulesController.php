@@ -26,25 +26,9 @@ class RotationRulesController extends AppController
         $this->paginate = ['limit' => 25];
         $rules = $this->paginate($query);
 
-        $allRules = $this->fetchTable('RotationRules')->find()->all();
-        $total = $allRules->count();
-        $weekly = 0;
-        $monthly = 0;
-        foreach ($allRules as $rule) {
-            if ($rule->period_type === 'WEEKLY') {
-                $weekly++;
-            } elseif ($rule->period_type === 'MONTHLY') {
-                $monthly++;
-            }
-        }
-        $stats = [
-            'total' => $total,
-            'weekly' => $weekly,
-            'monthly' => $monthly,
-        ];
         $offers = $this->fetchTable('Offers')->find('list')->order(['name' => 'ASC'])->toArray();
 
-        $this->set(compact('rules', 'stats', 'offers'));
+        $this->set(compact('rules', 'offers'));
     }
 
     public function add()

@@ -26,27 +26,7 @@ class OffersController extends AppController
         $this->Authorization->authorize(new \App\Resource\OffersResource(), 'index');
         $offers = $this->paginate($this->Offers);
 
-        // Statistiques
-        $allOffers = $this->Offers->find('all')->contain(['Skills', 'Ranges']);
-        $stats = [
-            'total' => $allOffers->count(),
-            'with_skills' => 0,
-            'without_skills' => 0,
-            'total_ranges' => 0
-        ];
-        
-        foreach ($allOffers as $offer) {
-            $skillsCount = isset($offer->skills) ? count($offer->skills) : 0;
-            if ($skillsCount > 0) {
-                $stats['with_skills']++;
-            } else {
-                $stats['without_skills']++;
-            }
-            
-            $stats['total_ranges'] += isset($offer->ranges) ? count($offer->ranges) : 0;
-        }
-
-        $this->set(compact('offers', 'stats'));
+        $this->set(compact('offers'));
     }
 
     /**
@@ -329,8 +309,8 @@ class OffersController extends AppController
 
         if ($busy) {
             $message = sprintf(
-                'Cette offre a déjà un job de tuning %s (job #%d). Attendez la fin ou utilisez Annuler avant d’en relancer un.',
-                (string)$busy->status,
+                'Cette offre a déjà une optimisation %s (tâche #%d). Attendez la fin ou utilisez Annuler avant d’en relancer une.',
+                $busy->status === ProphetTuningJob::STATUS_RUNNING ? 'en cours' : 'en file',
                 (int)$busy->id
             );
             if ($this->wantsJson()) {
@@ -356,7 +336,7 @@ class OffersController extends AppController
 
         $wfm = $this->fetchTable('WfmSettings')->find()->contain([])->first();
         if (!$wfm) {
-            $message = 'Aucun profil WFM trouvé — impossible de lancer le tuning.';
+            $message = 'Aucun profil WFM trouvé — impossible de lancer l’optimisation.';
             if ($this->wantsJson()) {
                 return $this->jsonResponse(['success' => false, 'message' => $message], 400);
             }
@@ -381,7 +361,7 @@ class OffersController extends AppController
         ]);
 
         if (!$Jobs->save($job)) {
-            $message = 'Impossible de créer le job de tuning.';
+            $message = 'Impossible de créer la tâche d’optimisation.';
             if ($this->wantsJson()) {
                 return $this->jsonResponse(['success' => false, 'message' => $message], 500);
             }
@@ -390,10 +370,10 @@ class OffersController extends AppController
             return $this->redirect(['action' => 'edit', $offer->id]);
         }
 
-        $message = 'Tuning mis en file d\'attente.';
+        $message = 'Optimisation mise en file d\'attente.';
         if ($queueAhead > 0) {
             $message = sprintf(
-                'Tuning mis en file d\'attente (job #%d). %d job(s) déjà en cours/file — exécution séquentielle.',
+                'Optimisation mise en file d\'attente (tâche #%d). %d tâche(s) déjà en cours ou en file — exécution séquentielle.',
                 (int)$job->id,
                 $queueAhead
             );
@@ -446,7 +426,7 @@ class OffersController extends AppController
             ->first();
 
         if (!$busy) {
-            $message = 'Aucun job queued/running à annuler pour cette offre.';
+            $message = 'Aucune tâche en file ou en cours à annuler pour cette offre.';
             if ($this->wantsJson()) {
                 return $this->jsonResponse(['success' => false, 'message' => $message], 409);
             }
@@ -581,7 +561,7 @@ class OffersController extends AppController
         $offer = $this->Offers->get((int)$id, contain: []);
         $draft = ProphetOptunaConfig::decodeJson($offer->prophet_tuning_draft_json);
         if ($draft === null) {
-            return $this->tuneActionResult($offer->id, false, 'Aucun brouillon Optuna à appliquer.');
+            return $this->tuneActionResult($offer->id, false, 'Aucun brouillon à appliquer.');
         }
 
         $current = ProphetOptunaConfig::decodeJson($offer->prophet_default_settings_json) ?? [];
@@ -603,7 +583,7 @@ class OffersController extends AppController
             return $this->tuneActionResult($offer->id, false, 'Échec de l\'application du brouillon.');
         }
 
-        return $this->tuneActionResult($offer->id, true, 'Profil Prophet mis à jour depuis le brouillon Optuna.');
+        return $this->tuneActionResult($offer->id, true, 'Profil Prophet mis à jour depuis le brouillon.');
     }
 
     /**
@@ -624,7 +604,7 @@ class OffersController extends AppController
             return $this->tuneActionResult($offer->id, false, 'Impossible de rejeter le brouillon.');
         }
 
-        return $this->tuneActionResult($offer->id, true, 'Brouillon Optuna rejeté.');
+        return $this->tuneActionResult($offer->id, true, 'Brouillon rejeté.');
     }
 
     /**
@@ -647,7 +627,7 @@ class OffersController extends AppController
         $offer->prophet_tuning_previous_json = null;
 
         if (!$this->Offers->save($offer)) {
-            return $this->tuneActionResult($offer->id, false, 'Échec du rollback.');
+            return $this->tuneActionResult($offer->id, false, 'Échec de la restauration du profil.');
         }
 
         return $this->tuneActionResult($offer->id, true, 'Profil Prophet précédent restauré.');

@@ -153,8 +153,8 @@
     }
 
     $(document).ready(function () {
-        if (typeof $().tooltip === 'function') {
-            $('[data-toggle="tooltip"]').tooltip();
+        if (typeof window.initTooltips === 'function') {
+            window.initTooltips();
         }
 
         var $form = $('form').has('[name="am_pause_end_time"]').first();

@@ -8,117 +8,115 @@ use App\Model\Entity\OfferGroup;
 <?php $this->assign('title', 'Groupe : ' . h($offerGroup->name)); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<div class="offerGroups view content card">
-    <div class="card-header d-flex justify-content-between align-items-center bg-light">
-        <h3 class="mb-0">
-            <i class="bi bi-diagram-3 text-info"></i>
+<div class="crud-app offerGroups view content">
+    <div class="crud-header">
+        <h1>
+            <i class="bi bi-diagram-3"></i>
             <?= h($offerGroup->name) ?>
-        </h3>
-        <div>
+        </h1>
+        <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-pencil mr-1"></i> Modifier',
+                '<i class="bi bi-pencil me-1"></i> Modifier',
                 ['action' => 'edit', $offerGroup->id],
-                ['class' => 'btn btn-primary mr-2', 'escape' => false]
-            ) ?>
-            <?= $this->Form->postLink(
-                '<i class="bi bi-trash mr-1"></i> Supprimer',
-                ['action' => 'delete', $offerGroup->id],
-                [
-                    'confirm' => 'Supprimer le groupe « ' . h($offerGroup->name) . ' » ?',
-                    'class' => 'btn btn-danger mr-2',
-                    'escape' => false,
-                ]
+                ['class' => 'btn btn-primary', 'escape' => false]
             ) ?>
             <?= $this->Html->link(
-                '<i class="bi bi-list mr-1"></i> Liste',
+                '<i class="bi bi-list me-1"></i> Liste',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
+            <?= $this->Form->postLink(
+                '<i class="bi bi-trash me-1"></i> Supprimer',
+                ['action' => 'delete', $offerGroup->id],
+                [
+                    'confirm' => 'Supprimer le groupe « ' . h($offerGroup->name) . ' » ?',
+                    'class' => 'btn btn-outline-danger',
+                    'escape' => false,
+                ]
+            ) ?>
         </div>
     </div>
-    <div class="card-body">
-        <div class="card border-info mb-4">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-info-circle"></i> Paramètres
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">Paramètres</h2>
+        <dl class="crud-fields">
+            <div>
+                <dt>Nom</dt>
+                <dd><?= h($offerGroup->name) ?></dd>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="text-muted small mb-1">Nom</label>
-                        <div><strong><?= h($offerGroup->name) ?></strong></div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="text-muted small mb-1">Source forecast</label>
-                        <div>
-                            <?php if ($offerGroup->forecast_source === OfferGroup::FORECAST_SOURCE_GROUP): ?>
-                                <span class="badge badge-primary">Groupe (ratio manuel)</span>
-                            <?php else: ?>
-                                <span class="badge badge-secondary">Membres</span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="text-muted small mb-1">Préférence mixte</label>
-                        <div>
-                            <?= $offerGroup->prefer_mixed
-                                ? '<span class="badge badge-success">ON</span>'
-                                : '<span class="badge badge-light">OFF</span>' ?>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="text-muted small mb-1">Offre mixte</label>
-                        <div>
-                            <?php if (!empty($offerGroup->mixed_offer)): ?>
+            <div>
+                <dt>Source de prévision</dt>
+                <dd>
+                    <?= $offerGroup->forecast_source === OfferGroup::FORECAST_SOURCE_GROUP
+                        ? 'Groupe (ratio manuel)'
+                        : 'Membres' ?>
+                </dd>
+            </div>
+            <div>
+                <dt>Préférence mixte</dt>
+                <dd><?= $offerGroup->prefer_mixed ? 'Oui' : 'Non' ?></dd>
+            </div>
+            <div>
+                <dt>Offre mixte</dt>
+                <dd>
+                    <?php if (!empty($offerGroup->mixed_offer)): ?>
+                        <?= $this->Html->link(
+                            $offerGroup->mixed_offer->name,
+                            ['controller' => 'Offers', 'action' => 'view', $offerGroup->mixed_offer_id]
+                        ) ?>
+                    <?php else: ?>
+                        —
+                    <?php endif; ?>
+                </dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">Membres</h2>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm crud-table">
+                <thead>
+                <tr>
+                    <th scope="col">Ordre</th>
+                    <th scope="col">Offre</th>
+                    <th scope="col">Ratio %</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php
+                $members = $offerGroup->offer_group_members ?? [];
+                if (!$members):
+                ?>
+                    <tr>
+                        <td colspan="3" class="crud-empty">
+                            <p>Aucun membre.</p>
+                        </td>
+                    </tr>
+                <?php endif; ?>
+                <?php foreach ($members as $member): ?>
+                    <tr>
+                        <td><?= (int)$member->display_order ?></td>
+                        <td>
+                            <?php if (!empty($member->offer)): ?>
                                 <?= $this->Html->link(
-                                    h($offerGroup->mixed_offer->name),
-                                    ['controller' => 'Offers', 'action' => 'view', $offerGroup->mixed_offer_id]
+                                    $member->offer->name,
+                                    ['controller' => 'Offers', 'action' => 'view', $member->offer_id],
+                                    ['class' => 'crud-row-link']
                                 ) ?>
                             <?php else: ?>
-                                <span class="text-muted">—</span>
+                                #<?= (int)$member->offer_id ?>
                             <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                        </td>
+                        <td>
+                            <?= $member->split_ratio_percent !== null
+                                ? h((string)$member->split_ratio_percent) . ' %'
+                                : '—' ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
-
-        <div class="card border-primary mb-4">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-people"></i> Membres
-            </div>
-            <div class="card-body">
-                <table class="table table-sm table-striped mb-0">
-                    <thead>
-                        <tr>
-                            <th>Ordre</th>
-                            <th>Offre</th>
-                            <th>Ratio %</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($offerGroup->offer_group_members ?? [] as $member): ?>
-                            <tr>
-                                <td><?= (int)$member->display_order ?></td>
-                                <td>
-                                    <?php if (!empty($member->offer)): ?>
-                                        <?= $this->Html->link(
-                                            h($member->offer->name),
-                                            ['controller' => 'Offers', 'action' => 'view', $member->offer_id]
-                                        ) ?>
-                                    <?php else: ?>
-                                        #<?= (int)$member->offer_id ?>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?= $member->split_ratio_percent !== null
-                                        ? h((string)$member->split_ratio_percent) . ' %'
-                                        : '<span class="text-muted">—</span>' ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+    </section>
 </div>
