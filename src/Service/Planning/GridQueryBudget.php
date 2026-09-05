@@ -90,6 +90,22 @@ class GridQueryBudget
     }
 
     /**
+     * @param mixed $raw
+     * @return list<int>
+     */
+    public static function normalizeOfferIds(mixed $raw): array
+    {
+        if (is_array($raw)) {
+            return array_values(array_filter(array_map('intval', $raw)));
+        }
+
+        $id = (int)$raw;
+
+        return $id > 0 ? [$id] : [];
+    }
+
+    /**
+     * @param list<int>|array<mixed> $offerIds
      * @return array{
      *   allowed: bool,
      *   view: string,
@@ -102,10 +118,13 @@ class GridQueryBudget
         DateTimeInterface $begin,
         DateTimeInterface $end,
         int $siteId,
-        int $userId
+        int $userId,
+        array $offerIds = []
     ): array {
         $workingDays = $this->countWorkingDays($begin, $end);
-        $hasDimension = $siteId > 0 || $userId > 0;
+        $offerIds = array_values(array_filter(array_map('intval', $offerIds)));
+        $hasOffers = $offerIds !== [];
+        $hasDimension = $siteId > 0 || $userId > 0 || $hasOffers;
 
         $beginDay = FrozenTime::parse($begin->format('Y-m-d'))->startOfDay();
         $endDay = FrozenTime::parse($end->format('Y-m-d'))->startOfDay();
@@ -126,11 +145,15 @@ class GridQueryBudget
                 $workingDays,
                 'need_dimension',
                 'Plus de ' . $this->needSiteOrUserAfter
-                . ' jours ouvrés : choisis un site ou un agent.'
+                . ' jours ouvrés : choisis un site, un agent ou au moins une offre.'
             );
         }
 
-        $view = $workingDays > $this->monthViewAfter ? self::VIEW_MONTH : self::VIEW_GANTT;
+        $offersOnly = $hasOffers && $siteId <= 0 && $userId <= 0;
+        $view = ($userId <= 0 && $workingDays > $this->monthViewAfter)
+            || ($offersOnly && $workingDays > $this->needSiteOrUserAfter)
+            ? self::VIEW_MONTH
+            : self::VIEW_GANTT;
 
         return [
             'allowed' => true,

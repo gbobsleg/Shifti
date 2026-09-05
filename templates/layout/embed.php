@@ -25,7 +25,6 @@ if (!$this->fetch('title')) {
 
 $this->prepend('css', $this->Html->css('bootstrap.min', ['block' => false]));
 $this->append('css', $this->Html->css('app/shell', ['block' => false, 'timestamp' => 'force']));
-$this->append('css', $this->Html->css('cake', ['block' => false]));
 $this->prepend('script', $this->Html->script('jquery-3.6.0.min', ['block' => false]));
 $this->append('script', $this->Html->script('https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js', ['block' => false]));
 $this->append('script', $this->Html->script('app/tooltips', ['block' => false]));

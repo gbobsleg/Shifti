@@ -74,8 +74,8 @@ return [
     /*
      * Garde-fous d’affichage de la grille de planning (jours ouvrés).
      * free_days : plage affichable sans filtre site/agent.
-     * need_site_or_user_after : au-delà, site_id ou user_id obligatoire.
-     * month_view_after : au-delà, vue calendrier (pas N Gantt).
+     * need_site_or_user_after : au-delà, site, agent ou au moins une offre.
+     * month_view_after : au-delà, vue calendrier (sauf si un agent est choisi).
      * max_working_days / max_calendar_months : plafond dur.
      */
     'Grids' => [

@@ -270,7 +270,8 @@ class GridsController extends AppController
         $budget = new GridQueryBudget();
         $siteId = (int)($this->request->getQuery('site_id') ?? 0);
         $userId = (int)($this->request->getQuery('user_id') ?? 0);
-        $budgetResult = $budget->evaluate($day_ranges['begin'], $day_ranges['end'], $siteId, $userId);
+        $offerIds = GridQueryBudget::normalizeOfferIds($this->request->getQuery('offer_id'));
+        $budgetResult = $budget->evaluate($day_ranges['begin'], $day_ranges['end'], $siteId, $userId, $offerIds);
         $budgetThresholds = $budget->thresholds();
         $zoom = (string)$this->request->getQuery('zoom', '15');
         if ($zoom !== 'hour') {

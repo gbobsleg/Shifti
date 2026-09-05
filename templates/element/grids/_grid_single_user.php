@@ -16,36 +16,16 @@ if (isset($gridStartHour, $gridEndHour)) {
 // Récupération de l'utilisateur unique
 $user = is_array($users_ranges) ? $users_ranges[0] : $users_ranges->first();
 $rangesProperty = $rangesProperty ?? 'ranges';
-$navFirstDay = clone $day_ranges['begin'];
-while ($navFirstDay->isWeekend() && $navFirstDay <= $day_ranges['end']) {
-    $navFirstDay = $navFirstDay->addDays(1);
-}
-$navLastDay = clone $day_ranges['end'];
-while ($navLastDay->isWeekend() && $navLastDay >= $day_ranges['begin']) {
-    $navLastDay = $navLastDay->subDays(1);
-}
-$navFirstYmd = $navFirstDay->format('Y-m-d');
-$navLastYmd = $navLastDay->format('Y-m-d');
 ?>
 
 <table class="quarter grid-single-user">
     <thead>
         <tr>
             <th scope="col" colspan="50" class="th_title">
-                <span class="grids-day-nav">
-                    <button type="button" class="grids-day-nav-btn" data-grid-day="<?= h($navFirstYmd) ?>" data-grid-day-step="-1" title="Jour précédent" aria-label="Jour précédent">
-                        <i class="bi bi-chevron-left" aria-hidden="true"></i>
-                    </button>
-                    <span class="grids-day-nav-label">
-                        Planning de <?= h($user->full_name) ?>
-                        (Site: <?= h($user['site']['name']) ?>)
-                        du <?= $day_ranges['begin']->i18nFormat('dd/MM/yyyy') ?>
-                        au <?= $day_ranges['end']->i18nFormat('dd/MM/yyyy') ?>
-                    </span>
-                    <button type="button" class="grids-day-nav-btn" data-grid-day="<?= h($navLastYmd) ?>" data-grid-day-step="1" title="Jour suivant" aria-label="Jour suivant">
-                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                    </button>
-                </span>
+                Planning de <?= h($user->full_name) ?>
+                (Site: <?= h($user['site']['name']) ?>)
+                du <?= $day_ranges['begin']->i18nFormat('dd/MM/yyyy') ?>
+                au <?= $day_ranges['end']->i18nFormat('dd/MM/yyyy') ?>
             </th>
         </tr>
         <tr>
@@ -99,15 +79,7 @@ $navLastYmd = $navLastDay->format('Y-m-d');
                 data-bs-toggle="tooltip"
                 data-placement="right"
                 title="<?= h($user['site']['number']) ?> - <?= h($user->user_code) ?><?= $homework ?>">
-                <span class="grids-day-nav">
-                    <button type="button" class="grids-day-nav-btn" data-grid-day="<?= h($rowYmd) ?>" data-grid-day-step="-1" title="Jour précédent" aria-label="Jour précédent">
-                        <i class="bi bi-chevron-left" aria-hidden="true"></i>
-                    </button>
-                    <span class="grids-day-nav-label"><?= $icon ?><?= $currentDay->i18nFormat('EEEE dd/MM') ?></span>
-                    <button type="button" class="grids-day-nav-btn" data-grid-day="<?= h($rowYmd) ?>" data-grid-day-step="1" title="Jour suivant" aria-label="Jour suivant">
-                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                    </button>
-                </span>
+                <?= $icon ?><?= $currentDay->i18nFormat('EEEE dd/MM') ?>
             </th>
             <?php echo $this->Grids->writeTimeSlots($user, $currentDay, (string)$rangesProperty); ?>
         </tr>

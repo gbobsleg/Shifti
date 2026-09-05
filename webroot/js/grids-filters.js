@@ -43,7 +43,8 @@
     function hasDimension(form) {
         const site = form.querySelector('#site-filter');
         const user = form.querySelector('#user-filter');
-        return !!(site && site.value) || !!(user && user.value);
+        const offerChecked = form.querySelector('.offer-filter-cb:checked');
+        return !!(site && site.value) || !!(user && user.value) || !!offerChecked;
     }
 
     function canSubmit(form, startStr, endStr) {
@@ -66,7 +67,7 @@
         if (working > needAfter && !hasDimension(form)) {
             return {
                 ok: false,
-                message: 'Plus de ' + needAfter + ' jours ouvrés : choisis un site ou un agent.',
+                message: 'Plus de ' + needAfter + ' jours ouvrés : choisis un site, un agent ou au moins une offre.',
             };
         }
         return { ok: true, message: '' };

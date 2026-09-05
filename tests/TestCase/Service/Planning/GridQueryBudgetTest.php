@@ -68,6 +68,34 @@ class GridQueryBudgetTest extends TestCase
         $this->assertGreaterThan(10, $result['working_days']);
     }
 
+    public function testMonthWithUserKeepsGantt(): void
+    {
+        $b = $this->budget();
+        $result = $b->evaluate(
+            new FrozenTime('2026-09-01'),
+            new FrozenTime('2026-09-30'),
+            0,
+            12
+        );
+        $this->assertTrue($result['allowed']);
+        $this->assertSame(GridQueryBudget::VIEW_GANTT, $result['view']);
+        $this->assertGreaterThan(10, $result['working_days']);
+    }
+
+    public function testMonthWithOffersAllowedMonthView(): void
+    {
+        $b = $this->budget();
+        $result = $b->evaluate(
+            new FrozenTime('2026-09-01'),
+            new FrozenTime('2026-09-30'),
+            0,
+            0,
+            [4, 9]
+        );
+        $this->assertTrue($result['allowed']);
+        $this->assertSame(GridQueryBudget::VIEW_MONTH, $result['view']);
+    }
+
     public function testMonthWithoutSiteDenied(): void
     {
         $b = $this->budget();

@@ -94,6 +94,11 @@
     background: var(--grids-remote-bg);
 }
 
+.grids-app.hide-full-leave table.quarter tr.tr_quarter.is-full-leave,
+.grids-app.hide-empty-day table.quarter tr.tr_quarter.is-empty-day {
+    display: none;
+}
+
 .grids-app table.quarter .th_row.is-remote i {
     color: var(--grids-muted);
     font-size: 0.75rem;
@@ -209,6 +214,14 @@
     white-space: nowrap;
     pointer-events: none;
     z-index: 1;
+}
+
+/* 30 min : le nom peut occuper 2 cases, au-delà il est coupé avant le shift suivant */
+.grids-app table.quarter .td_quarter.bar-start:has(+ .td_quarter.bar-end) .bar-label {
+    right: auto;
+    width: calc(200% - 8px);
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .grids-app table.quarter .th_title,

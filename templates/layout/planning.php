@@ -88,7 +88,6 @@ $this->prepend('meta', $this->Html->meta([
  */
 $this->prepend('css', $this->Html->css('bootstrap.min', ['block' => false]));
 $this->append('css', $this->Html->css('app/shell', ['block' => false, 'timestamp' => 'force']));
-$this->append('css', $this->Html->css('cake', ['block' => false]));
 $this->append('css', $this->Html->css('dropdown-actions-body', ['block' => false]));
 
 $this->prepend('script', $this->Html->script('jquery-3.6.0.min', ['block' => false]));

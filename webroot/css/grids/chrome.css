@@ -16,6 +16,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
+    overflow: visible;
     background: linear-gradient(
         var(--shell-bg, #f4f6f7) 0,
         var(--shell-bg, #f4f6f7) 1rem,
@@ -95,12 +96,139 @@
     color: var(--grids-text);
 }
 
+.grids-app .grids-chrome .dropdown-menu {
+    border: 1px solid var(--grids-border);
+    border-radius: var(--grids-radius);
+    box-shadow: 0 8px 20px rgba(31, 42, 48, 0.12);
+}
+
+.grids-app .grids-display-menu {
+    min-width: 16.5rem;
+    padding: 0.35rem 0;
+}
+
+.grids-app .grids-display-item {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--grids-text);
+    cursor: pointer;
+}
+
+.grids-app .grids-display-item:hover {
+    background: var(--grids-well);
+}
+
+.grids-app .grids-display-item input {
+    margin: 0;
+    accent-color: var(--grids-accent);
+    cursor: pointer;
+}
+
+.grids-app #offer-filter-toggle {
+    width: 140px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.grids-app #offer-filter-toggle:focus,
+.grids-app #offer-filter-toggle[aria-expanded="true"] {
+    border-color: var(--grids-accent);
+    box-shadow: 0 0 0 0.15rem rgba(49, 143, 155, 0.22);
+}
+
+.grids-app #offer-filter-toggle + .dropdown-menu {
+    min-width: 15rem;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 0.35rem 0;
+}
+
+.grids-app #offer-filter-toggle + .dropdown-menu > .small {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0 0 0.15rem;
+    padding: 0.2rem 0.85rem 0.45rem;
+    border-bottom: 1px solid var(--grids-border);
+    color: var(--grids-muted);
+    font-size: 0.75rem;
+}
+
+.grids-app .offer-filter-check-all,
+.grids-app .offer-filter-uncheck-all {
+    color: var(--grids-accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.grids-app .offer-filter-check-all:hover,
+.grids-app .offer-filter-uncheck-all:hover {
+    color: var(--grids-accent-hover);
+    text-decoration: underline;
+}
+
+.grids-app #offer-filter-toggle + .dropdown-menu .form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.35rem 0.85rem;
+    min-height: 1.85rem;
+}
+
+.grids-app #offer-filter-toggle + .dropdown-menu .form-check:hover {
+    background: var(--grids-well);
+}
+
+.grids-app #offer-filter-toggle + .dropdown-menu .form-check-input {
+    float: none;
+    width: 0.95rem;
+    height: 0.95rem;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: var(--grids-accent);
+    cursor: pointer;
+    border-color: var(--grids-border);
+}
+
+.grids-app #offer-filter-toggle + .dropdown-menu .form-check-input:checked {
+    background-color: var(--grids-accent);
+    border-color: var(--grids-accent);
+}
+
+.grids-app #offer-filter-toggle + .dropdown-menu .form-check-label {
+    width: auto;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--grids-text);
+    cursor: pointer;
+}
+
 .grids-app .grids-chart-card {
+    position: relative;
     margin-top: 0;
     padding-top: 0.45rem;
     border-top: 1px solid var(--grids-border);
     background: var(--grids-surface);
     flex: 0 0 auto;
+}
+
+.grids-app .grids-chart-card > .collapse,
+.grids-app .grids-chart-card > .collapsing {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 1;
+    margin: 0;
+    background: var(--grids-surface);
+    box-shadow: 0 10px 24px rgba(31, 42, 48, 0.14);
+    border-bottom: 1px solid var(--grids-border);
 }
 
 .grids-app .grids-chart-toggle {
@@ -238,8 +366,22 @@
 }
 
 .grids-app .grids-alerts {
+    position: relative;
     padding-top: 0.45rem;
     border-top: 1px solid var(--grids-border);
+}
+
+.grids-app .grids-alerts > .collapse,
+.grids-app .grids-alerts > .collapsing {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 2;
+    margin: 0;
+    background: var(--grids-surface);
+    box-shadow: 0 10px 24px rgba(31, 42, 48, 0.14);
+    border-bottom: 1px solid var(--grids-border);
 }
 
 .grids-app .grids-alerts-toggle {

@@ -84,7 +84,8 @@
     function hasDimension(form) {
         const site = form.querySelector('#site-filter');
         const user = form.querySelector('#user-filter');
-        return !!(site && site.value) || !!(user && user.value);
+        const offerChecked = form.querySelector('.offer-filter-cb:checked');
+        return !!(site && site.value) || !!(user && user.value) || !!offerChecked;
     }
 
     function canSubmit(form, startStr, endStr) {
@@ -107,7 +108,7 @@
         if (working > needAfter && !hasDimension(form)) {
             return {
                 ok: false,
-                message: 'Plus de ' + needAfter + ' jours ouvrés : choisis un site ou un agent.',
+                message: 'Plus de ' + needAfter + ' jours ouvrés : choisis un site, un agent ou au moins une offre.',
             };
         }
         return { ok: true, message: '' };
@@ -174,6 +175,9 @@
         if (hash) {
             url.hash = hash.replace(/^#/, '');
         }
+        if ('scrollRestoration' in window.history) {
+            window.history.scrollRestoration = 'manual';
+        }
         window.location.assign(url.toString());
     }
 
@@ -195,17 +199,27 @@
             return;
         }
         const app = root();
+        const chrome = app ? app.querySelector('.grids-chrome') : null;
+        const body = app ? app.querySelector('.grids-body') : null;
         const styles = app ? getComputedStyle(app) : null;
-        const chromeH = styles ? (parseFloat(styles.getPropertyValue('--grids-chrome-h')) || 0) : 0;
+        const chromeH = chrome ? chrome.offsetHeight : (styles ? (parseFloat(styles.getPropertyValue('--grids-chrome-h')) || 0) : 0);
         const navH = styles ? (parseFloat(styles.getPropertyValue('--grids-navbar')) || 56) : 56;
+        const gap = body ? (parseFloat(getComputedStyle(body).paddingTop) || 0) : 0;
         const embed = app && app.classList.contains('grids-app--embed');
-        const offset = embed ? 8 : (navH + chromeH + 8);
-        const top = el.getBoundingClientRect().top + window.scrollY - offset;
-        window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+        const offset = embed ? gap : (navH + chromeH + gap);
+        const top = Math.max(0, el.getBoundingClientRect().top + window.scrollY - offset);
+        if (Math.abs(window.scrollY - top) < 4) {
+            return;
+        }
+        window.scrollTo({ top: top, behavior: 'auto' });
     }
 
     function dayAnchorId(iso) {
         return 'grid-day-' + iso;
+    }
+
+    function dayHashId(iso) {
+        return 'jour-' + iso;
     }
 
     function onDayStep(iso, step) {
@@ -220,7 +234,7 @@
             scrollToDayEl(el);
             return;
         }
-        shiftLoadedRange(step, dayAnchorId(targetIso));
+        shiftLoadedRange(step, dayHashId(targetIso));
     }
 
     document.addEventListener('click', (event) => {
@@ -243,18 +257,42 @@
         onDayStep(iso, step);
     });
 
-    function scrollHashTarget() {
+    function isoFromHash() {
         const hash = window.location.hash.replace(/^#/, '');
-        if (!/^grid-day-\d{4}-\d{2}-\d{2}$/.test(hash)) {
-            return;
+        if (/^jour-\d{4}-\d{2}-\d{2}$/.test(hash)) {
+            return hash.slice(5);
         }
-        const el = document.getElementById(hash);
-        if (el) {
-            scrollToDayEl(el);
+        if (/^grid-day-\d{4}-\d{2}-\d{2}$/.test(hash)) {
+            return hash.slice(9);
         }
+        return '';
     }
 
-    window.addEventListener('load', () => {
+    function scrollHashTarget() {
+        const iso = isoFromHash();
+        if (!iso) {
+            return;
+        }
+        const el = document.getElementById(dayAnchorId(iso));
+        if (!el) {
+            return;
+        }
+        const first = document.querySelector('table.quarter[id^="grid-day-"], tr[id^="grid-day-"]');
+        if (el === first) {
+            return;
+        }
+        scrollToDayEl(el);
+    }
+
+    if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.requestAnimationFrame(scrollHashTarget);
+        });
+    } else {
         window.requestAnimationFrame(scrollHashTarget);
-    });
+    }
 }());

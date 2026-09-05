@@ -189,10 +189,11 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
     </div>
     <?php endif; ?>
     <?php
-    $usersCount = is_countable($users_ranges ?? null) ? count($users_ranges) : 0;
+    $isSingleUser = (int)$this->request->getQuery('user_id') > 0;
+    $usersCount = $isSingleUser ? 1 : (is_countable($users_ranges ?? null) ? count($users_ranges) : 0);
     $showLoadRows = !empty($showCharts) && !empty($canLoadSeries)
         && $gridView !== GridQueryBudget::VIEW_MONTH
-        && $usersCount !== 1
+        && !$isSingleUser
         && !empty($offers_list);
     if (!empty($showCharts) && !empty($canLoadSeries) && $gridView !== GridQueryBudget::VIEW_MONTH) {
         $chartDay = $day_ranges['begin'];
@@ -211,6 +212,17 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
     }
     ?>
 </div>
+<?php if (!$embedMode): ?>
+<script>
+(function () {
+    var app = document.querySelector('.grids-app');
+    var chrome = app && app.querySelector('.grids-chrome');
+    if (app && chrome) {
+        app.style.setProperty('--grids-chrome-h', chrome.offsetHeight + 'px');
+    }
+})();
+</script>
+<?php endif; ?>
 
 <?php if (empty($budgetResult['allowed'])): ?>
 <div class="grids-budget-banner">
@@ -238,10 +250,10 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
 
         <?php if (!empty($budgetResult['allowed'])): ?>
             <?php
-            $usersCount = $usersCount ?? (is_countable($users_ranges) ? count($users_ranges) : 0);
+            $isSingleUser = $isSingleUser ?? ((int)$this->request->getQuery('user_id') > 0);
             if ($gridView === GridQueryBudget::VIEW_MONTH) {
                 echo $this->element('grids/_grid_month', compact('users_ranges', 'day_ranges', 'offers_name'));
-            } elseif ($usersCount === 1) {
+            } elseif ($isSingleUser) {
                 echo $this->element('grids/_grid_single_user', compact('users_ranges', 'day_ranges', 'offers_name', 'gridStartHour', 'gridEndHour'));
             } else {
                 echo $this->element('grids/_grid_multi_user', compact(

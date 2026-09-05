@@ -124,9 +124,25 @@ if ($currentAction === 'draft') {
             <option value="last_name" <?= $sortBy === 'last_name' ? 'selected' : '' ?>>Nom (A-Z)</option>
             <option value="user_code" <?= $sortBy === 'user_code' ? 'selected' : '' ?>>Code agent</option>
         </select>
-        <button type="button" id="toggle-site-column" class="btn btn-grids-ghost btn-sm" title="Afficher ou masquer la colonne Site">
-            <span id="toggle-site-text">Masquer site</span>
-        </button>
+        <div class="dropdown">
+            <button type="button" class="btn btn-grids-ghost btn-sm dropdown-toggle" id="grids-display-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                Affichage
+            </button>
+            <div class="dropdown-menu dropdown-menu-end grids-display-menu">
+                <label class="grids-display-item" for="grids-display-site">
+                    <input type="checkbox" id="grids-display-site" checked>
+                    <span>Colonne site</span>
+                </label>
+                <label class="grids-display-item" for="grids-display-hide-leave">
+                    <input type="checkbox" id="grids-display-hide-leave">
+                    <span>Masquer les congés journée entière</span>
+                </label>
+                <label class="grids-display-item" for="grids-display-hide-empty">
+                    <input type="checkbox" id="grids-display-hide-empty">
+                    <span>Masquer sans planning</span>
+                </label>
+            </div>
+        </div>
         <?php if (isset($canAlertsAdd) && $canAlertsAdd): ?>
             <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#alertAddModal" style="padding: 0 0.75rem;">
                 <i class="bi bi-bell-fill pe-1"></i> Ajouter une alerte
@@ -217,30 +233,63 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const offerToggle = document.querySelector('#offer-filter-toggle');
     const offerDropdownMenu = offerToggle ? offerToggle.nextElementSibling : null;
+    const offerBoxes = document.querySelectorAll('.offer-filter-cb');
+    const offerLabel = document.querySelector('.offer-filter-label');
+
+    function offerSelectionKey() {
+        return Array.from(offerBoxes).filter(function (c) { return c.checked; }).map(function (c) { return c.value; }).sort().join(',');
+    }
+
+    function updateOfferLabel() {
+        if (!offerLabel) {
+            return;
+        }
+        const checked = Array.from(offerBoxes).filter(function (c) { return c.checked; });
+        if (checked.length === 0) {
+            offerLabel.textContent = 'Toutes';
+            return;
+        }
+        if (checked.length === 1) {
+            const lab = document.querySelector('label[for="' + checked[0].id + '"]');
+            offerLabel.textContent = lab ? lab.textContent.trim() : '1 offre';
+            return;
+        }
+        offerLabel.textContent = checked.length + ' offres';
+    }
+
+    let offerSelectionAtOpen = offerSelectionKey();
     if (offerDropdownMenu && offerDropdownMenu.classList.contains('dropdown-menu')) {
         offerDropdownMenu.addEventListener('click', function (e) {
             e.stopPropagation();
         });
     }
-    document.querySelectorAll('input[name="offer_id[]"]').forEach(function (cb) {
-        cb.addEventListener('change', function () {
-            requestSubmitForm();
-        });
+    offerBoxes.forEach(function (cb) {
+        cb.addEventListener('change', updateOfferLabel);
     });
     const checkAll = document.querySelector('.offer-filter-check-all');
     const uncheckAll = document.querySelector('.offer-filter-uncheck-all');
     if (checkAll) {
         checkAll.addEventListener('click', function (e) {
             e.preventDefault();
-            document.querySelectorAll('.offer-filter-cb').forEach(function (c) { c.checked = true; });
-            requestSubmitForm();
+            offerBoxes.forEach(function (c) { c.checked = true; });
+            updateOfferLabel();
         });
     }
     if (uncheckAll) {
         uncheckAll.addEventListener('click', function (e) {
             e.preventDefault();
-            document.querySelectorAll('.offer-filter-cb').forEach(function (c) { c.checked = false; });
-            requestSubmitForm();
+            offerBoxes.forEach(function (c) { c.checked = false; });
+            updateOfferLabel();
+        });
+    }
+    if (offerToggle) {
+        offerToggle.addEventListener('show.bs.dropdown', function () {
+            offerSelectionAtOpen = offerSelectionKey();
+        });
+        offerToggle.addEventListener('hidden.bs.dropdown', function () {
+            if (offerSelectionKey() !== offerSelectionAtOpen) {
+                requestSubmitForm();
+            }
         });
     }
 });

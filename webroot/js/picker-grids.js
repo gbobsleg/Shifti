@@ -1,5 +1,5 @@
 // Fichier: webroot/js/picker-grids.js
-$(function() { // Utiliser $(function() { ... }); est une syntaxe plus courte pour $(document).ready()
+$(function() {
 
     var today = moment().format('DD/MM/YYYY');
     var localeOptions = { // Isoler les options de locale
@@ -77,4 +77,4 @@ $(function() { // Utiliser $(function() { ... }); est une syntaxe plus courte po
     // *** Assurer que le champ #date-end est bien readonly dans le HTML ***
     // (Vérification côté HTML dans templates/element/ranges-search-form.php)
 
-}); // Fin $(function() { ... });
+});

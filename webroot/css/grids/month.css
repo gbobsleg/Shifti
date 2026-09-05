@@ -22,15 +22,59 @@
     min-width: 42px;
 }
 
+.grids-app .grids-month .grids-month-site,
 .grids-app .grids-month .grids-month-agent {
     position: sticky;
     left: 0;
+    box-sizing: border-box;
+    height: var(--grids-row-h);
+    padding: 0 0.45rem;
+    border-bottom: 0;
+    border-right: 1px solid var(--grids-border);
     background: var(--grids-surface);
+    color: var(--grids-text);
+    font-size: var(--grids-agent-size);
+    font-weight: 500;
     text-align: left;
     white-space: nowrap;
-    font-weight: 600;
-    min-width: 160px;
+    vertical-align: middle;
+}
+
+.grids-app .grids-month .grids-month-site {
+    min-width: 96px;
+    width: 96px;
+    max-width: 96px;
+    text-align: center;
+    z-index: 3;
+}
+
+.grids-app .grids-month .grids-month-agent {
+    min-width: 180px;
+    width: 180px;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     z-index: 2;
+}
+
+.grids-app .grids-month .grids-month-site + .grids-month-agent {
+    left: 96px;
+}
+
+.grids-app.hide-site-column .grids-month .grids-month-agent {
+    left: 0;
+}
+
+.grids-app .grids-month thead .grids-month-site,
+.grids-app .grids-month thead .grids-month-agent {
+    height: auto;
+    padding: 0.35rem 0.4rem;
+    border-bottom: 1px solid var(--grids-border);
+    color: var(--grids-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: center;
+    z-index: 4;
 }
 
 .grids-app .grids-month-cell {

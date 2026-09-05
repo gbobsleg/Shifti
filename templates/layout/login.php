@@ -17,7 +17,6 @@ $appName = (string)Configure::read('App.name', 'Shifti');
     <?= $this->Html->css('bootstrap.min') ?>
     <?= $this->Html->css('app/shell', ['timestamp' => 'force']) ?>
     <?= $this->Html->css('app/crud') ?>
-    <?= $this->Html->css('cake') ?>
     <?= $this->Html->css('navbar') ?>
     <?= $this->fetch('meta') ?>
     <?= $this->fetch('css') ?>

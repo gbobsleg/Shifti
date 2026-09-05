@@ -2088,9 +2088,10 @@ class PlanningGenerationJobsController extends AppController
 
         $siteId = (int)($q['site_id'] ?? 0);
         $userId = (int)($q['user_id'] ?? 0);
+        $offerIds = \App\Service\Planning\GridQueryBudget::normalizeOfferIds($q['offer_id'] ?? null);
         $budget = new \App\Service\Planning\GridQueryBudget();
         $budgetThresholds = $budget->thresholds();
-        $budgetResult = $budget->evaluate($begin, $end, $siteId, $userId);
+        $budgetResult = $budget->evaluate($begin, $end, $siteId, $userId, $offerIds);
         $zoom = (string)($q['zoom'] ?? '15');
         if ($zoom !== 'hour') {
             $zoom = '15';

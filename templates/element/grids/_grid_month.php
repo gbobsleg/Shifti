@@ -18,10 +18,18 @@ $rangesProperty = $rangesProperty ?? 'ranges';
 $q = $this->request->getQueryParams();
 $action = $this->request->getParam('action');
 $pass = $this->request->getParam('pass');
+$showSiteColumn = (int)$this->request->getQuery('site_id') <= 0;
+$sitePalette = [
+    '#1565c0', '#7b1fa2', '#2e7d32', '#e65100', '#c2185b',
+    '#00695c', '#f57f17', '#558b2f', '#6a1b9a', '#d84315',
+];
 ?>
 <table class="grids-month">
     <thead>
         <tr>
+            <?php if ($showSiteColumn): ?>
+                <th class="grids-month-site site-column">Site</th>
+            <?php endif; ?>
             <th class="grids-month-agent">Agent</th>
             <?php foreach ($days as $day): ?>
                 <th><?= h($day->i18nFormat('dd/MM')) ?></th>
@@ -31,6 +39,14 @@ $pass = $this->request->getParam('pass');
     <tbody>
     <?php foreach ($users_ranges as $user): ?>
         <tr>
+            <?php if ($showSiteColumn):
+                $siteId = (int)($user->site->id ?? 0);
+                $siteColor = $siteId > 0
+                    ? $sitePalette[($siteId - 1) % count($sitePalette)]
+                    : '#64748b';
+                ?>
+                <th class="grids-month-site site-column" style="border-left: 2px solid <?= h($siteColor) ?>; color: <?= h($siteColor) ?>;"><?= h($user->site->name ?? '') ?></th>
+            <?php endif; ?>
             <th class="grids-month-agent"><?= h($user->full_name) ?></th>
             <?php foreach ($days as $day):
                 $dayStart = $day->startOfDay()->getTimestamp();

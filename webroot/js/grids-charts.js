@@ -260,6 +260,15 @@
             if (!dayKey || loadingDays.has(dayKey)) {
                 return;
             }
+            if (expand) {
+                expandChart(dayKey);
+            }
+            if (!expand && !isChartOpen(dayKey)) {
+                if (isLoadRowsOn()) {
+                    loadAllLoadRows();
+                }
+                return;
+            }
             const btn = document.getElementById('compareBtn' + dayKey);
             const offerSelect = document.getElementById('offerSelect' + dayKey);
             const parentCard = (btn || offerSelect) ? (btn || offerSelect).closest('[data-scenario-id]') : null;
@@ -269,9 +278,6 @@
                 return;
             }
             persistOffer(offerSelect.value);
-            if (expand) {
-                expandChart(dayKey);
-            }
             loadingDays.add(dayKey);
             if (btn) {
                 btn.disabled = true;
@@ -334,7 +340,7 @@
         }
 
         const loadToggle = document.getElementById('gridsLoadRowsToggle');
-        const restoredOffer = restoreOffer();
+        restoreOffer();
         if (loadToggle) {
             const savedOn = localStorage.getItem('gridsLoadRowsOn') === 'true';
             if (savedOn) {
@@ -367,7 +373,9 @@
                             tooltip: { enabled: false },
                         }
                     );
+                    return;
                 }
+                loadDayChart(dayKey, { expand: false });
             });
         });
 
@@ -381,14 +389,15 @@
         document.querySelectorAll('[id^="offerSelect"]').forEach((select) => {
             select.addEventListener('change', () => {
                 persistOffer(select.value);
-                loadDayChart(select.id.replace('offerSelect', ''), { expand: false });
+                if (isChartOpen(select.id.replace('offerSelect', ''))) {
+                    loadDayChart(select.id.replace('offerSelect', ''), { expand: false });
+                } else if (isLoadRowsOn()) {
+                    loadAllLoadRows();
+                }
             });
         });
 
-        if (restoredOffer) {
-            const select = currentOfferSelect();
-            loadDayChart(select.id.replace('offerSelect', ''), { expand: false });
-        } else if (loadToggle && loadToggle.checked) {
+        if (loadToggle && loadToggle.checked) {
             loadAllLoadRows();
         }
     });
