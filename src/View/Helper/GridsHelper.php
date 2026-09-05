@@ -17,6 +17,16 @@ class GridsHelper extends Helper
     private int $gridEndHour = 18;
 
     /**
+     * Colonne vide non peignable de part et d’autre de la timeline.
+     */
+    private function gutterCell(string $tag): string
+    {
+        $tag = $tag === 'th' ? 'th' : 'td';
+
+        return '<' . $tag . ' class="grids-gutter" aria-hidden="true"></' . $tag . '>';
+    }
+
+    /**
      * Définit les heures de début et fin de la grille
      */
     public function setGridHours(int $start, int $end): void
@@ -51,7 +61,7 @@ class GridsHelper extends Helper
                 $i = $start->getTimestamp();
             }
 
-            return $ThTime;
+            return $this->gutterCell('th') . $ThTime . $this->gutterCell('th');
         }
 
         if ($hoursOrMinutes == 'minutes') {
@@ -69,8 +79,42 @@ class GridsHelper extends Helper
                 $i = $start->getTimestamp();
             }
 
-            return $ThTime;
+            return $this->gutterCell('th') . $ThTime . $this->gutterCell('th');
         }
+    }
+
+    /**
+     * Ligne Besoin / Réel : même nombre et ordre de cellules que writeTimeSlots (gouttières comprises).
+     */
+    public function writeLoadRow(string $kind, FrozenTime $beginOfDay): string
+    {
+        $isNeed = $kind === 'need';
+        $label = $isNeed ? 'Besoin' : 'Réel';
+        $rowClass = $isNeed ? 'grids-load-row grids-load-row--need' : 'grids-load-row grids-load-row--planned';
+
+        return '<tr class="' . $rowClass . '" data-kind="' . ($isNeed ? 'need' : 'planned') . '" hidden>'
+            . '<th scope="row" class="th_row site-column"></th>'
+            . '<th scope="row" class="th_row grids-load-label">' . $label . '</th>'
+            . $this->writeLoadSlots($beginOfDay)
+            . '</tr>';
+    }
+
+    /**
+     * Quarts de la ligne Besoin / Réel — même axe que collectTimeSlots, jamais de cellule hors grille.
+     */
+    public function writeLoadSlots(FrozenTime $beginOfDay): string
+    {
+        $date = clone $beginOfDay;
+        $start = $date->setTime($this->gridStartHour, 0);
+        $end = $date->setTime($this->gridEndHour - 1, 45);
+        $html = $this->gutterCell('td');
+
+        while ($start->getTimestamp() <= $end->getTimestamp()) {
+            $html .= '<td class="grids-load-cell" data-slot="' . $start->format('H:i') . '"></td>';
+            $start = $start->addMinutes(15);
+        }
+
+        return $html . $this->gutterCell('td');
     }
 
     /**
@@ -144,7 +188,7 @@ class GridsHelper extends Helper
         $slots = $this->collectTimeSlots($user, $beginOfDay, $rangesProperty);
         $renderer = new BarRenderer();
 
-        return $renderer->renderHtml($slots, (int)$user->id);
+        return $this->gutterCell('td') . $renderer->renderHtml($slots, (int)$user->id) . $this->gutterCell('td');
     }
 
     /**

@@ -45,21 +45,23 @@ if ($currentAction === 'draft') {
 ?>
 <div class="grids-chrome-row">
     <label class="visually-hidden" for="date-start">Période</label>
-    <?= $this->Form->text('date_start', [
-        'id' => 'date-start',
-        'class' => 'form-control form-control-sm',
-        'style' => 'width: 118px;',
-        'placeholder' => 'Début',
-        'value' => is_array($day_ranges) && isset($day_ranges[0]) ? (string)$day_ranges[0] : null,
-    ]) ?>
-    <?= $this->Form->text('date_end', [
-        'id' => 'date-end',
-        'class' => 'form-control form-control-sm',
-        'style' => 'width: 118px;',
-        'readonly' => true,
-        'placeholder' => 'Fin',
-        'value' => is_array($day_ranges) && isset($day_ranges[1]) ? (string)$day_ranges[1] : null,
-    ]) ?>
+    <div class="grids-date-nav">
+        <?= $this->Form->text('date_start', [
+            'id' => 'date-start',
+            'class' => 'form-control form-control-sm',
+            'style' => 'width: 118px;',
+            'placeholder' => 'Début',
+            'value' => is_array($day_ranges) && isset($day_ranges[0]) ? (string)$day_ranges[0] : null,
+        ]) ?>
+        <?= $this->Form->text('date_end', [
+            'id' => 'date-end',
+            'class' => 'form-control form-control-sm',
+            'style' => 'width: 118px;',
+            'readonly' => true,
+            'placeholder' => 'Fin',
+            'value' => is_array($day_ranges) && isset($day_ranges[1]) ? (string)$day_ranges[1] : null,
+        ]) ?>
+    </div>
     <?= $this->Form->select('site_id', $sites, [
         'empty' => 'Site',
         'class' => 'form-control form-control-sm',

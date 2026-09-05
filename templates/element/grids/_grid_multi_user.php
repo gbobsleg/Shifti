@@ -6,12 +6,18 @@
  * @var array $offers_name
  * @var int $gridStartHour
  * @var int $gridEndHour
+ * @var array $offers_list
+ * @var array $publishedByDate
+ * @var bool $canLoadSeries
+ * @var bool $showCharts
  */
 
 // Configurer les heures de la grille dans le helper
 if (isset($gridStartHour, $gridEndHour)) {
     $this->Grids->setGridHours($gridStartHour, $gridEndHour);
 }
+$publishedByDate = $publishedByDate ?? [];
+$offers_list = $offers_list ?? [];
 
 $days = $day_ranges['begin']->diffInDays($day_ranges['end']);
 $dayRangesBegin = $day_ranges['begin'];
@@ -22,21 +28,39 @@ for ($i = 0; $i <= $days; $i++):
         continue;
     }
 ?>
-    <table class="quarter">
+    <?php
+    $dayYmd = $dayRangesBegin->format('Y-m-d');
+    $showLoadRows = !empty($showCharts) && !empty($canLoadSeries) && !empty($offers_list);
+    ?>
+    <table class="quarter" id="grid-day-<?= h($dayYmd) ?>"<?php if ($showLoadRows): ?> data-scenario-id="<?= isset($publishedByDate[$dayYmd]) ? (int)$publishedByDate[$dayYmd] : '' ?>"<?php endif; ?>>
         <thead>
             <tr>
-                <th scope="col" colspan="50" class="text-center th_title">Planning du <?= $dayRangesBegin->i18nFormat('EEEE dd MMMM yyyy'); ?></th>
+                <th scope="col" colspan="50" class="th_title">
+                    <span class="grids-day-nav">
+                        <button type="button" class="grids-day-nav-btn" data-grid-day="<?= h($dayYmd) ?>" data-grid-day-step="-1" title="Jour précédent" aria-label="Jour précédent">
+                            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                        </button>
+                        <span class="grids-day-nav-label">Planning du <?= $dayRangesBegin->i18nFormat('EEEE dd MMMM yyyy'); ?></span>
+                        <button type="button" class="grids-day-nav-btn" data-grid-day="<?= h($dayYmd) ?>" data-grid-day-step="1" title="Jour suivant" aria-label="Jour suivant">
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </button>
+                    </span>
+                </th>
             </tr>
-            <tr>
+            <tr class="grids-th-hours">
                 <th scope="col" class="th_col2 site-column">Site</th>
                 <th scope="col" class="th_col2">Agent</th>
                 <?php echo $this->Grids->writeThTime('hours', $dayRangesBegin); ?>
             </tr>
-            <tr>
+            <tr class="grids-th-minutes">
                 <th scope="col" class="th_col2 site-column">&nbsp;</th>
                 <th scope="col" class="th_col2">&nbsp;</th>
                 <?php echo $this->Grids->writeThTime('minutes', $dayRangesBegin); ?>
             </tr>
+            <?php if ($showLoadRows): ?>
+                <?= $this->Grids->writeLoadRow('need', $dayRangesBegin) ?>
+                <?= $this->Grids->writeLoadRow('planned', $dayRangesBegin) ?>
+            <?php endif; ?>
         </thead>
         <tbody>
         <?php

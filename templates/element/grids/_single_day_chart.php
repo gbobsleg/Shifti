@@ -5,6 +5,7 @@
  * @var array $offers_list
  * @var array $publishedByDate
  * @var bool $canLoadSeries
+ * @var bool $showLoadRowsToggle
  */
 
 $panelDayKey = $dayDate->i18nFormat('yyyy-MM-dd');
@@ -37,6 +38,12 @@ $panelDayKey = $dayDate->i18nFormat('yyyy-MM-dd');
             <button type="button" class="btn btn-grids-ghost btn-sm" id="compareBtn<?= h($panelDayKey) ?>">
                 <i class="bi bi-arrow-clockwise"></i> Charger
             </button>
+            <?php if (!empty($showLoadRowsToggle)): ?>
+            <label class="grids-load-toggle" for="gridsLoadRowsToggle">
+                <input type="checkbox" id="gridsLoadRowsToggle" role="switch">
+                <span>Besoin / Réel</span>
+            </label>
+            <?php endif; ?>
         </div>
         <div class="collapse" id="collapseChart<?= h($panelDayKey) ?>">
             <div class="grids-chart-container d-flex align-items-center justify-content-center" id="compareChart<?= h($panelDayKey) ?>">

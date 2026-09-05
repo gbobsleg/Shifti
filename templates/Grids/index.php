@@ -43,6 +43,7 @@ echo $this->Html->script('moment.min', ['block' => true]);
 echo $this->Html->script('daterangepicker', ['block' => true]);
 echo $this->Html->script('picker-grids', ['block' => true]);
 echo $this->Html->script('grids-filters', ['block' => true]);
+echo $this->Html->script('grids-nav', ['block' => true, 'timestamp' => 'force']);
 echo $this->Html->script('grids-layout', ['block' => true, 'timestamp' => 'force']);
 echo $this->Html->script('grids-bars', ['block' => true, 'timestamp' => 'force']);
 if ($canSavePlanning) {
@@ -188,6 +189,11 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
     </div>
     <?php endif; ?>
     <?php
+    $usersCount = is_countable($users_ranges ?? null) ? count($users_ranges) : 0;
+    $showLoadRows = !empty($showCharts) && !empty($canLoadSeries)
+        && $gridView !== GridQueryBudget::VIEW_MONTH
+        && $usersCount !== 1
+        && !empty($offers_list);
     if (!empty($showCharts) && !empty($canLoadSeries) && $gridView !== GridQueryBudget::VIEW_MONTH) {
         $chartDay = $day_ranges['begin'];
         while ($chartDay->isWeekend() && $chartDay <= $day_ranges['end']) {
@@ -199,6 +205,7 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
                 'offers_list' => $offers_list,
                 'publishedByDate' => $publishedByDate ?? [],
                 'canLoadSeries' => $canLoadSeries,
+                'showLoadRowsToggle' => $showLoadRows,
             ]);
         }
     }
@@ -231,7 +238,7 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
 
         <?php if (!empty($budgetResult['allowed'])): ?>
             <?php
-            $usersCount = is_countable($users_ranges) ? count($users_ranges) : 0;
+            $usersCount = $usersCount ?? (is_countable($users_ranges) ? count($users_ranges) : 0);
             if ($gridView === GridQueryBudget::VIEW_MONTH) {
                 echo $this->element('grids/_grid_month', compact('users_ranges', 'day_ranges', 'offers_name'));
             } elseif ($usersCount === 1) {

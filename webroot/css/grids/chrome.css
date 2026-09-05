@@ -43,6 +43,18 @@
     gap: 0.5rem 0.75rem;
 }
 
+.grids-app .grids-date-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.grids-app .grids-date-nav-btn {
+    width: 34px;
+    padding: 0;
+    flex-shrink: 0;
+}
+
 .grids-app .grids-chrome label.visually-hidden {
     position: absolute;
     width: 1px;
@@ -128,6 +140,24 @@
 
 .grids-app .grids-chart-toggle select.form-control {
     width: 180px;
+}
+
+.grids-app .grids-load-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    color: var(--grids-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.grids-app .grids-load-toggle input {
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--grids-accent);
 }
 
 .grids-app .grids-chart-container {
