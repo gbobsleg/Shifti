@@ -379,16 +379,10 @@
             });
         });
 
-        document.querySelectorAll('.grids-chart-controls').forEach((el) => {
-            el.addEventListener('click', (event) => {
-                event.stopPropagation();
-            });
-        });
-
         document.querySelectorAll('[id^="compareBtn"]').forEach((btn) => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
-                loadDayChart(btn.id.replace('compareBtn', ''), { expand: true });
+                loadDayChart(btn.id.replace('compareBtn', ''), { expand: false });
             });
         });
 

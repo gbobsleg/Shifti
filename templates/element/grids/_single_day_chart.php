@@ -13,19 +13,21 @@ $panelDayKey = $dayDate->i18nFormat('yyyy-MM-dd');
 
 <?php if ($canLoadSeries): ?>
     <div class="grids-chart-card" data-scenario-id="<?= isset($publishedByDate[$panelDayKey]) ? (int)$publishedByDate[$panelDayKey] : '' ?>">
-        <div
-            class="grids-chrome-row grids-chart-toggle"
-            data-bs-toggle="collapse"
-            data-bs-target="#collapseChart<?= h($panelDayKey) ?>"
-            aria-expanded="false"
-            aria-controls="collapseChart<?= h($panelDayKey) ?>"
-            role="button"
-        >
-            <span class="grids-chart-meta">
-                <i class="bi bi-chevron-right grids-chart-chevron"></i>
-                <i class="bi bi-graph-up"></i>
-                <span><?= $dayDate->i18nFormat('dd/MM/yyyy'); ?></span>
-            </span>
+        <div class="grids-chrome-row">
+            <div
+                class="grids-chart-toggle"
+                data-bs-toggle="collapse"
+                data-bs-target="#collapseChart<?= h($panelDayKey) ?>"
+                aria-expanded="false"
+                aria-controls="collapseChart<?= h($panelDayKey) ?>"
+                role="button"
+            >
+                <span class="grids-chart-meta">
+                    <i class="bi bi-chevron-right grids-chart-chevron"></i>
+                    <i class="bi bi-graph-up"></i>
+                    <span><?= $dayDate->i18nFormat('dd/MM/yyyy'); ?></span>
+                </span>
+            </div>
             <div class="grids-chart-controls">
                 <label class="grids-chart-offer" for="offerSelect<?= h($panelDayKey) ?>">
                     <i class="bi bi-briefcase"></i>
