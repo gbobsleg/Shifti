@@ -53,6 +53,10 @@
     min-width: 170px;
 }
 
+#filter-import-status {
+    min-width: 180px;
+}
+
 /* Badge offre (couleurs dynamiques en inline) */
 .offer-badge {
     font-size: 0.7rem;

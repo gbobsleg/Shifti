@@ -10,7 +10,9 @@
  * @var array $availabilitiesByUser
  * @var array $unrecognizedAgents Agents du fichier non reconnus en BDD
  * @var int $recognizedAgentsCount Nombre d'agents reconnus
+ * @var array $rangeDecisions Décisions d'import indexées comme $groupedRanges
  */
+use App\Service\ExcelRangeImportClassifier;
 ?>
 <?php $this->assign('title', 'Prévisualisation des données Excel'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
@@ -76,7 +78,7 @@ function isAgentAvailable($userId, $dayOfWeek, $period, $availabilitiesByUser, $
  * Retourne: [user_id => [day => ['AM' => event, 'PM' => event]]]
  * Gère les événements multi-jours en colorant tous les jours couverts
  */
-function buildGridData($groupedRanges, $usersById, $offersById, $contextMonth, $contextYear) {
+function buildGridData($groupedRanges, $usersById, $offersById, $contextMonth, $contextYear, $rangeDecisions = []) {
     $gridData = [];
     $pivotHour = 13; // Heure pivot par défaut (13h00)
     
@@ -118,6 +120,22 @@ function buildGridData($groupedRanges, $usersById, $offersById, $contextMonth, $
             $isRemote = str_contains($offerNameLower, 'télétravail') || str_contains($offerNameLower, 'telework');
         }
         
+        $decision = $rangeDecisions[$rangeIndex] ?? null;
+        $importStatus = $decision['status'] ?? ExcelRangeImportClassifier::STATUS_NEW;
+        $conflictTip = '';
+        if ($decision && ExcelRangeImportClassifier::isSkipStatus($importStatus)) {
+            $parts = [];
+            foreach ($decision['conflicts'] as $conflict) {
+                $cStart = $conflict['date_start'] ?? null;
+                $cEnd = $conflict['date_end'] ?? null;
+                $startTxt = $cStart instanceof \Cake\I18n\FrozenTime ? $cStart->i18nFormat('dd/MM/yyyy HH:mm') : '';
+                $endTxt = $cEnd instanceof \Cake\I18n\FrozenTime ? $cEnd->i18nFormat('dd/MM/yyyy HH:mm') : '';
+                $prov = ExcelRangeImportClassifier::provenanceLabel($conflict['provenance'] ?? ExcelRangeImportClassifier::PROVENANCE_MANUAL);
+                $parts[] = trim($startTxt . ' – ' . $endTxt . ' (' . $prov . ')');
+            }
+            $conflictTip = $parts !== [] ? ('Déjà en base : ' . implode(' ; ', $parts)) : ExcelRangeImportClassifier::statusLabel($importStatus);
+        }
+
         $eventData = [
             'range_index' => $rangeIndex,
             'offer_id' => $range['offer_id'],
@@ -131,6 +149,9 @@ function buildGridData($groupedRanges, $usersById, $offersById, $contextMonth, $
             'date_end' => $dateEnd,
             'time_start' => $dateStart->format('H:i'),
             'time_end' => $dateEnd->format('H:i'),
+            'import_status' => $importStatus,
+            'import_conflict' => ExcelRangeImportClassifier::isSkipStatus($importStatus),
+            'import_conflict_tip' => $conflictTip,
         ];
         
         if (!isset($gridData[$userId])) {
@@ -231,7 +252,14 @@ function getDayName($dayOfWeek) {
 }
 
 // Préparer les données de la grille
-$gridData = buildGridData($groupedRanges, $usersById, $offersById, $contextMonth, $contextYear);
+$rangeDecisions = $rangeDecisions ?? [];
+$gridData = buildGridData($groupedRanges, $usersById, $offersById, $contextMonth, $contextYear, $rangeDecisions);
+$conflictDecisions = [];
+foreach ($rangeDecisions as $idx => $decision) {
+    if (ExcelRangeImportClassifier::isSkipStatus($decision['status'] ?? '')) {
+        $conflictDecisions[$idx] = $decision;
+    }
+}
 $daysInMonth = (int)date('t', mktime(0, 0, 0, $contextMonth, 1, $contextYear));
 $monthNames = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -461,6 +489,15 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
 .legend-box.weekend-legend {
     background-color: #e9ecef;
 }
+.legend-box.import-conflict-legend {
+    background-color: #fff;
+    outline: 2px solid #dc3545;
+    outline-offset: -2px;
+}
+.half-cell.import-conflict {
+    outline: 2px solid #dc3545;
+    outline-offset: -2px;
+}
 
 /* Cellules supprimées dans la grille */
 .half-cell.deleted {
@@ -518,11 +555,13 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
     opacity: 0.8;
 }
 #toggle-deleted-icon,
-#toggle-unrecognized-icon {
+#toggle-unrecognized-icon,
+#toggle-conflicts-icon {
     transition: transform 0.2s ease;
 }
 #toggle-deleted-icon.collapsed,
-#toggle-unrecognized-icon.collapsed {
+#toggle-unrecognized-icon.collapsed,
+#toggle-conflicts-icon.collapsed {
     transform: rotate(-90deg);
 }
 #deleted-section.collapsed #deleted-body {
@@ -635,6 +674,72 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                 </div>
                 <?php endif; ?>
 
+                <?php if (!empty($conflictDecisions)): ?>
+                <div class="crud-warn">
+                    <div class="d-flex justify-content-between align-items-center gap-2" id="toggle-conflicts" style="cursor: pointer;">
+                        <span>
+                            <i class="bi bi-chevron-down me-1" id="toggle-conflicts-icon"></i>
+                            <strong><?= count($conflictDecisions) ?></strong> conflit(s) — ces plages ne seront pas enregistrées
+                            <small class="text-muted ms-2">(cliquer pour <?= count($conflictDecisions) > 5 ? 'voir la liste' : 'masquer' ?>)</small>
+                        </span>
+                    </div>
+                    <div id="conflicts-body" <?= count($conflictDecisions) > 5 ? 'style="display: none;"' : '' ?>>
+                        <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
+                            <table class="table table-sm mb-0 small">
+                                <thead>
+                                    <tr>
+                                        <th>Agent</th>
+                                        <th>Offre</th>
+                                        <th>Excel</th>
+                                        <th>Déjà en base</th>
+                                        <th>Motif</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($conflictDecisions as $cIndex => $decision): ?>
+                                        <?php
+                                        $cRange = $groupedRanges[$cIndex] ?? [];
+                                        $cUser = $usersById[$cRange['user_id'] ?? 0] ?? null;
+                                        $cUserName = $cUser ? ($cUser->last_name . ' ' . $cUser->first_name) : 'Agent inconnu';
+                                        $cOfferName = $offers[$cRange['offer_id'] ?? 0] ?? 'Offre inconnue';
+                                        $cExcelStart = $cRange['date_start'] ?? null;
+                                        $cExcelEnd = $cRange['date_end'] ?? null;
+                                        if ($cExcelStart && !$cExcelStart instanceof \Cake\I18n\FrozenTime) {
+                                            $cExcelStart = \Cake\I18n\FrozenTime::parse($cExcelStart);
+                                        }
+                                        if ($cExcelEnd && !$cExcelEnd instanceof \Cake\I18n\FrozenTime) {
+                                            $cExcelEnd = \Cake\I18n\FrozenTime::parse($cExcelEnd);
+                                        }
+                                        $existingBits = [];
+                                        foreach ($decision['conflicts'] as $conflict) {
+                                            $cs = $conflict['date_start'] ?? null;
+                                            $ce = $conflict['date_end'] ?? null;
+                                            $csTxt = $cs instanceof \Cake\I18n\FrozenTime ? $cs->i18nFormat('dd/MM/yyyy HH:mm') : '';
+                                            $ceTxt = $ce instanceof \Cake\I18n\FrozenTime ? $ce->i18nFormat('dd/MM/yyyy HH:mm') : '';
+                                            $existingBits[] = trim($csTxt . ' – ' . $ceTxt);
+                                        }
+                                        ?>
+                                        <tr>
+                                            <td><?= h($cUserName) ?></td>
+                                            <td><?= h($cOfferName) ?></td>
+                                            <td>
+                                                <?php if ($cExcelStart && $cExcelEnd): ?>
+                                                    <?= $cExcelStart->i18nFormat('dd/MM/yyyy HH:mm') ?>
+                                                    –
+                                                    <?= $cExcelEnd->i18nFormat('dd/MM/yyyy HH:mm') ?>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td><?= h(implode(' ; ', $existingBits)) ?></td>
+                                            <td><?= h(ExcelRangeImportClassifier::statusLabel($decision['status'] ?? '')) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <!-- Onglets -->
                 <ul class="nav nav-tabs crud-tabs" id="previewTabs" role="tablist">
                     <li class="nav-item">
@@ -674,6 +779,12 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                 <select class="form-control form-control-sm filter-select" id="filter-demand-status">
                                     <option value="">Tous les statuts</option>
                                 </select>
+                                <select class="form-control form-control-sm filter-select" id="filter-import-status">
+                                    <option value="">Tous les statuts d'import</option>
+                                    <option value="new">Nouveau</option>
+                                    <option value="replace">Remplace</option>
+                                    <option value="skip">Ignoré</option>
+                                </select>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="reset-filters">
                                     <i class="bi bi-x-circle me-1"></i> Réinitialiser
                                 </button>
@@ -689,6 +800,7 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                         </th>
                                         <th class="sortable" data-sort="number">#</th>
                                         <th class="sortable" data-sort="text">Offre</th>
+                                        <th class="sortable" data-sort="text">Import</th>
                                         <th class="sortable" data-sort="text">Validation</th>
                                         <th class="sortable" data-sort="text">Statut</th>
                                         <th class="sortable" data-sort="text">Matricule</th>
@@ -727,6 +839,29 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                         $demandStatus = $range['demand_status'] ?? 'real';
                                         $offerId = (int)($range['offer_id'] ?? 0);
                                         $userId = (int)($range['user_id'] ?? 0);
+                                        $importDecision = $rangeDecisions[$index] ?? ['status' => ExcelRangeImportClassifier::STATUS_NEW];
+                                        $importStatus = $importDecision['status'] ?? ExcelRangeImportClassifier::STATUS_NEW;
+                                        $importGroup = ExcelRangeImportClassifier::statusGroup($importStatus);
+                                        $importLabel = ExcelRangeImportClassifier::statusLabel($importStatus);
+                                        $importTip = '';
+                                        if (ExcelRangeImportClassifier::isSkipStatus($importStatus) || $importStatus === ExcelRangeImportClassifier::STATUS_REPLACE_GROOMRH) {
+                                            $tipParts = [];
+                                            foreach ($importDecision['conflicts'] ?? [] as $conflict) {
+                                                $cs = $conflict['date_start'] ?? null;
+                                                $ce = $conflict['date_end'] ?? null;
+                                                $csTxt = $cs instanceof \Cake\I18n\FrozenTime ? $cs->i18nFormat('dd/MM/yyyy HH:mm') : '';
+                                                $ceTxt = $ce instanceof \Cake\I18n\FrozenTime ? $ce->i18nFormat('dd/MM/yyyy HH:mm') : '';
+                                                $prov = ExcelRangeImportClassifier::provenanceLabel($conflict['provenance'] ?? ExcelRangeImportClassifier::PROVENANCE_MANUAL);
+                                                $tipParts[] = trim($csTxt . ' – ' . $ceTxt . ' (' . $prov . ')');
+                                            }
+                                            $importTip = $tipParts !== [] ? implode(' ; ', $tipParts) : $importLabel;
+                                        }
+                                        $importBadgeClass = 'bg-success';
+                                        if ($importGroup === 'replace') {
+                                            $importBadgeClass = 'bg-info';
+                                        } elseif ($importGroup === 'skip') {
+                                            $importBadgeClass = 'bg-warning text-dark';
+                                        }
                                         ?>
                                         <tr data-range-index="<?= $index ?>" id="range-row-<?= $index ?>" 
                                             data-offer-id="<?= $offerId ?>"
@@ -734,7 +869,8 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                             data-user-id="<?= $userId ?>"
                                             data-user-label="<?= h($userName) ?>"
                                             data-validation="<?= h($validationKey) ?>"
-                                            data-demand-status="<?= h($demandStatus) ?>">
+                                            data-demand-status="<?= h($demandStatus) ?>"
+                                            data-import-status="<?= h($importGroup) ?>">
                                             <td class="py-2 text-center">
                                                 <input type="checkbox" class="row-checkbox" data-index="<?= $index ?>" value="<?= $index ?>">
                                             </td>
@@ -742,6 +878,11 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                             <td class="py-2">
                                                 <span class="badge offer-badge" style="background-color: <?= h($offerColor) ?>; color: <?= getContrastColor($offerColor) ?>;">
                                                     <?= h($offerName) ?>
+                                                </span>
+                                            </td>
+                                            <td class="py-2">
+                                                <span class="badge <?= $importBadgeClass ?>" <?= $importTip !== '' ? 'title="' . h($importTip) . '"' : '' ?>>
+                                                    <?= h($importLabel) ?>
                                                 </span>
                                             </td>
                                             <td class="py-2">
@@ -818,6 +959,10 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                             <div class="legend-item">
                                 <div class="legend-box weekend-legend"></div>
                                 <span>Week-end</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-box import-conflict-legend"></div>
+                                <span>Conflit (non enregistré)</span>
                             </div>
                             <span class="text-muted mx-2">|</span>
                             <div class="legend-item">
@@ -899,6 +1044,9 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                                     if (!$eventAM['is_validated']) {
                                                         $classAM .= ' not-validated';
                                                     }
+                                                    if (!empty($eventAM['import_conflict'])) {
+                                                        $classAM .= ' import-conflict';
+                                                    }
                                                     $statusTxt = $eventAM['demand_status'] === 'forecast' ? 'Prévisionnel' : 'Réel';
                                                     $validTxt = $eventAM['is_validated'] ? 'Validé' : 'En attente';
                                                     $tooltipAM = "[MATIN] {$eventAM['offer_name']}\n";
@@ -906,6 +1054,9 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                                     $tooltipAM .= "Statut: $statusTxt | $validTxt";
                                                     if (!empty($eventAM['comment'])) {
                                                         $tooltipAM .= "\nCommentaire: {$eventAM['comment']}";
+                                                    }
+                                                    if (!empty($eventAM['import_conflict_tip'])) {
+                                                        $tooltipAM .= "\n" . $eventAM['import_conflict_tip'];
                                                     }
                                                 }
                                                 
@@ -924,6 +1075,9 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                                     if (!$eventPM['is_validated']) {
                                                         $classPM .= ' not-validated';
                                                     }
+                                                    if (!empty($eventPM['import_conflict'])) {
+                                                        $classPM .= ' import-conflict';
+                                                    }
                                                     $statusTxt = $eventPM['demand_status'] === 'forecast' ? 'Prévisionnel' : 'Réel';
                                                     $validTxt = $eventPM['is_validated'] ? 'Validé' : 'En attente';
                                                     $tooltipPM = "[APRÈS-MIDI] {$eventPM['offer_name']}\n";
@@ -931,6 +1085,9 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                                     $tooltipPM .= "Statut: $statusTxt | $validTxt";
                                                     if (!empty($eventPM['comment'])) {
                                                         $tooltipPM .= "\nCommentaire: {$eventPM['comment']}";
+                                                    }
+                                                    if (!empty($eventPM['import_conflict_tip'])) {
+                                                        $tooltipPM .= "\n" . $eventPM['import_conflict_tip'];
                                                     }
                                                 }
                                                 ?>
@@ -1132,10 +1289,10 @@ $(document).ready(function() {
                 offerName: row.attr('data-offer-label'),
                 offerColor: row.find('.offer-badge').css('background-color'),
                 offerTextColor: row.find('.offer-badge').css('color'),
-                userCode: row.find('td').eq(5).text().trim(),
+                userCode: row.find('td').eq(6).text().trim(),
                 userName: row.attr('data-user-label'),
-                dateStart: row.find('td').eq(7).text().trim().split('\n')[0].trim(),
-                dateEnd: row.find('td').eq(8).text().trim().split('\n')[0].trim(),
+                dateStart: row.find('td').eq(8).text().trim().split('\n')[0].trim(),
+                dateEnd: row.find('td').eq(9).text().trim().split('\n')[0].trim(),
                 gridCells: []
             };
             
@@ -1281,6 +1438,25 @@ $(document).ready(function() {
     if ($('#unrecognized-body').is(':hidden')) {
         $('#toggle-unrecognized-icon').addClass('collapsed');
     }
+
+    $('#toggle-conflicts').on('click', function() {
+        var body = $('#conflicts-body');
+        var icon = $('#toggle-conflicts-icon');
+        var hint = $(this).find('small');
+
+        body.slideToggle(200);
+        icon.toggleClass('collapsed');
+
+        if (body.is(':visible')) {
+            hint.text('(cliquer pour masquer)');
+        } else {
+            hint.text('(cliquer pour voir la liste)');
+        }
+    });
+
+    if ($('#conflicts-body').is(':hidden')) {
+        $('#toggle-conflicts-icon').addClass('collapsed');
+    }
     
     // Gestion des filtres
     function applyFilters() {
@@ -1288,6 +1464,7 @@ $(document).ready(function() {
         var agentFilter = $('#filter-agent').val();
         var validationFilter = $('#filter-validation').val();
         var demandStatusFilter = $('#filter-demand-status').val();
+        var importStatusFilter = $('#filter-import-status').val();
         
         $('#preview-table tbody tr').each(function() {
             var $row = $(this);
@@ -1299,6 +1476,7 @@ $(document).ready(function() {
             var userId = $row.attr('data-user-id') || '';
             var validation = $row.attr('data-validation') || '';
             var demandStatus = $row.attr('data-demand-status') || '';
+            var importStatus = $row.attr('data-import-status') || '';
             
             var showRow = true;
             
@@ -1306,6 +1484,7 @@ $(document).ready(function() {
             if (agentFilter) showRow = showRow && (userId === agentFilter);
             if (validationFilter) showRow = showRow && (validation === validationFilter);
             if (demandStatusFilter) showRow = showRow && (demandStatus === demandStatusFilter);
+            if (importStatusFilter) showRow = showRow && (importStatus === importStatusFilter);
             
             if (showRow) {
                 $row.removeClass('d-none');
@@ -1401,7 +1580,7 @@ $(document).ready(function() {
     
     refreshFilterOptions();
     
-    $('#filter-offer, #filter-agent, #filter-validation, #filter-demand-status').on('change', function() {
+    $('#filter-offer, #filter-agent, #filter-validation, #filter-demand-status, #filter-import-status').on('change', function() {
         applyFilters();
     });
     
@@ -1410,6 +1589,7 @@ $(document).ready(function() {
         $('#filter-agent').val('');
         $('#filter-validation').val('');
         $('#filter-demand-status').val('');
+        $('#filter-import-status').val('');
         $('#preview-table tbody tr').removeClass('d-none');
         var totalCount = $('#preview-table tbody tr').length;
         $('#preview-range-count').text(totalCount);

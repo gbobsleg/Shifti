@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Service\ExcelPlanningParserService;
+use App\Service\ExcelRangeImportClassifier;
 use App\Resource\ExcelUploadsResource;
 use Cake\Http\Exception\BadRequestException;
 use Cake\I18n\FrozenTime;
@@ -355,6 +356,9 @@ class ExcelUploadsController extends AppController
             
             // Grouper les ranges (avec tri par user_name, offer_id, date_start)
             $groupedRanges = $this->groupRanges($ranges, $offersById, $usersById);
+
+            $Ranges = $this->fetchTable('Ranges');
+            $rangeDecisions = (new ExcelRangeImportClassifier())->classify($groupedRanges, $Ranges);
             
             // Charger les disponibilités des utilisateurs pour la vue grille
             $availabilitiesByUser = [];
@@ -371,7 +375,7 @@ class ExcelUploadsController extends AppController
                 }
             }
             
-            $this->set(compact('groupedRanges', 'offers', 'usersById', 'offersById', 'contextMonth', 'contextYear', 'availabilitiesByUser', 'unrecognizedAgents', 'recognizedAgentsCount'));
+            $this->set(compact('groupedRanges', 'offers', 'usersById', 'offersById', 'contextMonth', 'contextYear', 'availabilitiesByUser', 'unrecognizedAgents', 'recognizedAgentsCount', 'rangeDecisions'));
             
         } catch (\Exception $e) {
             $errorMsg = 'Erreur lors de l\'analyse : ' . $e->getMessage();
@@ -509,11 +513,13 @@ class ExcelUploadsController extends AppController
             }
             
             $Ranges = $this->fetchTable('Ranges');
+            $rangeDecisions = (new ExcelRangeImportClassifier())->classify($groupedRanges, $Ranges);
             $saved = 0;
+            $replaced = 0;
             $skipped = 0;
             $errors = [];
             
-            foreach ($groupedRanges as $rangeData) {
+            foreach ($groupedRanges as $index => $rangeData) {
                 // Vérifier que les données essentielles sont présentes
                 if (empty($rangeData['user_id']) || empty($rangeData['offer_id'])) {
                     $errors[] = 'Plage invalide : user_id ou offer_id manquant';
@@ -548,27 +554,42 @@ class ExcelUploadsController extends AppController
                     $entityData['date_end'] = FrozenTime::parse($dateEnd);
                 }
                 
-                // Vérifier si une plage identique existe déjà (doublon)
-                $existingRange = $Ranges->find()
-                    ->where([
-                        'user_id' => $entityData['user_id'],
-                        'offer_id' => $entityData['offer_id'],
-                        'date_start' => $entityData['date_start']->format('Y-m-d H:i:s'),
-                        'date_end' => $entityData['date_end']->format('Y-m-d H:i:s'),
-                    ])
-                    ->first();
-                
-                if ($existingRange) {
+                $decision = $rangeDecisions[$index] ?? ['status' => ExcelRangeImportClassifier::STATUS_NEW, 'replace_ids' => []];
+                $status = $decision['status'] ?? ExcelRangeImportClassifier::STATUS_NEW;
+
+                if (ExcelRangeImportClassifier::isSkipStatus($status)) {
                     $skipped++;
-                    continue; // Ignorer les doublons
+                    continue;
                 }
-                
-                $range = $Ranges->newEntity($entityData);
-                if ($Ranges->save($range)) {
-                    $saved++;
+
+                $savedOk = false;
+                $validationErrors = [];
+                if ($status === ExcelRangeImportClassifier::STATUS_REPLACE_GROOMRH && !empty($decision['replace_ids'])) {
+                    $savedOk = (bool)$Ranges->getConnection()->transactional(function () use ($Ranges, $decision, $entityData, &$validationErrors) {
+                        $Ranges->deleteAll(['id IN' => $decision['replace_ids']]);
+                        $range = $Ranges->newEntity($entityData);
+                        if (!$Ranges->save($range)) {
+                            $validationErrors = $range->getErrors();
+                            return false;
+                        }
+                        return true;
+                    });
                 } else {
-                    $validationErrors = $range->getErrors();
-                    $errorMsg = 'Erreur pour la plage du ' . 
+                    $range = $Ranges->newEntity($entityData);
+                    $savedOk = (bool)$Ranges->save($range);
+                    if (!$savedOk) {
+                        $validationErrors = $range->getErrors();
+                    }
+                }
+
+                if ($savedOk) {
+                    if ($status === ExcelRangeImportClassifier::STATUS_REPLACE_GROOMRH) {
+                        $replaced++;
+                    } else {
+                        $saved++;
+                    }
+                } else {
+                    $errorMsg = 'Erreur pour la plage du ' .
                         ($entityData['date_start'] instanceof FrozenTime ? $entityData['date_start']->i18nFormat('dd/MM/yyyy') : 'date inconnue');
                     if (!empty($validationErrors)) {
                         $errorMsg .= ' : ' . json_encode($validationErrors);
@@ -586,8 +607,11 @@ class ExcelUploadsController extends AppController
             if ($saved > 0) {
                 $this->Flash->success("$saved plage(s) enregistrée(s) avec succès.");
             }
+            if ($replaced > 0) {
+                $this->Flash->success("$replaced plage(s) remplacée(s) (import GroomRH précédent).");
+            }
             if ($skipped > 0) {
-                $this->Flash->info("$skipped plage(s) ignorée(s) (déjà présentes en base de données).");
+                $this->Flash->info("$skipped plage(s) ignorée(s) (déjà présentes ou en conflit).");
             }
             if (!empty($errors)) {
                 $errorCount = count($errors);
@@ -595,7 +619,7 @@ class ExcelUploadsController extends AppController
                     (count($errors) <= 5 ? implode(' | ', $errors) : 'Voir les logs pour plus de détails.'));
             }
             
-            if ($saved === 0 && $skipped === 0 && empty($errors)) {
+            if ($saved === 0 && $replaced === 0 && $skipped === 0 && empty($errors)) {
                 $this->Flash->warning('Aucune plage n\'a pu être enregistrée.');
             }
             

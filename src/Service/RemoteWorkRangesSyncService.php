@@ -126,6 +126,20 @@ class RemoteWorkRangesSyncService
             $dayKey = $range->date_start->format('Y-m-d');
             $existingRangesByDate[$dayKey] = $range;
         }
+
+        $periodStart = FrozenTime::parse($startDate->format('Y-m-d') . ' 00:00:00');
+        $periodEnd = FrozenTime::parse($endDate->format('Y-m-d') . ' 23:59:59');
+        $anyTadRanges = $rangesTable->find()
+            ->select(['id', 'date_start', 'date_end'])
+            ->where([
+                'user_id' => $userId,
+                'offer_id' => $remoteWorkOfferId,
+                'date_start <' => $periodEnd->format('Y-m-d H:i:s'),
+                'date_end >' => $periodStart->format('Y-m-d H:i:s'),
+            ])
+            ->disableHydration()
+            ->all()
+            ->toList();
         
         // Parcourir chaque jour dans la période
         $currentDate = clone $startDate;
@@ -148,11 +162,15 @@ class RemoteWorkRangesSyncService
             $currentDate = $currentDate->modify('+1 day');
         }
         
-        // Créer les ranges manquants
+        // Créer les ranges manquants (sauf si un TAD quelconque chevauche déjà l'intervalle)
         foreach ($daysToCreate as $day) {
             try {
                 $rangeStart = FrozenTime::parse($day->format('Y-m-d') . ' ' . $timeStart);
                 $rangeEnd = FrozenTime::parse($day->format('Y-m-d') . ' ' . $timeEnd);
+
+                if ($this->hasOverlappingRemoteWork($anyTadRanges, $rangeStart, $rangeEnd)) {
+                    continue;
+                }
                 
                 $range = $rangesTable->newEntity([
                     'user_id' => $userId,
@@ -186,6 +204,29 @@ class RemoteWorkRangesSyncService
         }
         
         return $stats;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     */
+    private function hasOverlappingRemoteWork(array $rows, FrozenTime $start, FrozenTime $end): bool
+    {
+        foreach ($rows as $row) {
+            $existingStart = $row['date_start'] instanceof \DateTimeInterface
+                ? FrozenTime::parse($row['date_start']->format('Y-m-d H:i:s'))
+                : FrozenTime::parse((string)$row['date_start']);
+            $existingEnd = $row['date_end'] instanceof \DateTimeInterface
+                ? FrozenTime::parse($row['date_end']->format('Y-m-d H:i:s'))
+                : FrozenTime::parse((string)$row['date_end']);
+
+            if ($existingStart->getTimestamp() < $end->getTimestamp()
+                && $existingEnd->getTimestamp() > $start->getTimestamp()
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
