@@ -42,7 +42,7 @@
         $navAction = (string)$this->request->getParam('action');
         $isHome = $navController === 'Grids';
         $isAccount = $navController === 'Users' && in_array($navAction, ['account', 'changePassword'], true);
-        $isAdminNav = !$isHome && !$isAccount;
+        $isAdminNav = !$isHome && !$isAccount && $navController !== 'Error';
         ?>
         <ul class="navbar-nav me-auto">
             <li class="nav-item">

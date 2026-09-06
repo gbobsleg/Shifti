@@ -26,6 +26,21 @@ body:has(.crud-app) {
     margin-right: auto;
 }
 
+.crud-app.crud-error {
+    max-width: 32rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.crud-app.crud-error .crud-header {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.crud-app.crud-error .crud-header h1 i {
+    color: var(--crud-muted);
+}
+
 .crud-app .crud-header {
     display: flex;
     flex-wrap: wrap;

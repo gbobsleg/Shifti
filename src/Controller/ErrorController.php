@@ -1,22 +1,14 @@
 <?php
 declare(strict_types=1);
 
-/**
- * CakePHP(tm) : Rapid Development Framework (https://cakephp.org)
- * Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
- *
- * Licensed under The MIT License
- * For full copyright and license information, please see the LICENSE.txt
- * Redistributions of files must retain the above copyright notice.
- *
- * @copyright     Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
- * @link          https://cakephp.org CakePHP(tm) Project
- * @since         3.3.4
- * @license       https://opensource.org/licenses/mit-license.php MIT License
- */
 namespace App\Controller;
 
+use Cake\Datasource\Exception\RecordNotFoundException;
 use Cake\Event\EventInterface;
+use Cake\Http\Exception\MissingControllerException;
+use Cake\Http\Exception\NotFoundException;
+use Cake\Routing\Exception\MissingRouteException;
+use Cake\View\View;
 
 /**
  * Error Handling Controller
@@ -26,18 +18,15 @@ use Cake\Event\EventInterface;
 class ErrorController extends AppController
 {
     /**
-     * Initialization hook method.
-     *
      * @return void
      */
     public function initialize(): void
     {
         $this->loadComponent('RequestHandler');
+        $this->viewBuilder()->setClassName(View::class);
     }
 
     /**
-     * beforeFilter callback.
-     *
      * @param \Cake\Event\EventInterface $event Event.
      * @return \Cake\Http\Response|null|void
      */
@@ -46,8 +35,6 @@ class ErrorController extends AppController
     }
 
     /**
-     * beforeRender callback.
-     *
      * @param \Cake\Event\EventInterface $event Event.
      * @return \Cake\Http\Response|null|void
      */
@@ -56,7 +43,6 @@ class ErrorController extends AppController
         parent::beforeRender($event);
         $this->viewBuilder()->setTemplatePath('Error');
 
-        // JSON/AJAX forbidden handling
         $acceptsJson = $this->request->accepts('application/json');
         $isAjax = $this->request->is('ajax');
         $status = $this->response->getStatusCode();
@@ -65,18 +51,30 @@ class ErrorController extends AppController
             $this->viewBuilder()->setClassName('Json');
             $this->set(['success' => false, 'message' => (string)$message]);
             $this->viewBuilder()->setOption('serialize', ['success', 'message']);
+
             return;
         }
 
-        // HTML 403 → template dédié avec design applicatif
         if ($status === 403) {
             $this->viewBuilder()->setTemplate('error403');
+
+            return;
+        }
+
+        $error = $this->viewBuilder()->getVar('error');
+        $isNotFound = $status === 404
+            || $error instanceof NotFoundException
+            || $error instanceof RecordNotFoundException
+            || $error instanceof MissingControllerException
+            || $error instanceof MissingRouteException;
+
+        if ($isNotFound) {
+            $this->viewBuilder()->setTemplate('error400');
+            $this->response = $this->response->withStatus(404);
         }
     }
 
     /**
-     * afterFilter callback.
-     *
      * @param \Cake\Event\EventInterface $event Event.
      * @return \Cake\Http\Response|null|void
      */

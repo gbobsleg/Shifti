@@ -7,47 +7,48 @@
 use Cake\Core\Configure;
 use Cake\Error\Debugger;
 
-$this->setLayout('error');
-
-// Message explicite si l'erreur correspond à un refus d'autorisation
 $isForbiddenLike = is_string($message ?? null) && (
     stripos((string)$message, 'not authorized') !== false
     || stripos((string)$message, 'authorized to perform') !== false
 );
 
-if ($isForbiddenLike) :
+if ($isForbiddenLike) {
     $this->assign('title', 'Accès refusé');
-?>
-<div class="crud-header">
-    <div>
-        <h1>Accès refusé</h1>
-        <p class="crud-header-meta">Vous n'êtes pas autorisé à consulter cette page.</p>
-    </div>
-</div>
-<?php
-    return;
-endif;
+    $this->setLayout('error');
+    echo $this->element('error_state', [
+        'icon' => 'bi-lock',
+        'title' => 'Accès refusé',
+        'text' => 'Tu n’as pas les droits pour cette page.',
+    ]);
 
-if (Configure::read('debug')) :
+    return;
+}
+
+if (Configure::read('debug')) {
     $this->setLayout('dev_error');
     $this->assign('title', $message);
     $this->assign('templateName', 'error500.php');
     $this->start('file');
-?>
-<?php if (isset($error) && $error instanceof Error) : ?>
-    <?php $file = $error->getFile() ?>
-    <?php $line = $error->getLine() ?>
-    <strong>Error in: </strong>
-    <?= $this->Html->link(sprintf('%s, line %s', Debugger::trimPath($file), $line), Debugger::editorUrl($file, $line)); ?>
-<?php endif; ?>
-<?php
+    if (isset($error) && $error instanceof Error) {
+        $file = $error->getFile();
+        $line = $error->getLine();
+        echo '<strong>Error in: </strong>';
+        echo $this->Html->link(
+            sprintf('%s, line %s', Debugger::trimPath($file), $line),
+            Debugger::editorUrl($file, $line)
+        );
+    }
     echo $this->element('auto_table_warning');
     $this->end();
-endif;
-?>
-<div class="crud-header">
-    <div>
-        <h1><?= __d('cake', 'An Internal Error Has Occurred.') ?></h1>
-        <p class="crud-header-meta"><?= h($message) ?></p>
-    </div>
-</div>
+
+    return;
+}
+
+$this->assign('title', 'Erreur');
+$this->setLayout('error');
+
+echo $this->element('error_state', [
+    'icon' => 'bi-exclamation-triangle',
+    'title' => 'Un problème est survenu',
+    'text' => 'Réessaie dans un instant. Si ça continue, préviens un administrateur.',
+]);
