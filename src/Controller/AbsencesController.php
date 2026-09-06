@@ -144,10 +144,17 @@ class AbsencesController extends AppController
         if ($this->request->is('post')) {
             $datas = $this->request->getData();
 
-            $datas['date_start'] = FrozenTime::createFromFormat('d/m/Y, H:i', (string)$datas['date_start']);
-            $datas['date_end'] = FrozenTime::createFromFormat('d/m/Y, H:i', (string)$datas['date_end']);
+            $datas['date_start'] = $this->parseDateTimeLocal((string)($datas['date_start'] ?? ''));
+            $datas['date_end'] = $this->parseDateTimeLocal((string)($datas['date_end'] ?? ''));
 
-            $dates = $this->Groom->findDayDates($datas['days'], [
+            if ($datas['date_start'] === null || $datas['date_end'] === null) {
+                $this->Flash->error('Les dates de début et de fin sont invalides.');
+                $this->set(compact('range', 'users', 'offers'));
+
+                return;
+            }
+
+            $dates = $this->Groom->findDayDates($datas['days'] ?? [], [
                 'date_start' => $datas['date_start']->i18nFormat('yyyy-MM-dd HH:mm:ss'),
                 'date_end' => $datas['date_end']->i18nFormat('yyyy-MM-dd HH:mm:ss'),
             ]);
@@ -187,5 +194,19 @@ class AbsencesController extends AppController
         }
 
         $this->set(compact('range', 'users', 'offers'));
+    }
+
+    private function parseDateTimeLocal(string $value): ?FrozenTime
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $parsed = FrozenTime::createFromFormat('Y-m-d\TH:i', $value)
+            ?: FrozenTime::createFromFormat('Y-m-d\TH:i:s', $value)
+            ?: FrozenTime::createFromFormat('Y-m-d H:i:s', str_replace('T', ' ', $value));
+
+        return $parsed ?: null;
     }
 }

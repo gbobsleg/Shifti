@@ -9,11 +9,6 @@
 <?php $this->assign('title', 'Modifier Absence #' . $absence->id); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<?php echo $this->Html->css('daterangepicker', ['block' => true]); ?>
-<?php echo $this->Html->script('moment.min', ['block' => true]); ?>
-<?php echo $this->Html->script('daterangepicker', ['block' => true]); ?>
-<?php echo $this->Html->script('picker', ['block' => true]); ?>
-
 <div class="crud-app absences form content">
     <div class="crud-header">
         <h1>
@@ -53,19 +48,19 @@
             <div class="col-md-6 mb-3">
                 <label class="form-label">Début</label>
                 <?= $this->Form->control('date_start', [
-                    'type' => 'text',
+                    'type' => 'datetime-local',
+                    'step' => 900,
                     'label' => false,
                     'class' => 'form-control',
-                    'value' => $absence->date_start ? $absence->date_start->i18nFormat('dd/MM/yyyy HH:mm') : '',
                 ]) ?>
             </div>
             <div class="col-md-6 mb-3">
                 <label class="form-label">Fin</label>
                 <?= $this->Form->control('date_end', [
-                    'type' => 'text',
+                    'type' => 'datetime-local',
+                    'step' => 900,
                     'label' => false,
                     'class' => 'form-control',
-                    'value' => $absence->date_end ? $absence->date_end->i18nFormat('dd/MM/yyyy HH:mm') : '',
                 ]) ?>
             </div>
         </div>

@@ -28,6 +28,7 @@
             <div class="col-md-6 mb-3">
                 <label class="form-label">Date Début</label>
                 <?= $this->Form->control('date_start', [
+                    'type' => 'date',
                     'label' => false,
                     'class' => 'form-control',
                 ]) ?>
@@ -35,6 +36,7 @@
             <div class="col-md-6 mb-3">
                 <label class="form-label">Date Fin</label>
                 <?= $this->Form->control('date_end', [
+                    'type' => 'date',
                     'empty' => true,
                     'label' => false,
                     'class' => 'form-control',

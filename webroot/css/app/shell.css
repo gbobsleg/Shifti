@@ -1,3 +1,9 @@
+:root,
+html,
+body {
+    color-scheme: only light;
+}
+
 :root {
     --bs-primary: #318f9b;
     --bs-primary-rgb: 49, 143, 155;
@@ -7,6 +13,14 @@
     --shell-max: 1400px;
     --shell-pad-x: 1.5rem;
     --shell-bg: #f4f6f7;
+}
+
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"],
+input[type="month"],
+input[type="week"] {
+    color-scheme: only light;
 }
 
 .btn-primary {

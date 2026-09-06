@@ -48,6 +48,7 @@
             <div class="col-md-6 mb-3">
                 <label class="form-label">Début de validité</label>
                 <?= $this->Form->control('validity_start', [
+                    'type' => 'date',
                     'label' => false,
                     'empty' => true,
                     'class' => 'form-control',
@@ -56,6 +57,7 @@
             <div class="col-md-6 mb-3">
                 <label class="form-label">Fin de validité</label>
                 <?= $this->Form->control('validity_end', [
+                    'type' => 'date',
                     'label' => false,
                     'empty' => true,
                     'class' => 'form-control',

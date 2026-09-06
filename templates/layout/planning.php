@@ -11,9 +11,9 @@ use Cake\Core\Configure;
 if (!$this->fetch('html')) {
     $this->start('html');
     if (Configure::check('App.language')) {
-        printf('<html lang="%s">', Configure::read('App.language'));
+        printf('<html lang="%s" data-bs-theme="light">', Configure::read('App.language'));
     } else {
-        echo '<html>';
+        echo '<html data-bs-theme="light">';
     }
     $this->end();
 }
@@ -101,6 +101,7 @@ $this->append('script', $this->Html->script('dropdown-actions-body', ['block' =>
 <?= $this->fetch('html') ?>
     <head>
         <?= $this->Html->charset() ?>
+        <meta name="color-scheme" content="only light">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <?php
         $appName = (string)Configure::read('App.name', 'Shifti');

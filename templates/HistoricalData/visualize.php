@@ -14,8 +14,6 @@
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
 <?php $this->Html->css('historical-visualize', ['block' => true, 'timestamp' => 'force']); ?>
-<?php $this->Html->script('moment.min', ['block' => true]); ?>
-<?php $this->Html->script('daterangepicker', ['block' => true]); ?>
 <?php $this->Html->script('historical-visualize', ['block' => true, 'timestamp' => 'force']); ?>
 <?= $this->element('apex_series_chart'); ?>
 

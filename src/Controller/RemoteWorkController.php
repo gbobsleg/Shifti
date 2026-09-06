@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\I18n\FrozenTime;
+
 /**
  * RemoteWork Controller
  * Gestion de la configuration du télétravail par agent
@@ -237,9 +239,15 @@ class RemoteWorkController extends AppController
                 return;
             }
             
-            // Parser les dates
-            $data['date_start'] = \Cake\I18n\FrozenTime::createFromFormat('d/m/Y, H:i', (string)$data['date_start']);
-            $data['date_end'] = \Cake\I18n\FrozenTime::createFromFormat('d/m/Y, H:i', (string)$data['date_end']);
+            $data['date_start'] = $this->parseDateTimeLocal((string)($data['date_start'] ?? ''));
+            $data['date_end'] = $this->parseDateTimeLocal((string)($data['date_end'] ?? ''));
+
+            if ($data['date_start'] === null || $data['date_end'] === null) {
+                $this->Flash->error('Les dates de début et de fin sont invalides.');
+                $this->set(compact('range', 'users', 'remoteWorkOfferId'));
+
+                return;
+            }
             
             // Vérifier les dates de validité
             $rangeDate = \Cake\I18n\FrozenDate::parse($data['date_start']->format('Y-m-d'));
@@ -321,5 +329,19 @@ class RemoteWorkController extends AppController
         }
         
         return $this->redirect(['action' => 'index']);
+    }
+
+    private function parseDateTimeLocal(string $value): ?FrozenTime
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $parsed = FrozenTime::createFromFormat('Y-m-d\TH:i', $value)
+            ?: FrozenTime::createFromFormat('Y-m-d\TH:i:s', $value)
+            ?: FrozenTime::createFromFormat('Y-m-d H:i:s', str_replace('T', ' ', $value));
+
+        return $parsed ?: null;
     }
 }

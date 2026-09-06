@@ -13,12 +13,6 @@ $statusLabels = [
 ];
 ?>
 
-<?php $this->Html->css('daterangepicker', ['block' => true]); ?>
-<?php $this->Html->script('moment.min', ['block' => true]); ?>
-<?php $this->Html->script('daterangepicker', ['block' => true]); ?>
-
-
-
 <div class="crud-app forecast-scenarios view crud-app-wide content">
     <div class="crud-header">
         <h1>
@@ -289,12 +283,19 @@ $statusLabels = [
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label small text-muted">Plage de dates</label>
-                        <input id="dateRangeInput" type="text" class="form-control form-control-sm"
-                               placeholder="Sélectionner une période..." readonly
-                               data-start-date="<?= $scenario->start_date ? $scenario->start_date->format('Y-m-d') : '' ?>"
-                               data-end-date="<?= $scenario->end_date ? $scenario->end_date->format('Y-m-d') : '' ?>" />
+                    <?php
+                    $vizMin = $scenario->start_date ? $scenario->start_date->format('Y-m-d') : '';
+                    $vizMax = $scenario->end_date ? $scenario->end_date->format('Y-m-d') : '';
+                    ?>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Début</label>
+                        <input id="vizDateStart" type="date" class="form-control form-control-sm"
+                               min="<?= h($vizMin) ?>" max="<?= h($vizMax) ?>" value="<?= h($vizMin) ?>" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Fin</label>
+                        <input id="vizDateEnd" type="date" class="form-control form-control-sm"
+                               min="<?= h($vizMin) ?>" max="<?= h($vizMax) ?>" value="<?= h($vizMax) ?>" />
                     </div>
                     <div class="col-md-2">
                         <label class="form-label small text-muted">Granularité</label>
@@ -533,108 +534,103 @@ $statusLabels = [
 
         <?php
         $js = <<<JS
-        // Configuration du daterangepicker
-        $(document).ready(function() {
-            const input = $('#dateRangeInput');
-            const startDateStr = input.data('start-date'); // Format YYYY-MM-DD
-            const endDateStr = input.data('end-date');     // Format YYYY-MM-DD
-            
-            if ($.fn.daterangepicker && startDateStr && endDateStr) {
-                const startMoment = moment(startDateStr, 'YYYY-MM-DD');
-                const endMoment = moment(endDateStr, 'YYYY-MM-DD');
-                
-                input.daterangepicker({
-                    startDate: startMoment,
-                    endDate: endMoment,
-                    minDate: startMoment,
-                    maxDate: endMoment,
-                    locale: {
-                        format: 'DD/MM/YYYY',
-                        separator: ' - ',
-                        applyLabel: 'Appliquer',
-                        cancelLabel: 'Annuler',
-                        daysOfWeek: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
-                        monthNames: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 
-                                     'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
-                        firstDay: 1
-                    },
-                    opens: 'left'
-                });
-                
-                // Initialiser avec la période du scénario
-                input.val(startMoment.format('DD/MM/YYYY') + ' - ' + endMoment.format('DD/MM/YYYY'));
-                
-                // Mettre à jour le hint de granularité
-                updateGranularityHint();
+        function parseYmd(value) {
+            const match = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(value || '');
+            if (!match) {
+                return null;
             }
-            
-            // Écouter les changements de dates et de granularité
-            $('#dateRangeInput').on('apply.daterangepicker', function() {
-                updateGranularityHint();
-            });
-            
-            $('#granularitySelect').on('change', function() {
-                updateGranularityHint();
-            });
-        });
-        
-        // Fonction pour suggérer la granularité selon la plage
+            return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+        }
+
+        function formatYmd(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return y + '-' + m + '-' + d;
+        }
+
+        function formatDmy(date) {
+            const d = String(date.getDate()).padStart(2, '0');
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            return d + '/' + m + '/' + date.getFullYear();
+        }
+
+        function sameDay(a, b) {
+            return a.getFullYear() === b.getFullYear()
+                && a.getMonth() === b.getMonth()
+                && a.getDate() === b.getDate();
+        }
+
+        function getVizRange() {
+            const startEl = document.getElementById('vizDateStart');
+            const endEl = document.getElementById('vizDateEnd');
+            if (!startEl || !endEl) {
+                return null;
+            }
+            const start = parseYmd(startEl.value);
+            const end = parseYmd(endEl.value);
+            if (!start || !end) {
+                return null;
+            }
+            return { start: start, end: end };
+        }
+
         function updateGranularityHint() {
-            const dateRangePicker = $('#dateRangeInput').data('daterangepicker');
-            if (!dateRangePicker) return;
-            
-            const start = dateRangePicker.startDate;
-            const end = dateRangePicker.endDate;
-            const daysDiff = end.diff(start, 'days') + 1;
-            const current = $('#granularitySelect').val();
-            
+            const range = getVizRange();
+            const hintElement = document.getElementById('granularityHint');
+            const granEl = document.getElementById('granularitySelect');
+            if (!range || !hintElement || !granEl) {
+                return;
+            }
+
+            const daysDiff = Math.round((range.end - range.start) / 86400000) + 1;
+            const current = granEl.value;
             let recommended = '15min';
             let hint = '';
-            
+
             if (daysDiff <= 7) {
                 recommended = '15min';
-                hint = '✓ 15 min recommandé';
+                hint = '15 min recommandé';
             } else if (daysDiff <= 30) {
                 recommended = 'hour';
-                hint = '⚠ Heure recommandée';
+                hint = 'Heure recommandée';
             } else {
                 recommended = 'day';
-                hint = '⚠ Jour recommandé';
+                hint = 'Jour recommandé';
             }
-            
-            const hintElement = $('#granularityHint');
-            hintElement.text(hint);
-            
+
+            hintElement.textContent = hint;
             if (current !== recommended) {
-                hintElement.css('color', '#ff9800').css('font-weight', 'bold');
+                hintElement.style.color = '#ff9800';
+                hintElement.style.fontWeight = 'bold';
             } else {
-                hintElement.css('color', '#28a745').css('font-weight', 'normal');
+                hintElement.style.color = '#28a745';
+                hintElement.style.fontWeight = 'normal';
             }
         }
 
-        // Fonction d'agrégation des données
         function aggregateScenarioData(categories, forecastData, needData, granularity) {
             if (granularity === '15min') {
-                return { categories, forecastData, needData }; // Pas d'agrégation
+                return { categories, forecastData, needData };
             }
-            
+
             const buckets = {};
-            
+
             for (let i = 0; i < categories.length; i++) {
                 if (categories[i] === null || forecastData[i] === null) continue;
-                
-                const parts = categories[i].split(' '); // Format: "DD/MM/YYYY HH:mm"
-                const datePart = parts[0]; // "DD/MM/YYYY"
-                const timePart = parts[1]; // "HH:mm"
-                
+
+                const parts = categories[i].split(' ');
+                const datePart = parts[0];
+                const timePart = parts[1];
+
                 let key;
                 if (granularity === 'day') {
-                    key = datePart; // Grouper par jour
+                    key = datePart;
                 } else if (granularity === 'hour') {
-                    const hour = timePart.split(':')[0]; // Extraire l'heure
-                    key = datePart + ' ' + hour + ':00'; // Grouper par heure
+                    const hour = timePart.split(':')[0];
+                    key = datePart + ' ' + hour + ':00';
                 }
-                
+
                 if (!buckets[key]) {
                     buckets[key] = {
                         forecastSum: 0,
@@ -642,22 +638,22 @@ $statusLabels = [
                         count: 0
                     };
                 }
-                
+
                 buckets[key].forecastSum += forecastData[i] || 0;
                 buckets[key].needSum += needData[i] || 0;
                 buckets[key].count++;
             }
-            
+
             const aggCategories = [];
             const aggForecastData = [];
             const aggNeedData = [];
-            
+
             for (const key in buckets) {
                 aggCategories.push(key);
-                aggForecastData.push(buckets[key].forecastSum); // SOMME des volumes (total appels)
-                aggNeedData.push(Math.round(buckets[key].needSum / buckets[key].count)); // MOYENNE des besoins (agents moyen)
+                aggForecastData.push(buckets[key].forecastSum);
+                aggNeedData.push(Math.round(buckets[key].needSum / buckets[key].count));
             }
-            
+
             return {
                 categories: aggCategories,
                 forecastData: aggForecastData,
@@ -665,113 +661,122 @@ $statusLabels = [
             };
         }
 
-        document.getElementById('loadBtn').addEventListener('click', async () => {
-            const offerId = document.getElementById('offerSelect').value;
-            const dateRangeInput = document.getElementById('dateRangeInput');
-            const granularity = document.getElementById('granularitySelect').value;
-            
-            // Extraire les dates de la plage
-            const dateRangePicker = $(dateRangeInput).data('daterangepicker');
-            if (!dateRangePicker) {
-                alert('Veuillez sélectionner une plage de dates');
+        document.addEventListener('DOMContentLoaded', function() {
+            const startEl = document.getElementById('vizDateStart');
+            const endEl = document.getElementById('vizDateEnd');
+            const granEl = document.getElementById('granularitySelect');
+            const loadBtn = document.getElementById('loadBtn');
+
+            if (startEl && endEl) {
+                startEl.addEventListener('change', function() {
+                    if (startEl.value && endEl.value && startEl.value > endEl.value) {
+                        endEl.value = startEl.value;
+                    }
+                    updateGranularityHint();
+                });
+                endEl.addEventListener('change', function() {
+                    if (startEl.value && endEl.value && endEl.value < startEl.value) {
+                        startEl.value = endEl.value;
+                    }
+                    updateGranularityHint();
+                });
+                updateGranularityHint();
+            }
+
+            if (granEl) {
+                granEl.addEventListener('change', updateGranularityHint);
+            }
+
+            if (!loadBtn) {
                 return;
             }
-            
-            const startDate = dateRangePicker.startDate;
-            const endDate = dateRangePicker.endDate;
-            
-            console.log('Chargement:', {offerId, start: startDate.format('YYYY-MM-DD'), end: endDate.format('YYYY-MM-DD'), granularity});
-            
-            // Afficher un indicateur de chargement
-            document.getElementById('chartContainer').innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Chargement...</span></div><p class="mt-2">Chargement Forecast + Need...</p></div>';
-            
-            try {
-                const allCategories = [];
-                const forecastData = [];
-                const needData = [];
-                
-                // Charger les données pour chaque jour
-                let dayIndex = 0;
-                for (let d = moment(startDate); d.isSameOrBefore(endDate); d.add(1, 'days')) {
-                    const dateStr = d.format('YYYY-MM-DD');
-                    
-                    // Charger les deux types en parallèle pour aller plus vite
-                    const [resForecast, resNeed] = await Promise.all([
-                        fetch('{$this->Url->build(['action' => 'series', $scenario->id, '_ext' => 'json'])}?offer_id=' + encodeURIComponent(offerId) + '&date=' + encodeURIComponent(dateStr) + '&type=forecast', 
-                              { headers: { 'Accept': 'application/json' } }),
-                        fetch('{$this->Url->build(['action' => 'series', $scenario->id, '_ext' => 'json'])}?offer_id=' + encodeURIComponent(offerId) + '&date=' + encodeURIComponent(dateStr) + '&type=need', 
-                              { headers: { 'Accept': 'application/json' } })
-                    ]);
-                    
-                    const [jsonForecast, jsonNeed] = await Promise.all([
-                        resForecast.json(),
-                        resNeed.json()
-                    ]);
-                    
-                    if (jsonForecast.success && jsonForecast.series && jsonForecast.series.data) {
-                        const dataForecast = jsonForecast.series.data;
-                        const dataNeed = (jsonNeed.success && jsonNeed.series && jsonNeed.series.data) ? jsonNeed.series.data : {};
-                        
-                        Object.keys(dataForecast).forEach(timeKey => {
-                            // Nettoyer l'heure : enlever les secondes si présentes
-                            let cleanTime = timeKey;
-                            if (timeKey.length > 5) { // Format HH:mm:ss
-                                cleanTime = timeKey.substring(0, 5); // Garder juste HH:mm
-                            }
-                            
-                            const category = d.format('DD/MM/YYYY') + ' ' + cleanTime;
-                            allCategories.push(category);
-                            
-                            const valueForecast = typeof dataForecast[timeKey] === 'object' ? dataForecast[timeKey].volume : dataForecast[timeKey];
-                            forecastData.push(valueForecast || 0);
-                            
-                            const valueNeed = typeof dataNeed[timeKey] === 'object' ? dataNeed[timeKey].volume : dataNeed[timeKey];
-                            needData.push(valueNeed || 0);
-                        });
-                        
-                        // Ajouter plusieurs points null à la fin de chaque jour (sauf le dernier) pour créer une séparation visuelle marquée
-                        if (!d.isSame(endDate, 'day')) {
-                            // Ajouter 3 points null pour un gap plus visible
-                            allCategories.push(d.format('DD/MM/YYYY') + ' 18:00');
-                            forecastData.push(null);
-                            needData.push(null);
-                            
-                            allCategories.push(d.format('DD/MM/YYYY') + ' 21:00');
-                            forecastData.push(null);
-                            needData.push(null);
-                            
-                            allCategories.push(d.format('DD/MM/YYYY') + ' 23:59');
-                            forecastData.push(null);
-                            needData.push(null);
-                        }
-                    }
-                    
-                    dayIndex++;
-                }
-                
-                console.log('Total données brutes:', allCategories.length, 'points');
-                
-                if (allCategories.length === 0) {
-                    document.getElementById('chartContainer').innerHTML = '<div class="alert alert-info">Aucune donnée pour cette sélection. Lance le calcul du scénario.</div>';
+
+            loadBtn.addEventListener('click', async function() {
+                const offerId = document.getElementById('offerSelect').value;
+                const granularity = document.getElementById('granularitySelect').value;
+                const range = getVizRange();
+
+                if (!range) {
+                    alert('Veuillez sélectionner une plage de dates');
                     return;
                 }
-                
-                // Agréger les données selon la granularité
-                const aggregated = aggregateScenarioData(allCategories, forecastData, needData, granularity);
-                
-                console.log('Données après agrégation (' + granularity + '):', aggregated.categories.length, 'points');
-                
-                // Afficher les deux courbes en aires
-                window.renderApexArea('chartContainer', aggregated.categories, [
-                    { name: 'Forecast (Volume)', data: aggregated.forecastData },
-                    { name: 'Need (Besoin)', data: aggregated.needData }
-                ], {
-                    colors: ['#007bff', '#28a745']
-                });
-            } catch (e) {
-                console.error('Erreur:', e);
-                document.getElementById('chartContainer').innerHTML = '<div class="alert alert-danger">Erreur lors du chargement des données: ' + e.message + '</div>';
-            }
+
+                document.getElementById('chartContainer').innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Chargement...</span></div><p class="mt-2">Chargement prévision + besoin...</p></div>';
+
+                try {
+                    const allCategories = [];
+                    const forecastData = [];
+                    const needData = [];
+
+                    for (let cursor = new Date(range.start); cursor <= range.end; cursor.setDate(cursor.getDate() + 1)) {
+                        const day = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+                        const dateStr = formatYmd(day);
+                        const dayLabel = formatDmy(day);
+
+                        const [resForecast, resNeed] = await Promise.all([
+                            fetch('{$this->Url->build(['action' => 'series', $scenario->id, '_ext' => 'json'])}?offer_id=' + encodeURIComponent(offerId) + '&date=' + encodeURIComponent(dateStr) + '&type=forecast',
+                                  { headers: { 'Accept': 'application/json' } }),
+                            fetch('{$this->Url->build(['action' => 'series', $scenario->id, '_ext' => 'json'])}?offer_id=' + encodeURIComponent(offerId) + '&date=' + encodeURIComponent(dateStr) + '&type=need',
+                                  { headers: { 'Accept': 'application/json' } })
+                        ]);
+
+                        const [jsonForecast, jsonNeed] = await Promise.all([
+                            resForecast.json(),
+                            resNeed.json()
+                        ]);
+
+                        if (jsonForecast.success && jsonForecast.series && jsonForecast.series.data) {
+                            const dataForecast = jsonForecast.series.data;
+                            const dataNeed = (jsonNeed.success && jsonNeed.series && jsonNeed.series.data) ? jsonNeed.series.data : {};
+
+                            Object.keys(dataForecast).forEach(function(timeKey) {
+                                let cleanTime = timeKey;
+                                if (timeKey.length > 5) {
+                                    cleanTime = timeKey.substring(0, 5);
+                                }
+
+                                allCategories.push(dayLabel + ' ' + cleanTime);
+
+                                const valueForecast = typeof dataForecast[timeKey] === 'object' ? dataForecast[timeKey].volume : dataForecast[timeKey];
+                                forecastData.push(valueForecast || 0);
+
+                                const valueNeed = typeof dataNeed[timeKey] === 'object' ? dataNeed[timeKey].volume : dataNeed[timeKey];
+                                needData.push(valueNeed || 0);
+                            });
+
+                            if (!sameDay(day, range.end)) {
+                                allCategories.push(dayLabel + ' 18:00');
+                                forecastData.push(null);
+                                needData.push(null);
+
+                                allCategories.push(dayLabel + ' 21:00');
+                                forecastData.push(null);
+                                needData.push(null);
+
+                                allCategories.push(dayLabel + ' 23:59');
+                                forecastData.push(null);
+                                needData.push(null);
+                            }
+                        }
+                    }
+
+                    if (allCategories.length === 0) {
+                        document.getElementById('chartContainer').innerHTML = '<div class="alert alert-info">Aucune donnée pour cette sélection. Lance le calcul du scénario.</div>';
+                        return;
+                    }
+
+                    const aggregated = aggregateScenarioData(allCategories, forecastData, needData, granularity);
+
+                    window.renderApexArea('chartContainer', aggregated.categories, [
+                        { name: 'Prévision (volume)', data: aggregated.forecastData },
+                        { name: 'Besoin', data: aggregated.needData }
+                    ], {
+                        colors: ['#007bff', '#28a745']
+                    });
+                } catch (e) {
+                    document.getElementById('chartContainer').innerHTML = '<div class="alert alert-danger">Erreur lors du chargement des données: ' + e.message + '</div>';
+                }
+            });
         });
         JS;
         echo $this->Html->scriptBlock($js, ['block' => true]);

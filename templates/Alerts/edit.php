@@ -28,16 +28,20 @@
             <div class="col-md-6 mb-3">
                 <label class="form-label">Date Début</label>
                 <?= $this->Form->control('date_start', [
+                    'type' => 'date',
                     'label' => false,
                     'class' => 'form-control',
+                    'value' => $alert->date_start ? $alert->date_start->format('Y-m-d') : '',
                 ]) ?>
             </div>
             <div class="col-md-6 mb-3">
                 <label class="form-label">Date Fin</label>
                 <?= $this->Form->control('date_end', [
+                    'type' => 'date',
                     'empty' => true,
                     'label' => false,
                     'class' => 'form-control',
+                    'value' => $alert->date_end ? $alert->date_end->format('Y-m-d') : '',
                 ]) ?>
             </div>
         </div>

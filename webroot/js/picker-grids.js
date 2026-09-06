@@ -42,27 +42,18 @@ $(function() {
         "locale": localeOptions,
         "drops": "down"
     }, function(start, end) {
-        console.log('Callback déclenché: ' + start.format('DD/MM/YYYY') + ' à ' + end.format('DD/MM/YYYY'));
-
         var selectedStartDate = start.format('DD/MM/YYYY');
         var selectedEndDate = end.format('DD/MM/YYYY');
 
-        var $checkinInput = $('#date-start'); // Récupère $(this) implicitement ici
+        var $checkinInput = $('#date-start');
         var $checkoutInput = $('#date-end');
 
-        // Mettre à jour les champs
         $checkinInput.val(selectedStartDate);
         $checkoutInput.val(selectedEndDate);
-        console.log('Champs mis à jour:', selectedStartDate + ' ' + selectedEndDate);
 
-        // --- CORRECTION : Fermer avec un léger délai ---
-        // Utiliser setTimeout avec 0ms pousse l'exécution de hide() après
-        // la fin du cycle d'événements actuel du navigateur/plugin.
         setTimeout(function() {
-            // S'assurer que l'instance existe toujours avant de cacher
             if ($checkinInput.data('daterangepicker')) {
                 $checkinInput.data('daterangepicker').hide();
-                console.log('Picker caché via setTimeout');
             }
         }, 0);
 
