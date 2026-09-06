@@ -28,7 +28,8 @@ function getRoleBadgeClass($roleId) {
 <?php $this->assign('title', 'Liste des Utilisateurs'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<?php $this->Html->script('users-filters', ['block' => true]); ?>
+<?php $this->Html->script('crud-filters', ['block' => true, 'timestamp' => 'force']); ?>
+<?php $this->Html->script('users-filters', ['block' => true, 'timestamp' => 'force']); ?>
 
 <div class="crud-app users index content">
     <div class="crud-header">
@@ -85,6 +86,7 @@ function getRoleBadgeClass($roleId) {
                     'placeholder' => 'Rechercher par nom...',
                     'value' => $filters['search_name'] ?? '',
                     'id' => 'search-name',
+                    'autocomplete' => 'off',
                 ]) ?>
             </div>
             <div class="col-md-3">
@@ -94,6 +96,7 @@ function getRoleBadgeClass($roleId) {
                     'placeholder' => 'Rechercher par prénom...',
                     'value' => $filters['search_firstname'] ?? '',
                     'id' => 'search-firstname',
+                    'autocomplete' => 'off',
                 ]) ?>
             </div>
             <div class="col-md-2">
@@ -131,7 +134,7 @@ function getRoleBadgeClass($roleId) {
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <?php
-            $columns = ['Nom', 'Code', 'Prénom', 'Rôle', 'Site', 'Email', 'Modifié le', 'Actions'];
+            $columns = ['Site', 'Rôle', 'Code', 'Nom', 'Prénom', 'Email', 'Maj', 'Actions'];
             $colCount = count($columns);
             $hasActiveFilters = !empty($filters['search_name']) ||
                 !empty($filters['search_firstname']) ||
@@ -140,11 +143,11 @@ function getRoleBadgeClass($roleId) {
             ?>
             <thead>
             <tr>
-                <th scope="col"><?= $this->Paginator->sort('last_name', $columns[0]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('user_code', $columns[1]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('first_name', $columns[2]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('role_id', $columns[3]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('site_id', $columns[4]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('site_id', $columns[0]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('role_id', $columns[1]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('user_code', $columns[2]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('last_name', $columns[3]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('first_name', $columns[4]) ?></th>
                 <th scope="col"><?= $this->Paginator->sort('email', $columns[5]) ?></th>
                 <th scope="col"><?= $this->Paginator->sort('modified', $columns[6]) ?></th>
                 <th scope="col" class="actions"><?= h($columns[7]) ?></th>
@@ -167,15 +170,7 @@ function getRoleBadgeClass($roleId) {
             <?php endif; ?>
             <?php foreach ($users as $user) : ?>
                 <tr>
-                    <td>
-                        <?= $this->Html->link(
-                            $user->last_name,
-                            ['action' => 'view', $user->id],
-                            ['class' => 'crud-row-link']
-                        ) ?>
-                    </td>
-                    <td><?= h($user->user_code) ?></td>
-                    <td><?= h($user->first_name) ?></td>
+                    <td><?= $user->hasValue('site') ? h($user->site->name) : '—' ?></td>
                     <td>
                         <?php if ($user->hasValue('role')): ?>
                             <span class="badge <?= getRoleBadgeClass($user->role->id) ?>">
@@ -183,60 +178,41 @@ function getRoleBadgeClass($roleId) {
                             </span>
                         <?php endif; ?>
                     </td>
-                    <td><?= $user->hasValue('site') ? h($user->site->name) : '—' ?></td>
-                    <td><?= h($user->email) ?></td>
+                    <td><?= h($user->user_code) ?></td>
                     <td>
-                        <?php if ($user->modified):
-                            $now = new \Cake\I18n\FrozenTime();
-                            $diff = $now->diffInDays($user->modified);
-                            $timeAgo = '';
-                            if ($diff == 0) {
-                                $timeAgo = "Aujourd'hui";
-                            } elseif ($diff == 1) {
-                                $timeAgo = 'Hier';
-                            } elseif ($diff < 7) {
-                                $timeAgo = 'Il y a ' . $diff . ' jours';
-                            } elseif ($diff < 30) {
-                                $weeks = floor($diff / 7);
-                                $timeAgo = 'Il y a ' . $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
-                            } else {
-                                $months = floor($diff / 30);
-                                $timeAgo = 'Il y a ' . $months . ' mois';
-                            }
-                        ?>
-                            <span data-bs-toggle="tooltip" title="<?= h($user->modified->i18nFormat('dd/MM/yyyy HH:mm')) ?>">
-                                <?= h($timeAgo) ?>
-                            </span>
-                        <?php endif; ?>
+                        <?= $this->Html->link(
+                            $user->last_name,
+                            ['action' => 'view', $user->id],
+                            ['class' => 'crud-row-link']
+                        ) ?>
                     </td>
+                    <td><?= h($user->first_name) ?></td>
+                    <td><?= h($user->email) ?></td>
+                    <td><?= $this->element('crud/maj_cell', ['entity' => $user]) ?></td>
                     <td class="actions">
-                        <div class="dropdown actions-dropdown" data-entity-id="<?= (int)$user->id ?>">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownActions<?= $user->id ?>" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <i class="bi bi-three-dots-vertical"></i> Actions
-                            </button>
-                            <div class="dropdown-menu dropdown-menu-end actions-dropdown-menu" data-entity-id="<?= (int)$user->id ?>" aria-labelledby="dropdownActions<?= $user->id ?>">
-                                <?= $this->Html->link(
-                                    '<i class="bi bi-eye me-2"></i> Voir',
-                                    ['action' => 'view', $user->id],
-                                    ['class' => 'dropdown-item', 'escape' => false]
-                                ) ?>
-                                <?= $this->Html->link(
-                                    '<i class="bi bi-pencil me-2"></i> Modifier',
-                                    ['action' => 'edit', $user->id],
-                                    ['class' => 'dropdown-item', 'escape' => false]
-                                ) ?>
-                                <div class="dropdown-divider"></div>
-                                <?= $this->Form->postLink(
-                                    '<i class="bi bi-trash me-2"></i> Supprimer',
-                                    ['action' => 'delete', $user->id],
-                                    [
-                                        'confirm' => 'Voulez-vous vraiment supprimer ' . h($user->first_name . ' ' . $user->last_name) . ' ?',
-                                        'class' => 'dropdown-item text-danger',
-                                        'escape' => false
-                                    ]
-                                ) ?>
-                            </div>
-                        </div>
+                        <?= $this->Html->link(
+                            '<i class="bi bi-pencil" aria-hidden="true"></i>',
+                            ['action' => 'edit', $user->id],
+                            [
+                                'class' => 'crud-action',
+                                'escape' => false,
+                                'title' => 'Modifier',
+                                'aria-label' => 'Modifier',
+                                'data-bs-toggle' => 'tooltip',
+                            ]
+                        ) ?>
+                        <?= $this->Form->postLink(
+                            '<i class="bi bi-trash" aria-hidden="true"></i>',
+                            ['action' => 'delete', $user->id],
+                            [
+                                'confirm' => 'Voulez-vous vraiment supprimer ' . h($user->first_name . ' ' . $user->last_name) . ' ?',
+                                'class' => 'crud-action crud-action-danger',
+                                'escape' => false,
+                                'title' => 'Supprimer',
+                                'aria-label' => 'Supprimer',
+                                'data-bs-toggle' => 'tooltip',
+                            ]
+                        ) ?>
                     </td>
                 </tr>
             <?php endforeach; ?>

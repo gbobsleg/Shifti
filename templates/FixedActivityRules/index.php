@@ -7,6 +7,7 @@
 <?php $this->assign('title', 'Activités fixes'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
+<?php $this->Html->script('crud-filters', ['block' => true, 'timestamp' => 'force']); ?>
 <?php $this->Html->script('fixed-activity-rules', ['block' => true]); ?>
 
 <div class="crud-app fixed-activity-rules index content">

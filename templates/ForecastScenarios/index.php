@@ -14,6 +14,7 @@ $statusLabels = [
 ];
 ?>
 
+<?php $this->Html->script('crud-filters', ['block' => true, 'timestamp' => 'force']); ?>
 <?php $this->Html->script('forecast-scenarios', ['block' => true]); ?>
 
 <style>
@@ -64,6 +65,7 @@ $statusLabels = [
                         'placeholder' => 'Rechercher par nom...',
                         'value' => $this->request->getQuery('search_name'),
                         'id' => 'search-name',
+                        'autocomplete' => 'off',
                     ]) ?>
                 </div>
                 <div class="col-md-3">
@@ -97,7 +99,7 @@ $statusLabels = [
         <div class="table-responsive">
             <table class="table table-hover table-sm crud-table">
                 <?php
-                $columns = ['Nom', 'Date début', 'Date fin', 'Statut', 'Modifié le', 'Actions'];
+                $columns = ['Nom', 'Date début', 'Date fin', 'Statut', 'Maj', 'Actions'];
                 $colCount = count($columns);
                 ?>
                 <thead>
@@ -266,33 +268,7 @@ $statusLabels = [
                                     </div>
                                 </div>
                             </td>
-                            <td>
-                                <?php if ($s->modified): 
-                                    $now = new \Cake\I18n\FrozenTime();
-                                    $diff = $now->diffInDays($s->modified);
-                                    $timeAgo = '';
-                                    if ($diff == 0) {
-                                        $timeAgo = "Aujourd'hui";
-                                    } elseif ($diff == 1) {
-                                        $timeAgo = 'Hier';
-                                    } elseif ($diff < 7) {
-                                        $timeAgo = 'Il y a ' . $diff . ' jours';
-                                    } elseif ($diff < 30) {
-                                        $weeks = floor($diff / 7);
-                                        $timeAgo = 'Il y a ' . $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
-                                    } elseif ($diff < 365) {
-                                        $months = floor($diff / 30);
-                                        $timeAgo = 'Il y a ' . $months . ' mois';
-                                    } else {
-                                        $years = floor($diff / 365);
-                                        $timeAgo = 'Il y a ' . $years . ' an' . ($years > 1 ? 's' : '');
-                                    }
-                                ?>
-                                    <span data-bs-toggle="tooltip" title="<?= h($s->modified->i18nFormat('dd/MM/yyyy HH:mm')) ?>">
-                                        <?= h($timeAgo) ?>
-                                    </span>
-                                <?php endif; ?>
-                            </td>
+                            <td><?= $this->element('crud/maj_cell', ['entity' => $s]) ?></td>
                             <td class="actions">
                                 <div class="dropdown actions-dropdown" data-entity-id="<?= (int)$s->id ?>">
                                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownActions<?= $s->id ?>" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">

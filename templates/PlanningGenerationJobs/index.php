@@ -8,6 +8,7 @@ $jobCount = is_countable($jobs) ? count($jobs) : iterator_count($jobs);
 <?php $this->assign('title', 'Générations de planning'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
+<?php $this->Html->script('crud-filters', ['block' => true, 'timestamp' => 'force']); ?>
 <?php $this->Html->script('planning-generation-jobs-filters', ['block' => true]); ?>
 
 <style>
@@ -152,7 +153,7 @@ $jobCount = is_countable($jobs) ? count($jobs) : iterator_count($jobs);
                                 <th>Passes</th>
                                 <th>Statut</th>
                                 <th class="text-end">Avancement</th>
-                                <th>Créé le</th>
+                                <th>Maj</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                             </thead>
@@ -188,16 +189,6 @@ $jobCount = is_countable($jobs) ? count($jobs) : iterator_count($jobs);
                                 $processedDays = (int)$job->processed_days;
                                 $totalDays = (int)$job->total_days;
                                 $progress = $totalDays > 0 ? round(($processedDays / $totalDays) * 100) : 0;
-
-                                $createdDate = $job->created ?? null;
-                                $createdFormatted = '';
-                                if ($createdDate) {
-                                    if ($createdDate instanceof \Cake\I18n\FrozenTime || $createdDate instanceof \Cake\I18n\FrozenDate) {
-                                        $createdFormatted = $createdDate->i18nFormat('dd/MM/yyyy HH:mm');
-                                    } elseif ($createdDate instanceof \DateTimeInterface) {
-                                        $createdFormatted = $createdDate->format('d/m/Y H:i');
-                                    }
-                                }
 
                                 // Décodage des options pour les passes
                                 $options = [];
@@ -264,13 +255,7 @@ $jobCount = is_countable($jobs) ? count($jobs) : iterator_count($jobs);
                                             </div>
                                         </div>
                                     </td>
-                                    <td>
-                                        <?php if ($createdFormatted): ?>
-                                            <small class="text-muted"><?= h($createdFormatted) ?></small>
-                                        <?php else: ?>
-                                            <span class="text-muted">—</span>
-                                        <?php endif; ?>
-                                    </td>
+                                    <td><?= $this->element('crud/maj_cell', ['entity' => $job]) ?></td>
                                     <td class="actions text-end">
                                         <div class="dropup actions-dropdown" data-entity-id="<?= (int)$job->id ?>">
                                             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownActions<?= $job->id ?>" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">

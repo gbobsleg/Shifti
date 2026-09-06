@@ -40,7 +40,7 @@
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <?php
-            $columns = ['Priorité', 'Nom du Rôle', 'Utilisateurs', 'Créé le', 'Modifié le', 'Actions'];
+            $columns = ['Priorité', 'Nom du Rôle', 'Utilisateurs', 'Maj', 'Actions'];
             $colCount = count($columns);
             ?>
             <thead>
@@ -48,9 +48,8 @@
                 <th scope="col"><?= $this->Paginator->sort('priority', $columns[0]) ?></th>
                 <th scope="col"><?= $this->Paginator->sort('name', $columns[1]) ?></th>
                 <th scope="col"><?= h($columns[2]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('created', $columns[3]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('modified', $columns[4]) ?></th>
-                <th scope="col" class="actions"><?= h($columns[5]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('modified', $columns[3]) ?></th>
+                <th scope="col" class="actions"><?= h($columns[4]) ?></th>
             </tr>
             </thead>
             <tbody>
@@ -77,52 +76,7 @@
                         ) ?>
                     </td>
                     <td><?= isset($role->users) ? count($role->users) : 0 ?></td>
-                    <td>
-                        <?php if ($role->created):
-                            $now = new \Cake\I18n\FrozenTime();
-                            $diff = $now->diffInDays($role->created);
-                            if ($diff == 0) {
-                                $timeAgo = "Aujourd'hui";
-                            } elseif ($diff == 1) {
-                                $timeAgo = 'Hier';
-                            } elseif ($diff < 7) {
-                                $timeAgo = 'Il y a ' . $diff . ' jours';
-                            } elseif ($diff < 30) {
-                                $weeks = (int)floor($diff / 7);
-                                $timeAgo = 'Il y a ' . $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
-                            } else {
-                                $months = (int)floor($diff / 30);
-                                $timeAgo = 'Il y a ' . $months . ' mois';
-                            }
-                        ?>
-                            <span data-bs-toggle="tooltip" title="<?= h($role->created->i18nFormat('dd/MM/yyyy HH:mm')) ?>">
-                                <?= h($timeAgo) ?>
-                            </span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <?php if ($role->modified):
-                            $now = new \Cake\I18n\FrozenTime();
-                            $diff = $now->diffInDays($role->modified);
-                            if ($diff == 0) {
-                                $timeAgo = "Aujourd'hui";
-                            } elseif ($diff == 1) {
-                                $timeAgo = 'Hier';
-                            } elseif ($diff < 7) {
-                                $timeAgo = 'Il y a ' . $diff . ' jours';
-                            } elseif ($diff < 30) {
-                                $weeks = (int)floor($diff / 7);
-                                $timeAgo = 'Il y a ' . $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
-                            } else {
-                                $months = (int)floor($diff / 30);
-                                $timeAgo = 'Il y a ' . $months . ' mois';
-                            }
-                        ?>
-                            <span data-bs-toggle="tooltip" title="<?= h($role->modified->i18nFormat('dd/MM/yyyy HH:mm')) ?>">
-                                <?= h($timeAgo) ?>
-                            </span>
-                        <?php endif; ?>
-                    </td>
+                    <td><?= $this->element('crud/maj_cell', ['entity' => $role]) ?></td>
                     <td class="actions">
                         <?= $this->Html->link(
                             '<i class="bi bi-pencil" aria-hidden="true"></i>',

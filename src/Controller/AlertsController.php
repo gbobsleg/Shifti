@@ -31,32 +31,33 @@ class AlertsController extends AppController
         $alerts = $this->Alerts->find();
         $params = $this->request->getQueryParams();
 
-        // Filtre par date de début
+        $filterStart = null;
+        $filterEnd = null;
         if (!empty($params['date_start'])) {
             $dateStart = $params['date_start'];
-            // Le champ date CakePHP retourne un tableau [year, month, day]
             if (is_array($dateStart) && !empty($dateStart['year']) && !empty($dateStart['month']) && !empty($dateStart['day'])) {
-                $dateString = sprintf('%04d-%02d-%02d', $dateStart['year'], $dateStart['month'], $dateStart['day']);
-                $parsedDate = DateTime::parse($dateString);
-                if ($parsedDate) {
-                    $day_first = $this->Groom->findBeginEndDay($parsedDate);
-                    $alerts->where(['Alerts.date_start >=' => $day_first['begin']]);
-                }
+                $filterStart = sprintf('%04d-%02d-%02d', $dateStart['year'], $dateStart['month'], $dateStart['day']) . ' 00:00:00';
+            } elseif (is_string($dateStart) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStart)) {
+                $filterStart = $dateStart . ' 00:00:00';
             }
         }
-
-        // Filtre par date de fin
         if (!empty($params['date_end'])) {
             $dateEnd = $params['date_end'];
-            // Le champ date CakePHP retourne un tableau [year, month, day]
             if (is_array($dateEnd) && !empty($dateEnd['year']) && !empty($dateEnd['month']) && !empty($dateEnd['day'])) {
-                $dateString = sprintf('%04d-%02d-%02d', $dateEnd['year'], $dateEnd['month'], $dateEnd['day']);
-                $parsedDate = DateTime::parse($dateString);
-                if ($parsedDate) {
-                    $day_last = $this->Groom->findBeginEndDay($parsedDate);
-                    $alerts->where(['Alerts.date_end <=' => $day_last['end']]);
-                }
+                $filterEnd = sprintf('%04d-%02d-%02d', $dateEnd['year'], $dateEnd['month'], $dateEnd['day']) . ' 23:59:59';
+            } elseif (is_string($dateEnd) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateEnd)) {
+                $filterEnd = $dateEnd . ' 23:59:59';
             }
+        }
+        if ($filterStart !== null && $filterEnd !== null) {
+            $alerts->where([
+                'Alerts.date_start <=' => $filterEnd,
+                'Alerts.date_end >=' => $filterStart,
+            ]);
+        } elseif ($filterStart !== null) {
+            $alerts->where(['Alerts.date_end >=' => $filterStart]);
+        } elseif ($filterEnd !== null) {
+            $alerts->where(['Alerts.date_start <=' => $filterEnd]);
         }
 
         // Filtre par contenu
@@ -70,7 +71,7 @@ class AlertsController extends AppController
         }
 
         // Pagination normale
-        $this->paginate = ['limit' => 25, 'order' => ['Alerts.id' => 'desc']];
+        $this->paginate = ['limit' => 25, 'order' => ['Alerts.date_start' => 'desc']];
         $alerts = $this->paginate($alerts);
 
         $this->set(compact('alerts'));
@@ -177,5 +178,38 @@ class AlertsController extends AppController
         }
 
         return $this->redirect($this->referer());
+    }
+
+    /**
+     * @return \Cake\Http\Response|null
+     */
+    public function bulkDelete()
+    {
+        $this->Authorization->authorize(new \App\Resource\AlertsResource(), 'delete');
+        $this->request->allowMethod(['post']);
+
+        $ids = $this->request->getData('ids', []);
+        if (empty($ids) || !is_array($ids)) {
+            $this->Flash->error('Aucune alerte sélectionnée.');
+            return $this->redirect($this->referer('/', true));
+        }
+
+        $ids = array_map('intval', $ids);
+        $toDelete = $this->Alerts->find()->where(['id IN' => $ids])->all();
+
+        $deletedCount = 0;
+        foreach ($toDelete as $alert) {
+            if ($this->Alerts->delete($alert)) {
+                $deletedCount++;
+            }
+        }
+
+        if ($deletedCount > 0) {
+            $this->Flash->success($deletedCount . ' alerte(s) supprimée(s).');
+        } else {
+            $this->Flash->error('Aucune alerte n\'a pu être supprimée.');
+        }
+
+        return $this->redirect($this->referer('/', true));
     }
 }

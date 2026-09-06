@@ -53,7 +53,7 @@ $typeLabels = [
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <?php
-            $columns = ['Nom', 'Couleur', 'Type', 'Ordre', 'Options', 'Validité', 'Modifié le', 'Actions'];
+            $columns = ['Nom', 'Couleur', 'Type', 'Ordre', 'Options', 'Validité', 'Maj', 'Actions'];
             $colCount = count($columns);
             ?>
             <thead>
@@ -113,30 +113,7 @@ $typeLabels = [
                             <?= h($offer->end_date ? $offer->end_date->i18nFormat('dd/MM/yyyy') : '...') ?>
                         <?php endif; ?>
                     </td>
-                    <td>
-                        <?php if ($offer->modified):
-                            $now = new \Cake\I18n\FrozenTime();
-                            $diff = $now->diffInDays($offer->modified);
-                            $timeAgo = '';
-                            if ($diff == 0) {
-                                $timeAgo = "Aujourd'hui";
-                            } elseif ($diff == 1) {
-                                $timeAgo = 'Hier';
-                            } elseif ($diff < 7) {
-                                $timeAgo = 'Il y a ' . $diff . ' jours';
-                            } elseif ($diff < 30) {
-                                $weeks = floor($diff / 7);
-                                $timeAgo = 'Il y a ' . $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
-                            } else {
-                                $months = floor($diff / 30);
-                                $timeAgo = 'Il y a ' . $months . ' mois';
-                            }
-                        ?>
-                            <span data-bs-toggle="tooltip" title="<?= h($offer->modified->i18nFormat('dd/MM/yyyy HH:mm')) ?>">
-                                <?= h($timeAgo) ?>
-                            </span>
-                        <?php endif; ?>
-                    </td>
+                    <td><?= $this->element('crud/maj_cell', ['entity' => $offer]) ?></td>
                     <td class="actions">
                         <?= $this->Html->link(
                             '<i class="bi bi-pencil" aria-hidden="true"></i>',

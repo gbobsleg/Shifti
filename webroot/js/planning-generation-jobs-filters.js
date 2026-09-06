@@ -3,21 +3,6 @@
  */
 
 $(document).ready(function() {
-    // Auto-submit quand on change un select (statut)
-    $('select[name="status"]').on('change', function() {
-        $(this).closest('form').submit();
-    });
-    
-    // Auto-submit avec délai pour les champs de date (pour éviter trop de requêtes)
-    let dateTimeout;
-    $('input[type="date"][name="date_start"], input[type="date"][name="date_end"], input[type="date"][name="created_from"], input[type="date"][name="created_to"]').on('change', function() {
-        clearTimeout(dateTimeout);
-        const form = $(this).closest('form');
-        dateTimeout = setTimeout(function() {
-            form.submit();
-        }, 500); // Délai de 500ms
-    });
-    
     // Gestion de la sélection en masse
     function updateSelectedCount() {
         const checked = $('.job-checkbox:checked:not(:disabled)').length;

@@ -1,14 +1,8 @@
 /**
- * UserAvailabilities - Amélioration UX des filtres
+ * UserAvailabilities — tooltips de la liste (filtres : crud-filters.js).
  */
-
-$(document).ready(function() {
-    // Auto-submit quand on change un select
-    $('#user-id, #day-of-week').on('change', function() {
-        $(this).closest('form').submit();
-    });
-    
-    // Activation des tooltips Bootstrap
-    if (typeof window.initTooltips === 'function') { window.initTooltips(); }
+$(document).ready(function () {
+    if (typeof window.initTooltips === 'function') {
+        window.initTooltips();
+    }
 });
-

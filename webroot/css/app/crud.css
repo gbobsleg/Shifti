@@ -113,8 +113,20 @@ body:has(.crud-app) {
 .crud-app .crud-table td .form-group,
 .crud-app .form-row > [class*="col-"] > .mb-3,
 .crud-app .d-flex > .mb-3,
-.crud-app .d-flex > .form-group {
+.crud-app .d-flex > .form-group,
+.crud-app .filters-toolbar .mb-3,
+.crud-app .filters-toolbar .form-group {
     margin-bottom: 0;
+}
+
+.crud-app .filters-toolbar .mb-3,
+.crud-app .filters-toolbar .form-group {
+    width: 100%;
+}
+
+.crud-app .filters-toolbar .form-control,
+.crud-app .filters-toolbar select.form-control {
+    width: 100%;
 }
 
 .crud-app .crud-table .form-control-sm[type="date"],

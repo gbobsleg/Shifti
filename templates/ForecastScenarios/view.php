@@ -180,83 +180,37 @@ $statusLabels = [
                     </dd>
                 </div>
             </dl>
-        </section>
-
-        <?php
-        // --- Section Métriques Prophet par Offre ---
-        if ($scenario->status === 'completed'):
-            $allMetricsData = null;
-            if (!empty($scenario->prophet_metrics_json)) {
-                $allMetricsData = json_decode($scenario->prophet_metrics_json, true);
-            }
-
-            if ($allMetricsData && !empty($allMetricsData['per_offer'])):
-        ?>
-        <section class="crud-section">
-            <h2 class="crud-section-title">Métriques Prophet par Offre</h2>
-            <?php foreach ($allMetricsData['per_offer'] as $offerMetric):
-                $offerId = $offerMetric['offer_id'];
-                $metrics = $offerMetric['metrics'];
-
-                $offerName = 'Offre #' . $offerId;
-                foreach ($scenario->forecast_scenarios_offers as $link) {
-                    if ($link->offer_id == $offerId) {
-                        $offerName = $link->offer->name ?? $offerName;
-                        break;
-                    }
-                }
-
-                $mape = $metrics['mape'];
-                $mapeClass = $mape < 20 ? 'text-success' : ($mape < 30 ? 'text-warning' : 'text-danger');
-                if ($mape < 20) {
-                    $mapeLabel = 'Excellente précision';
-                } elseif ($mape < 30) {
-                    $mapeLabel = 'Bonne précision';
-                } elseif ($mape < 100) {
-                    $mapeLabel = 'Précision à améliorer';
-                } else {
-                    $mapeLabel = 'Précision très faible — revoir les paramètres';
-                }
+            <?php
+            $dayStart = $snapshot['day_start_time'] ?? ($current->day_start_time ?? null);
+            $dayEnd = $snapshot['day_end_time'] ?? ($current->day_end_time ?? null);
+            $qsPercent = $snapshot['service_level_percent'] ?? ($current->service_level_percent ?? null);
+            $qsSeconds = $snapshot['service_level_seconds'] ?? ($current->service_level_seconds ?? 20);
+            $shrinkValue = $snapshot['shrinkage_percent'] ?? ($current->shrinkage_percent ?? null);
             ?>
-            <h3 class="crud-subsection-title"><?= h($offerName) ?></h3>
+            <h3 class="crud-subsection-title">Paramètres WFM figés</h3>
             <dl class="crud-fields">
                 <div>
-                    <dt>
-                        <span data-bs-toggle="tooltip" data-placement="top"
-                              title="Erreur moyenne en pourcentage. Plus c'est bas, meilleures sont les prévisions. < 20% = Excellent, < 30% = Bon, > 30% = À améliorer">
-                            MAPE <i class="bi bi-question-circle text-info"></i>
-                        </span>
-                    </dt>
-                    <dd>
-                        <span class="<?= $mapeClass ?>"><?= h($mape) ?>%</span>
-                        <span class="text-muted"> — <?= h($mapeLabel) ?></span>
-                    </dd>
+                    <dt>Début de journée</dt>
+                    <dd><?= h($dayStart ?? '—') ?></dd>
                 </div>
                 <div>
-                    <dt>
-                        <span data-bs-toggle="tooltip" data-placement="top"
-                              title="Erreur Absolue Moyenne. Nombre moyen d'appels d'écart entre prévisions et réalité (par intervalle de 15 min)">
-                            MAE <i class="bi bi-question-circle text-info"></i>
-                        </span>
-                    </dt>
-                    <dd><?= h($metrics['mae']) ?></dd>
+                    <dt>Fin de journée</dt>
+                    <dd><?= h($dayEnd ?? '—') ?></dd>
                 </div>
                 <div>
-                    <dt>
-                        <span data-bs-toggle="tooltip" data-placement="top"
-                              title="Erreur Quadratique Moyenne. Similaire au MAE mais pénalise davantage les grosses erreurs. Plus sensible aux pics d'erreur.">
-                            RMSE <i class="bi bi-question-circle text-info"></i>
-                        </span>
-                    </dt>
-                    <dd><?= h($metrics['rmse']) ?></dd>
+                    <dt>Taux de service</dt>
+                    <dd><?= h($qsPercent ?? '—') ?> % des appels</dd>
+                </div>
+                <div>
+                    <dt>Délai maximum</dt>
+                    <dd><?= h($qsSeconds ?? '—') ?> s de réponse</dd>
+                </div>
+                <div>
+                    <dt>Shrinkage</dt>
+                    <dd><?= h($shrinkValue ?? '—') ?>% <span class="text-muted">· pauses, formation, absences</span></dd>
                 </div>
             </dl>
-            <?php endforeach; ?>
         </section>
-        <?php
-            endif;
-        endif;
-        ?>
 
         <?php // --- Section Offres / paramètres appliqués par offre (vue synthétique) --- ?>
         <section class="crud-section">
@@ -322,166 +276,6 @@ $statusLabels = [
             </div>
         </section>
 
-        <?php // --- Section Paramètres WFM --- ?>
-        <section class="crud-section">
-            <h2 class="crud-section-title">Configuration WFM (snapshot)</h2>
-            <?php
-            $dayStart = $snapshot['day_start_time'] ?? ($current->day_start_time ?? null);
-            $dayEnd = $snapshot['day_end_time'] ?? ($current->day_end_time ?? null);
-            $qsPercent = $snapshot['service_level_percent'] ?? ($current->service_level_percent ?? null);
-            $qsSeconds = $snapshot['service_level_seconds'] ?? ($current->service_level_seconds ?? 20);
-            $shrinkValue = $snapshot['shrinkage_percent'] ?? ($current->shrinkage_percent ?? null);
-            ?>
-
-            <h3 class="crud-subsection-title">Plage horaire de production</h3>
-            <dl class="crud-fields">
-                <div>
-                    <dt>Début de journée</dt>
-                    <dd><?= h($dayStart ?? '—') ?></dd>
-                </div>
-                <div>
-                    <dt>Fin de journée</dt>
-                    <dd><?= h($dayEnd ?? '—') ?></dd>
-                </div>
-            </dl>
-
-            <h3 class="crud-subsection-title">Objectifs de qualité de service</h3>
-            <dl class="crud-fields">
-                <div>
-                    <dt>Taux de service</dt>
-                    <dd><?= h($qsPercent ?? '—') ?> % des appels</dd>
-                </div>
-                <div>
-                    <dt>Délai maximum</dt>
-                    <dd><?= h($qsSeconds ?? '—') ?> s de réponse</dd>
-                </div>
-            </dl>
-            <p class="small text-muted">
-                Objectif QS : répondre à <strong><?= h($qsPercent ?? '—') ?>%</strong> des appels
-                en moins de <strong><?= h($qsSeconds ?? '—') ?>s</strong>.
-            </p>
-
-            <h3 class="crud-subsection-title">Paramètres ressources humaines</h3>
-            <dl class="crud-fields">
-                <div>
-                    <dt>Shrinkage (temps improductif)</dt>
-                    <dd><?= h($shrinkValue ?? '—') ?>%</dd>
-                </div>
-            </dl>
-            <p class="small text-muted mb-0">Formation, pauses, réunions, absences…</p>
-        </section>
-
-        <?php
-        // --- Section Paramètres Prophet (pour les offres en Prophet uniquement) ---
-        $hasProphetOffer = false;
-        foreach ($scenario->forecast_scenarios_offers as $link) {
-            if (($link->forecast_method ?? 'historical') === 'prophet') {
-                $hasProphetOffer = true;
-                break;
-            }
-        }
-        if ($hasProphetOffer):
-        ?>
-        <section class="crud-section">
-            <h2 class="crud-section-title">Configuration Prophet (snapshot par offre)</h2>
-            <p class="small text-muted mb-3">
-                Paramètres Prophet figés (voir la section « Offres concernées &amp; méthode de prévision » ci-dessus).
-            </p>
-            <?php if (empty($scenario->forecast_scenarios_offers)): ?>
-                <p class="text-muted mb-0">
-                    Aucune offre n'est associée à ce scénario.
-                </p>
-            <?php else: ?>
-                <?php foreach ($scenario->forecast_scenarios_offers as $link):
-                    if (($link->forecast_method ?? 'historical') !== 'prophet') {
-                        continue;
-                    }
-                    $offerName = $link->offer->name ?? ('Offre #' . $link->offer_id);
-
-                    $offerSnapshot = [];
-                    if (!empty($link->prophet_settings_json)) {
-                        if (is_string($link->prophet_settings_json)) {
-                            $offerSnapshot = json_decode($link->prophet_settings_json, true) ?: [];
-                        } elseif (is_array($link->prophet_settings_json)) {
-                            $offerSnapshot = $link->prophet_settings_json;
-                        }
-                    }
-
-                    $historyStart = $offerSnapshot['history_start_date'] ?? null;
-                    $historyEnd = $offerSnapshot['history_end_date'] ?? null;
-                    $hasHistory = !empty($historyStart) || !empty($historyEnd);
-                ?>
-                <h3 class="crud-subsection-title"><?= h($offerName) ?></h3>
-                <?php if (empty($offerSnapshot)): ?>
-                    <p class="text-muted">
-                        Aucun snapshot Prophet n'est encore disponible pour cette offre.
-                        Lance un calcul pour matérialiser les paramètres effectifs.
-                    </p>
-                <?php else: ?>
-                    <dl class="crud-fields">
-                        <div>
-                            <dt>Méthode</dt>
-                            <dd>Prophet</dd>
-                        </div>
-                        <div>
-                            <dt>Plage historique</dt>
-                            <dd>
-                                <?php if ($hasHistory): ?>
-                                    <?= h($historyStart ?: 'Début auto') ?> → <?= h($historyEnd ?: 'Fin auto') ?>
-                                <?php else: ?>
-                                    Historique complet (défauts)
-                                <?php endif; ?>
-                            </dd>
-                        </div>
-                        <div>
-                            <dt>Mode</dt>
-                            <dd><?= h($offerSnapshot['seasonality_mode'] ?? 'multiplicative') ?></dd>
-                        </div>
-                        <div>
-                            <dt>n_changepoints</dt>
-                            <dd><?= h($offerSnapshot['n_changepoints'] ?? 25) ?></dd>
-                        </div>
-                        <div>
-                            <dt>changepoint_prior_scale</dt>
-                            <dd><?= h($offerSnapshot['changepoint_prior_scale'] ?? 0.1) ?></dd>
-                        </div>
-                        <div>
-                            <dt>seasonality_prior_scale</dt>
-                            <dd><?= h($offerSnapshot['seasonality_prior_scale'] ?? 10.0) ?></dd>
-                        </div>
-                        <div>
-                            <dt>monthly_fourier_order</dt>
-                            <dd><?= h($offerSnapshot['monthly_fourier_order'] ?? 5) ?></dd>
-                        </div>
-                        <?php
-                        $flags = [
-                            'yearly_seasonality' => 'Saisonnalité annuelle',
-                            'weekly_seasonality' => 'Saisonnalité hebdomadaire',
-                            'monthly_seasonality' => 'Saisonnalité mensuelle',
-                            'daily_seasonality' => 'Saisonnalité journalière',
-                        ];
-                        foreach ($flags as $key => $label):
-                            $enabled = array_key_exists($key, $offerSnapshot) ? (bool)$offerSnapshot[$key] : true;
-                        ?>
-                        <div>
-                            <dt><?= h($label) ?></dt>
-                            <dd><?= $enabled ? 'Activée' : 'Désactivée' ?></dd>
-                        </div>
-                        <?php endforeach; ?>
-                        <?php
-                        $holidays = array_key_exists('use_french_holidays', $offerSnapshot) ? (bool)$offerSnapshot['use_french_holidays'] : true;
-                        ?>
-                        <div>
-                            <dt>Jours fériés FR</dt>
-                            <dd><?= $holidays ? 'Pris en compte' : 'Ignorés' ?></dd>
-                        </div>
-                    </dl>
-                <?php endif; ?>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </section>
-        <?php endif; ?>
-
         <?php // --- Section Visualisation --- ?>
         <section class="crud-section">
             <h2 class="crud-section-title">Visualisation sur une période</h2>
@@ -527,6 +321,213 @@ $statusLabels = [
                 </p>
             <?php endif; ?>
         </section>
+
+        <?php
+        // --- Section Métriques Prophet par Offre ---
+        if ($scenario->status === 'completed'):
+            $allMetricsData = null;
+            if (!empty($scenario->prophet_metrics_json)) {
+                $allMetricsData = json_decode($scenario->prophet_metrics_json, true);
+            }
+
+            if ($allMetricsData && !empty($allMetricsData['per_offer'])):
+                $metricsSummaries = [];
+                foreach ($allMetricsData['per_offer'] as $offerMetric) {
+                    $offerId = $offerMetric['offer_id'];
+                    $offerName = 'Offre #' . $offerId;
+                    foreach ($scenario->forecast_scenarios_offers as $link) {
+                        if ($link->offer_id == $offerId) {
+                            $offerName = $link->offer->name ?? $offerName;
+                            break;
+                        }
+                    }
+                    $mapeValue = $offerMetric['metrics']['mape'] ?? null;
+                    $metricsSummaries[] = $offerName . ($mapeValue !== null && $mapeValue !== '' ? ' ' . $mapeValue . ' %' : '');
+                }
+        ?>
+        <details class="crud-section crud-details">
+            <summary class="crud-section-title">
+                Métriques Prophet par Offre
+                <span class="crud-details-meta"><?= h(implode(' · ', $metricsSummaries)) ?></span>
+            </summary>
+            <?php foreach ($allMetricsData['per_offer'] as $offerMetric):
+                $offerId = $offerMetric['offer_id'];
+                $metrics = $offerMetric['metrics'];
+
+                $offerName = 'Offre #' . $offerId;
+                foreach ($scenario->forecast_scenarios_offers as $link) {
+                    if ($link->offer_id == $offerId) {
+                        $offerName = $link->offer->name ?? $offerName;
+                        break;
+                    }
+                }
+
+                $mape = $metrics['mape'];
+                $mapeClass = $mape < 20 ? 'text-success' : ($mape < 30 ? 'text-warning' : 'text-danger');
+                if ($mape < 20) {
+                    $mapeLabel = 'Excellente précision';
+                } elseif ($mape < 30) {
+                    $mapeLabel = 'Bonne précision';
+                } elseif ($mape < 100) {
+                    $mapeLabel = 'Précision à améliorer';
+                } else {
+                    $mapeLabel = 'Précision très faible — revoir les paramètres';
+                }
+            ?>
+            <h3 class="crud-subsection-title"><?= h($offerName) ?></h3>
+            <dl class="crud-fields">
+                <div>
+                    <dt>
+                        <span data-bs-toggle="tooltip" data-placement="top"
+                              title="Erreur moyenne en pourcentage. Plus c'est bas, meilleures sont les prévisions. < 20% = Excellent, < 30% = Bon, > 30% = À améliorer">
+                            MAPE <i class="bi bi-question-circle text-info"></i>
+                        </span>
+                    </dt>
+                    <dd>
+                        <span class="<?= $mapeClass ?>"><?= h($mape) ?>%</span>
+                        <span class="text-muted"> — <?= h($mapeLabel) ?></span>
+                    </dd>
+                </div>
+                <div>
+                    <dt>
+                        <span data-bs-toggle="tooltip" data-placement="top"
+                              title="Erreur Absolue Moyenne. Nombre moyen d'appels d'écart entre prévisions et réalité (par intervalle de 15 min)">
+                            MAE <i class="bi bi-question-circle text-info"></i>
+                        </span>
+                    </dt>
+                    <dd><?= h($metrics['mae']) ?></dd>
+                </div>
+                <div>
+                    <dt>
+                        <span data-bs-toggle="tooltip" data-placement="top"
+                              title="Erreur Quadratique Moyenne. Similaire au MAE mais pénalise davantage les grosses erreurs. Plus sensible aux pics d'erreur.">
+                            RMSE <i class="bi bi-question-circle text-info"></i>
+                        </span>
+                    </dt>
+                    <dd><?= h($metrics['rmse']) ?></dd>
+                </div>
+            </dl>
+            <?php endforeach; ?>
+        </details>
+        <?php
+            endif;
+        endif;
+        ?>
+
+        <?php
+        // --- Section Paramètres Prophet (pour les offres en Prophet uniquement) ---
+        $prophetOfferCount = 0;
+        foreach ($scenario->forecast_scenarios_offers as $link) {
+            if (($link->forecast_method ?? 'historical') === 'prophet') {
+                $prophetOfferCount++;
+            }
+        }
+        if ($prophetOfferCount > 0):
+        ?>
+        <details class="crud-section crud-details">
+            <summary class="crud-section-title">
+                Configuration Prophet (snapshot par offre)
+                <span class="crud-details-meta"><?= (int)$prophetOfferCount ?> offre<?= $prophetOfferCount > 1 ? 's' : '' ?></span>
+            </summary>
+            <p class="small text-muted mb-3">
+                Paramètres Prophet figés (voir la section « Offres concernées &amp; méthode de prévision » ci-dessus).
+            </p>
+            <?php if (empty($scenario->forecast_scenarios_offers)): ?>
+                <p class="text-muted mb-0">
+                    Aucune offre n'est associée à ce scénario.
+                </p>
+            <?php else: ?>
+                <?php foreach ($scenario->forecast_scenarios_offers as $link):
+                    if (($link->forecast_method ?? 'historical') !== 'prophet') {
+                        continue;
+                    }
+                    $offerName = $link->offer->name ?? ('Offre #' . $link->offer_id);
+
+                    $offerSnapshot = [];
+                    if (!empty($link->prophet_settings_json)) {
+                        if (is_string($link->prophet_settings_json)) {
+                            $offerSnapshot = json_decode($link->prophet_settings_json, true) ?: [];
+                        } elseif (is_array($link->prophet_settings_json)) {
+                            $offerSnapshot = $link->prophet_settings_json;
+                        }
+                    }
+
+                    $historyStart = $offerSnapshot['history_start_date'] ?? null;
+                    $historyEnd = $offerSnapshot['history_end_date'] ?? null;
+                    $hasHistory = !empty($historyStart) || !empty($historyEnd);
+                ?>
+                <article class="border rounded p-3 mb-3">
+                    <h3 class="crud-section-title mb-0"><?= h($offerName) ?></h3>
+                    <?php if (empty($offerSnapshot)): ?>
+                        <p class="text-muted mb-0 mt-3">
+                            Aucun snapshot Prophet n'est encore disponible pour cette offre.
+                            Lance un calcul pour matérialiser les paramètres effectifs.
+                        </p>
+                    <?php else: ?>
+                        <dl class="crud-fields mt-3">
+                            <div>
+                                <dt>Méthode</dt>
+                                <dd>Prophet</dd>
+                            </div>
+                            <div>
+                                <dt>Plage historique</dt>
+                                <dd>
+                                    <?php if ($hasHistory): ?>
+                                        <?= h($historyStart ?: 'Début auto') ?> → <?= h($historyEnd ?: 'Fin auto') ?>
+                                    <?php else: ?>
+                                        Historique complet (défauts)
+                                    <?php endif; ?>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>Mode</dt>
+                                <dd><?= h($offerSnapshot['seasonality_mode'] ?? 'multiplicative') ?></dd>
+                            </div>
+                            <div>
+                                <dt>n_changepoints</dt>
+                                <dd><?= h($offerSnapshot['n_changepoints'] ?? 25) ?></dd>
+                            </div>
+                            <div>
+                                <dt>changepoint_prior_scale</dt>
+                                <dd><?= h($offerSnapshot['changepoint_prior_scale'] ?? 0.1) ?></dd>
+                            </div>
+                            <div>
+                                <dt>seasonality_prior_scale</dt>
+                                <dd><?= h($offerSnapshot['seasonality_prior_scale'] ?? 10.0) ?></dd>
+                            </div>
+                            <div>
+                                <dt>monthly_fourier_order</dt>
+                                <dd><?= h($offerSnapshot['monthly_fourier_order'] ?? 5) ?></dd>
+                            </div>
+                            <?php
+                            $flags = [
+                                'yearly_seasonality' => 'Saisonnalité annuelle',
+                                'weekly_seasonality' => 'Saisonnalité hebdomadaire',
+                                'monthly_seasonality' => 'Saisonnalité mensuelle',
+                                'daily_seasonality' => 'Saisonnalité journalière',
+                            ];
+                            foreach ($flags as $key => $label):
+                                $enabled = array_key_exists($key, $offerSnapshot) ? (bool)$offerSnapshot[$key] : true;
+                            ?>
+                            <div>
+                                <dt><?= h($label) ?></dt>
+                                <dd><?= $enabled ? 'Activée' : 'Désactivée' ?></dd>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php
+                            $holidays = array_key_exists('use_french_holidays', $offerSnapshot) ? (bool)$offerSnapshot['use_french_holidays'] : true;
+                            ?>
+                            <div>
+                                <dt>Jours fériés FR</dt>
+                                <dd><?= $holidays ? 'Pris en compte' : 'Ignorés' ?></dd>
+                            </div>
+                        </dl>
+                    <?php endif; ?>
+                </article>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </details>
+        <?php endif; ?>
 
         <?= $this->element('apex_series_chart'); ?>
 

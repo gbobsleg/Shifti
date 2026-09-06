@@ -8,6 +8,8 @@
 <?php $this->assign('title', 'Règles de rotation'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
+<?php $this->Html->script('crud-filters', ['block' => true, 'timestamp' => 'force']); ?>
+
 <div class="crud-app rotation-rules index content">
     <div class="crud-header">
         <div>

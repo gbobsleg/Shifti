@@ -157,24 +157,25 @@ class UsersController extends AppController
             return $this->redirect(['action' => 'index']);
         }
         
-        // Récupérer les filtres depuis la query string ou la session
         $queryParams = $this->request->getQueryParams();
-        $hasQueryFilters = !empty($queryParams['search_name']) || 
-                          !empty($queryParams['search_firstname']) || 
-                          !empty($queryParams['role_id']) || 
-                          !empty($queryParams['site_id']);
-        
-        if ($hasQueryFilters) {
-            // Nouveaux filtres appliqués → sauvegarder en session
+        $filterKeys = ['search_name', 'search_firstname', 'role_id', 'site_id'];
+        $hasFilterSubmit = false;
+        foreach ($filterKeys as $key) {
+            if (array_key_exists($key, $queryParams)) {
+                $hasFilterSubmit = true;
+                break;
+            }
+        }
+
+        if ($hasFilterSubmit) {
             $filters = [
-                'search_name' => $queryParams['search_name'] ?? '',
-                'search_firstname' => $queryParams['search_firstname'] ?? '',
-                'role_id' => $queryParams['role_id'] ?? '',
-                'site_id' => $queryParams['site_id'] ?? '',
+                'search_name' => trim((string)($queryParams['search_name'] ?? '')),
+                'search_firstname' => trim((string)($queryParams['search_firstname'] ?? '')),
+                'role_id' => (string)($queryParams['role_id'] ?? ''),
+                'site_id' => (string)($queryParams['site_id'] ?? ''),
             ];
             $session->write($sessionKey, $filters);
         } else {
-            // Pas de filtres dans l'URL → restaurer depuis la session si disponible
             $filters = $session->read($sessionKey) ?? [
                 'search_name' => '',
                 'search_firstname' => '',

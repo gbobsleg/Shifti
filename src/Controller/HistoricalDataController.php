@@ -382,9 +382,8 @@ class HistoricalDataController extends AppController
         // Vérification des autorisations (Admin + Manager)
         $this->Authorization->authorize(new \App\Resource\HistoricalDataResource(), 'visualize');
         
-        // Récupérer la liste des offres pour le filtre
         $OffersTable = $this->fetchTable('Offers');
-        $offers = $OffersTable->find('all')
+        $offers = $OffersTable->find('forecastable')
             ->select(['id', 'name'])
             ->order(['name' => 'ASC'])
             ->all();
@@ -399,14 +398,28 @@ class HistoricalDataController extends AppController
         $defaultStartDate = (clone $defaultEndDate)->modify('-30 days');
         
         // Récupérer les filtres si présents
-        $selectedOffers = $this->request->getQuery('offers', []);
-        $startDate = $this->request->getQuery('start_date', $defaultStartDate->format('Y-m-d'));
-        $endDate = $this->request->getQuery('end_date', $defaultEndDate->format('Y-m-d'));
-        $granularity = $this->request->getQuery('granularity', '15min');
-        
-        // Valider la granularité
-        if (!in_array($granularity, ['15min', 'hour', 'day'])) {
-            $granularity = '15min';
+        $queryParams = $this->request->getQueryParams();
+        $selectedOffers = $queryParams['offers'] ?? [];
+        $startDate = $queryParams['start_date'] ?? $defaultStartDate->format('Y-m-d');
+        $endDate = $queryParams['end_date'] ?? $defaultEndDate->format('Y-m-d');
+
+        $rangeDays = 0;
+        try {
+            $rangeDays = (int)(new \DateTime($startDate))->diff(new \DateTime($endDate))->days;
+        } catch (\Exception $e) {
+            $rangeDays = 30;
+        }
+        if ($rangeDays <= 7) {
+            $recommendedGranularity = '15min';
+        } elseif ($rangeDays <= 30) {
+            $recommendedGranularity = 'hour';
+        } else {
+            $recommendedGranularity = 'day';
+        }
+
+        $granularity = $queryParams['granularity'] ?? $recommendedGranularity;
+        if (!in_array($granularity, ['15min', 'hour', 'day'], true)) {
+            $granularity = $recommendedGranularity;
         }
         
         // Initialiser les données
@@ -420,7 +433,8 @@ class HistoricalDataController extends AppController
                 $result = $this->loadHistoricalDataForChart($selectedOffers, $startDate, $endDate, $dayStartTime, $dayEndTime, $granularity);
                 $chartData = $result['chartData'];
                 $statistics = $result['statistics'];
-                $hasData = !empty($chartData);
+                $hasData = !empty($statistics)
+                    || !empty($chartData['categories']);
             } catch (\Exception $e) {
                 $this->Flash->error('Erreur lors du chargement des données : ' . $e->getMessage());
             }
@@ -475,15 +489,14 @@ class HistoricalDataController extends AppController
                 ]));
         }
         
-        // Limiter la plage à 90 jours maximum
         $start = new \DateTime($startDate);
         $end = new \DateTime($endDate);
         $diff = $start->diff($end);
-        if ($diff->days > 90) {
+        if ($diff->days > 366) {
             return $this->response->withType('application/json')
                 ->withStringBody(json_encode([
                     'success' => false,
-                    'error' => 'La plage ne peut pas dépasser 90 jours'
+                    'error' => 'La plage ne peut pas dépasser une année civile'
                 ]));
         }
         
@@ -525,11 +538,22 @@ class HistoricalDataController extends AppController
      */
     private function loadHistoricalDataForChart(array $offerIds, string $startDate, string $endDate, string $dayStartTime, string $dayEndTime, string $granularity = '15min'): array
     {
+        $OffersTable = $this->fetchTable('Offers');
+        $offerIds = $OffersTable->find('forecastable')
+            ->select(['id'])
+            ->where(['id IN' => $offerIds])
+            ->all()
+            ->extract('id')
+            ->toList();
+        $offerIds = array_values(array_map('intval', $offerIds));
+
+        if ($offerIds === []) {
+            return ['chartData' => [], 'statistics' => []];
+        }
+
         $start = new \DateTime($startDate . ' ' . $dayStartTime);
         $end = new \DateTime($endDate . ' ' . $dayEndTime);
-        
-        // Récupérer les noms des offres
-        $OffersTable = $this->fetchTable('Offers');
+
         $offerNames = $OffersTable->find('list', [
             'keyField' => 'id',
             'valueField' => 'name'

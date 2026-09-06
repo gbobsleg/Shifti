@@ -66,6 +66,10 @@ $statusBadge = static function (string $status): string {
     };
 };
 
+$this->Html->script('crud-filters', [
+    'block' => true,
+    'timestamp' => 'force',
+]);
 $this->Html->script('background-jobs-page', [
     'block' => true,
     'timestamp' => 'force',

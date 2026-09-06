@@ -19,15 +19,26 @@ class SkillsController extends AppController
     {
         $this->Authorization->authorize(new \App\Resource\SkillsResource(), 'index');
         
-        $query = $this->Skills->find()->contain(['Users', 'Offers']);
+        $query = $this->Skills->find()
+            ->contain(['Users' => ['Roles', 'Sites'], 'Offers'])
+            ->leftJoinWith('Users');
         $params = $this->request->getQueryParams();
 
-        // Filtre par utilisateur
         if (!empty($params['user_id'])) {
             $query->where(['Skills.user_id' => $params['user_id']]);
         }
-
-        // Filtre par offre/compétence
+        if (!empty($params['search_name'])) {
+            $query->where(['Users.last_name LIKE' => '%' . $params['search_name'] . '%']);
+        }
+        if (!empty($params['search_firstname'])) {
+            $query->where(['Users.first_name LIKE' => '%' . $params['search_firstname'] . '%']);
+        }
+        if (!empty($params['role_id'])) {
+            $query->where(['Users.role_id' => $params['role_id']]);
+        }
+        if (!empty($params['site_id'])) {
+            $query->where(['Users.site_id' => $params['site_id']]);
+        }
         if (!empty($params['offer_id'])) {
             $query->where(['Skills.offer_id' => $params['offer_id']]);
         }
@@ -50,22 +61,28 @@ class SkillsController extends AppController
             }
         }
 
-        // Pagination normale
-        $this->paginate = ['limit' => 25, 'order' => ['Skills.id' => 'desc']];
+        $this->paginate = [
+            'limit' => 25,
+            'order' => ['Users.last_name' => 'asc', 'Users.first_name' => 'asc'],
+            'sortableFields' => [
+                'Users.site_id',
+                'Users.role_id',
+                'Users.user_code',
+                'Users.last_name',
+                'Users.first_name',
+                'Skills.offer_id',
+                'Skills.validity_start',
+                'Skills.validity_end',
+                'Skills.modified',
+            ],
+        ];
         $skills = $this->paginate($query);
 
-        // Données pour le formulaire de recherche
-        $users = $this->Skills->Users->find('list', [
-            'keyField' => 'id',
-            'valueField' => function ($user) {
-                return $user->last_name . ' ' . $user->first_name;
-            },
-            'limit' => 200
-        ])->order(['Users.last_name' => 'ASC', 'Users.first_name' => 'ASC'])->toArray();
-        
+        $roles = $this->Skills->Users->Roles->find('list', ['limit' => 200])->toArray();
+        $sites = $this->Skills->Users->Sites->find('list', ['limit' => 200])->toArray();
         $offers = $this->Skills->Offers->find('list', ['limit' => 200, 'order' => ['name' => 'ASC']])->toArray();
 
-        $this->set(compact('skills', 'users', 'offers'));
+        $this->set(compact('skills', 'roles', 'sites', 'offers'));
     }
 
     /**

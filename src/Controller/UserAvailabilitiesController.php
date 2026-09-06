@@ -20,32 +20,55 @@ class UserAvailabilitiesController extends AppController
         $this->Authorization->authorize(new \App\Resource\UserAvailabilitiesResource(), 'index');
         
         $params = $this->request->getQueryParams();
-        
+
         $query = $this->UserAvailabilities->find()
-            ->contain(['Users']);
-        
-        // Filtre par utilisateur
+            ->contain(['Users' => ['Roles', 'Sites']])
+            ->leftJoinWith('Users');
+
         if (!empty($params['user_id'])) {
             $query->where(['UserAvailabilities.user_id' => $params['user_id']]);
         }
-        
-        // Filtre par jour de la semaine
+        if (!empty($params['search_name'])) {
+            $query->where(['Users.last_name LIKE' => '%' . $params['search_name'] . '%']);
+        }
+        if (!empty($params['search_firstname'])) {
+            $query->where(['Users.first_name LIKE' => '%' . $params['search_firstname'] . '%']);
+        }
+        if (!empty($params['role_id'])) {
+            $query->where(['Users.role_id' => $params['role_id']]);
+        }
+        if (!empty($params['site_id'])) {
+            $query->where(['Users.site_id' => $params['site_id']]);
+        }
         if (!empty($params['day_of_week'])) {
             $query->where(['UserAvailabilities.day_of_week' => $params['day_of_week']]);
         }
-        
+
+        $this->paginate = [
+            'limit' => 25,
+            'order' => [
+                'Users.last_name' => 'asc',
+                'Users.first_name' => 'asc',
+                'UserAvailabilities.day_of_week' => 'asc',
+            ],
+            'sortableFields' => [
+                'Users.site_id',
+                'Users.role_id',
+                'Users.user_code',
+                'Users.last_name',
+                'Users.first_name',
+                'UserAvailabilities.day_of_week',
+                'UserAvailabilities.availability_start_time',
+                'UserAvailabilities.availability_end_time',
+                'UserAvailabilities.earliest_end_time',
+            ],
+        ];
         $userAvailabilities = $this->paginate($query);
 
-        // Liste des utilisateurs pour les filtres
-        $users = $this->UserAvailabilities->Users->find('list', [
-            'keyField' => 'id',
-            'valueField' => function ($row) {
-                return $row['last_name'] . ' ' . $row['first_name'];
-            },
-            'order' => ['Users.last_name' => 'ASC']
-        ])->toArray();
+        $roles = $this->UserAvailabilities->Users->Roles->find('list', ['limit' => 200])->toArray();
+        $sites = $this->UserAvailabilities->Users->Sites->find('list', ['limit' => 200])->toArray();
 
-        $this->set(compact('userAvailabilities', 'users'));
+        $this->set(compact('userAvailabilities', 'roles', 'sites'));
     }
 
     /**

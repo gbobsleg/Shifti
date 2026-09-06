@@ -23,7 +23,7 @@
                 }
                 const type = td.getAttribute('data-offer-type') || '';
                 const id = td.getAttribute('data-offer-id') || '0';
-                if (id === '0' || id === '') {
+                if (id === '0' || id === '' || type === 'remote_work') {
                     hasEmptyAvailable = true;
                     return;
                 }

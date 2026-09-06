@@ -45,7 +45,7 @@
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <?php
-            $columns = ['Mots-clés', 'Code couleur', 'Offre', 'Priorité', 'Modifié le', 'Actions'];
+            $columns = ['Mots-clés', 'Code couleur', 'Offre', 'Priorité', 'Maj', 'Actions'];
             $colCount = count($columns);
             ?>
             <thead>
@@ -97,29 +97,7 @@
                     </td>
                     <td><?= $mapping->hasValue('offer') ? h($mapping->offer->name) : '—' ?></td>
                     <td><?= $this->Number->format($mapping->priority) ?></td>
-                    <td>
-                        <?php if ($mapping->modified):
-                            $now = new \Cake\I18n\FrozenTime();
-                            $diff = $now->diffInDays($mapping->modified);
-                            if ($diff == 0) {
-                                $timeAgo = "Aujourd'hui";
-                            } elseif ($diff == 1) {
-                                $timeAgo = 'Hier';
-                            } elseif ($diff < 7) {
-                                $timeAgo = 'Il y a ' . $diff . ' jours';
-                            } elseif ($diff < 30) {
-                                $weeks = (int)floor($diff / 7);
-                                $timeAgo = 'Il y a ' . $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
-                            } else {
-                                $months = (int)floor($diff / 30);
-                                $timeAgo = 'Il y a ' . $months . ' mois';
-                            }
-                        ?>
-                            <span data-bs-toggle="tooltip" title="<?= h($mapping->modified->i18nFormat('dd/MM/yyyy HH:mm')) ?>">
-                                <?= h($timeAgo) ?>
-                            </span>
-                        <?php endif; ?>
-                    </td>
+                    <td><?= $this->element('crud/maj_cell', ['entity' => $mapping]) ?></td>
                     <td class="actions">
                         <?= $this->Html->link(
                             '<i class="bi bi-pencil" aria-hidden="true"></i>',

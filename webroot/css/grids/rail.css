@@ -23,7 +23,7 @@
     align-items: flex-start;
     gap: 0.4rem;
     width: var(--grids-rail-width);
-    max-height: calc(100vh - var(--grids-navbar) - var(--grids-chrome-h) - 3.5rem);
+    max-height: calc(100vh - var(--grids-navbar) - var(--grids-chrome-h) - 1.5rem);
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;

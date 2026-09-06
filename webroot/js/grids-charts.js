@@ -379,6 +379,12 @@
             });
         });
 
+        document.querySelectorAll('.grids-chart-controls').forEach((el) => {
+            el.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+        });
+
         document.querySelectorAll('[id^="compareBtn"]').forEach((btn) => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();

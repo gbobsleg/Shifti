@@ -1,16 +1,8 @@
 /**
- * Users - Amélioration UX des filtres
+ * Users — tooltips de la liste (filtres : crud-filters.js).
  */
-
-$(document).ready(function() {
-    // Auto-submit quand on change un select (rôle ou site)
-    $('select[name="role_id"], select[name="site_id"]').on('change', function() {
-        $(this).closest('form').submit();
-    });
-    
-    // Active les tooltips Bootstrap
+$(document).ready(function () {
     if (typeof window.initTooltips === 'function') {
         window.initTooltips();
     }
 });
-

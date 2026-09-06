@@ -3,11 +3,6 @@
  */
 
 $(document).ready(function() {
-    // Auto-submit quand on change un select
-    $('#user-id, #offer-id').on('change', function() {
-        $(this).closest('form').submit();
-    });
-
     // Gestion de la sélection en masse (calqué sur planning-generation-jobs)
     function updateSelectedCount() {
         const checked = $('.range-checkbox:checked').length;

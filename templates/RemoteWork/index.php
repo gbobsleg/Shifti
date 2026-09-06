@@ -9,6 +9,7 @@
 <?php $this->assign('title', 'Gestion des Jours de Télétravail'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
+<?php $this->Html->script('crud-filters', ['block' => true, 'timestamp' => 'force']); ?>
 <?php $this->Html->script('remote-work-days-filters', ['block' => true]); ?>
 
 <div class="crud-app remote-work-days index content">
@@ -47,8 +48,22 @@
     </div>
 
     <?= $this->Form->create(null, ['type' => 'get', 'class' => 'filters-toolbar mb-3']) ?>
-        <div class="row g-2 align-items-end">
-            <div class="col-md-3">
+        <?php
+        $dateStartValue = $this->request->getQuery('date_start');
+        if (is_array($dateStartValue) && !empty($dateStartValue['year']) && !empty($dateStartValue['month']) && !empty($dateStartValue['day'])) {
+            $dateStartValue = sprintf('%04d-%02d-%02d', $dateStartValue['year'], $dateStartValue['month'], $dateStartValue['day']);
+        } elseif (!is_string($dateStartValue) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStartValue ?? '')) {
+            $dateStartValue = null;
+        }
+        $dateEndValue = $this->request->getQuery('date_end');
+        if (is_array($dateEndValue) && !empty($dateEndValue['year']) && !empty($dateEndValue['month']) && !empty($dateEndValue['day'])) {
+            $dateEndValue = sprintf('%04d-%02d-%02d', $dateEndValue['year'], $dateEndValue['month'], $dateEndValue['day']);
+        } elseif (!is_string($dateEndValue) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateEndValue ?? '')) {
+            $dateEndValue = null;
+        }
+        ?>
+        <div class="d-flex flex-wrap align-items-end gap-2">
+            <div class="flex-grow-1" style="min-width: 12rem;">
                 <label for="user-id" class="form-label small text-muted mb-1">Agent</label>
                 <?= $this->Form->select('user_id', $users, [
                     'empty' => 'Tous les agents',
@@ -57,7 +72,7 @@
                     'id' => 'user-id',
                 ]) ?>
             </div>
-            <div class="col-md-2">
+            <div class="flex-grow-1" style="min-width: 12rem;">
                 <label for="range-type" class="form-label small text-muted mb-1">Type</label>
                 <?= $this->Form->select('range_type', [
                     'all' => 'Tous (fixes + flexibles)',
@@ -69,52 +84,37 @@
                     'id' => 'range-type',
                 ]) ?>
             </div>
-            <div class="col-md-2">
+            <div style="width: 10.5rem;">
                 <label for="date-start" class="form-label small text-muted mb-1">Date de début</label>
-                <?php
-                $dateStartValue = $this->request->getQuery('date_start');
-                if (is_array($dateStartValue) && !empty($dateStartValue['year']) && !empty($dateStartValue['month']) && !empty($dateStartValue['day'])) {
-                    $dateStartValue = sprintf('%04d-%02d-%02d', $dateStartValue['year'], $dateStartValue['month'], $dateStartValue['day']);
-                } elseif (!is_string($dateStartValue) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStartValue ?? '')) {
-                    $dateStartValue = null;
-                }
-                ?>
-                <?= $this->Form->control('date_start', [
+                <?= $this->Form->text('date_start', [
                     'type' => 'date',
-                    'label' => false,
                     'class' => 'form-control form-control-sm',
                     'value' => $dateStartValue,
                     'id' => 'date-start',
                 ]) ?>
             </div>
-            <div class="col-md-2">
+            <div style="width: 10.5rem;">
                 <label for="date-end" class="form-label small text-muted mb-1">Date de fin</label>
-                <?php
-                $dateEndValue = $this->request->getQuery('date_end');
-                if (is_array($dateEndValue) && !empty($dateEndValue['year']) && !empty($dateEndValue['month']) && !empty($dateEndValue['day'])) {
-                    $dateEndValue = sprintf('%04d-%02d-%02d', $dateEndValue['year'], $dateEndValue['month'], $dateEndValue['day']);
-                } elseif (!is_string($dateEndValue) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateEndValue ?? '')) {
-                    $dateEndValue = null;
-                }
-                ?>
-                <?= $this->Form->control('date_end', [
+                <?= $this->Form->text('date_end', [
                     'type' => 'date',
-                    'label' => false,
                     'class' => 'form-control form-control-sm',
                     'value' => $dateEndValue,
                     'id' => 'date-end',
                 ]) ?>
             </div>
-            <div class="col-md-3 d-flex gap-2">
-                <?= $this->Form->button('Filtrer', [
-                    'type' => 'submit',
-                    'class' => 'btn btn-sm btn-primary',
-                ]) ?>
-                <?= $this->Html->link(
-                    'Réinitialiser',
-                    ['action' => 'index'],
-                    ['class' => 'btn btn-sm btn-outline-secondary']
-                ) ?>
+            <div>
+                <label class="form-label small mb-1 d-block" aria-hidden="true">&nbsp;</label>
+                <div class="d-flex gap-2">
+                    <?= $this->Form->button('Filtrer', [
+                        'type' => 'submit',
+                        'class' => 'btn btn-sm btn-primary',
+                    ]) ?>
+                    <?= $this->Html->link(
+                        'Réinitialiser',
+                        ['action' => 'index'],
+                        ['class' => 'btn btn-sm btn-outline-secondary']
+                    ) ?>
+                </div>
             </div>
         </div>
     <?= $this->Form->end() ?>
@@ -149,7 +149,7 @@
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <?php
-            $columns = ['Utilisateur', 'Type', 'Début', 'Fin', 'Commentaire', 'Modifié le', 'Actions'];
+            $columns = ['Utilisateur', 'Type', 'Début', 'Fin', 'Commentaire', 'Maj', 'Actions'];
             $colCount = count($columns) + (count($remoteWorkDays) > 0 ? 1 : 0);
             ?>
             <thead>
@@ -199,29 +199,7 @@
                     <td><?= h($day->date_start ? $day->date_start->i18nFormat('dd/MM/yy HH:mm') : '') ?></td>
                     <td><?= h($day->date_end ? $day->date_end->i18nFormat('dd/MM/yy HH:mm') : '') ?></td>
                     <td><?= h($day->comment ?: '—') ?></td>
-                    <td>
-                        <?php if ($day->modified):
-                            $now = new \Cake\I18n\FrozenTime();
-                            $diff = $now->diffInDays($day->modified);
-                            if ($diff == 0) {
-                                $timeAgo = "Aujourd'hui";
-                            } elseif ($diff == 1) {
-                                $timeAgo = 'Hier';
-                            } elseif ($diff < 7) {
-                                $timeAgo = 'Il y a ' . $diff . ' jours';
-                            } elseif ($diff < 30) {
-                                $weeks = (int)floor($diff / 7);
-                                $timeAgo = 'Il y a ' . $weeks . ' semaine' . ($weeks > 1 ? 's' : '');
-                            } else {
-                                $months = (int)floor($diff / 30);
-                                $timeAgo = 'Il y a ' . $months . ' mois';
-                            }
-                        ?>
-                            <span data-bs-toggle="tooltip" title="<?= h($day->modified->i18nFormat('dd/MM/yyyy HH:mm')) ?>">
-                                <?= h($timeAgo) ?>
-                            </span>
-                        <?php endif; ?>
-                    </td>
+                    <td><?= $this->element('crud/maj_cell', ['entity' => $day]) ?></td>
                     <td class="actions">
                         <?= $this->Html->link(
                             '<i class="bi bi-pencil" aria-hidden="true"></i>',
