@@ -110,5 +110,10 @@ class UserAvailabilitiesTable extends Table
         if (isset($data['earliest_end_time']) && $data['earliest_end_time'] === '') {
             $data['earliest_end_time'] = null;
         }
+        foreach (['availability_start_time', 'availability_end_time'] as $field) {
+            if (isset($data[$field]) && $data[$field] === '') {
+                $data[$field] = '00:00:00';
+            }
+        }
     }
 }

@@ -15,12 +15,13 @@ $formatTime = function ($value): string {
     if ($value === null || $value === '') {
         return '—';
     }
-    if ($value instanceof \DateTimeInterface) {
+    if (is_object($value) && method_exists($value, 'format')) {
         return $value->format('H:i');
     }
-    if (is_string($value)) {
-        return substr($value, 0, 5);
+    if (is_string($value) && preg_match('/^(\d{2}):(\d{2})/', $value, $m)) {
+        return $m[1] . ':' . $m[2];
     }
+
     return '—';
 };
 ?>
@@ -39,12 +40,21 @@ $formatTime = function ($value): string {
             </thead>
             <tbody>
             <?php foreach ($days as $dayNum => $dayName): ?>
-                <?php $a = $byDay[(int)$dayNum] ?? null; ?>
+                <?php
+                $a = $byDay[(int)$dayNum] ?? null;
+                $start = $formatTime($a->availability_start_time ?? null);
+                $end = $formatTime($a->availability_end_time ?? null);
+                $off = $start === '00:00' && $end === '00:00';
+                ?>
                 <tr>
                     <td><?= h($dayName) ?></td>
-                    <td><?= h($formatTime($a->availability_start_time ?? null)) ?></td>
-                    <td><?= h($formatTime($a->availability_end_time ?? null)) ?></td>
-                    <td><?= h($formatTime($a->earliest_end_time ?? null)) ?></td>
+                    <?php if ($off || $a === null): ?>
+                        <td colspan="3" class="text-muted">Non travaillé</td>
+                    <?php else: ?>
+                        <td><?= h($start) ?></td>
+                        <td><?= h($end) ?></td>
+                        <td><?= h($formatTime($a->earliest_end_time ?? null)) ?></td>
+                    <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
             </tbody>

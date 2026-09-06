@@ -296,7 +296,7 @@ class UsersController extends AppController
                 $isWeekday = $i >= 1 && $i <= 5;
                 $defaultStart = $isWeekday ? '09:00:00' : '00:00:00';
                 $defaultEnd = $isWeekday ? '17:00:00' : '00:00:00';
-                $defaultEarliestEnd = $isWeekday ? '16:30:00' : '00:00:00';
+                $defaultEarliestEnd = $isWeekday ? '16:30:00' : null;
 
                 $finalAvailabilities[] = $this->Users->UserAvailabilities->newEntity([
                     'id' => $row['id'] ?? null,
@@ -312,7 +312,8 @@ class UsersController extends AppController
 
         if ($this->request->is('post')) {
             $data = $this->request->getData();
-            $availabilitiesData = $data['user_availabilities'] ?? [];
+            $availabilitiesData = $this->normalizePostedAvailabilities($data['user_availabilities'] ?? []);
+            $data['user_availabilities'] = $availabilitiesData;
             $skillsData = $data['skills'] ?? null;
             $remoteWorkData = $data['remote_work'] ?? null;
             $rotationRuleData = $data['rotation_rule'] ?? null;
@@ -606,6 +607,9 @@ class UsersController extends AppController
             if (isset($data['password']) && trim((string)$data['password']) === '') {
                 unset($data['password']);
             }
+            if (isset($data['user_availabilities']) && is_array($data['user_availabilities'])) {
+                $data['user_availabilities'] = $this->normalizePostedAvailabilities($data['user_availabilities']);
+            }
 
             // Gestion des compétences (skills)
             $skillsData = $data['skills'] ?? null;
@@ -628,25 +632,31 @@ class UsersController extends AppController
             }
 
             // Gestion des contrats
-            if (!empty($data['contracts'])) {
-                $contractsData = $data['contracts'];
+            $contractsSaved = true;
+            if (!empty($data['contracts']) && is_array($data['contracts'])) {
                 $UserContracts = $this->fetchTable('UserContracts');
-                
-                foreach ($contractsData as $contractData) {
+                foreach ($data['contracts'] as $contractData) {
+                    $startDate = $this->parseIsoDate($contractData['start_date'] ?? null);
+                    $endDate = $this->parseIsoDate($contractData['end_date'] ?? null);
+                    if ($startDate === null && empty($contractData['id'])) {
+                        continue;
+                    }
                     if (!empty($contractData['id'])) {
-                        // Mise a jour contrat existant
                         $contract = $UserContracts->get($contractData['id']);
-                        $contract = $UserContracts->patchEntity($contract, $contractData);
-                    } elseif (!empty($contractData['start_date'])) {
-                        // Nouveau contrat
-                        $contract = $UserContracts->newEntity($contractData);
+                    } elseif ($startDate !== null) {
+                        $contract = $UserContracts->newEmptyEntity();
                         $contract->user_id = $user->id;
                     } else {
                         continue;
                     }
-                    
+                    if ($startDate !== null) {
+                        $contract->start_date = $startDate;
+                    }
+                    $contract->end_date = $endDate;
+
                     if (!$UserContracts->save($contract)) {
-                        $this->Flash->error('Erreur lors de la sauvegarde du contrat.');
+                        $contractsSaved = false;
+                        $this->Flash->error($this->firstEntityError($contract, 'Le contrat n\'a pas pu être enregistré.'));
                     }
                 }
             }
@@ -756,7 +766,7 @@ class UsersController extends AppController
             }
             
             // Ne pas patcher ces champs "hors user" sur l'entité User
-            unset($data['skills'], $data['remote_work'], $data['rotation_rule']);
+            unset($data['skills'], $data['remote_work'], $data['rotation_rule'], $data['contracts'], $data['_active_tab']);
 
             $user = $this->Users->patchEntity($user, $data, [
                 'associated' => ['UserAvailabilities']
@@ -779,12 +789,26 @@ class UsersController extends AppController
                 }
             }
             
-            if ($saveSuccess) {
+            if ($saveSuccess && $contractsSaved) {
                 $this->Flash->success("L'utilisateur a été sauvegardé.", ['params' => ['auto-dismiss' => 5000]]);
 
-                return $this->redirect(['action' => 'index']);
+                return $this->redirect([
+                    'action' => 'edit',
+                    $user->id,
+                    '#' => $this->userEditTab($this->request->getData('_active_tab')),
+                ]);
             }
-            $this->Flash->error("L'utilisateur n'a pas pu être sauvegardé. Merci d'essayer à nouveau.");
+            if ($saveSuccess && !$contractsSaved) {
+                $this->Flash->error('L\'utilisateur a été enregistré, mais un contrat n\'a pas pu l\'être.');
+            } elseif (!$saveSuccess) {
+                if ($contractsSaved) {
+                    $this->Flash->success('Contrats enregistrés.');
+                }
+                $this->Flash->error($this->firstEntityError(
+                    $user,
+                    "L'utilisateur n'a pas pu être sauvegardé. Merci d'essayer à nouveau."
+                ));
+            }
         }
         
         $roles = $this->Users->Roles->find('list', ['limit' => 200]);
@@ -847,33 +871,39 @@ class UsersController extends AppController
             $endDate = $remoteWorkSetting->end_date->format('Y-m-d');
         }
         
-        // Contrats de l'utilisateur
-        $userContracts = $user->user_contracts ?? [];
+        $userContracts = $this->fetchTable('UserContracts')
+            ->find()
+            ->where(['user_id' => $user->id])
+            ->order(['start_date' => 'ASC', 'id' => 'ASC'])
+            ->all()
+            ->toList();
         
         $this->set(compact('days', 'user', 'roles', 'sites', 'offers', 'userSkills', 'remoteWorkSetting', 'fixedDays', 'timeStart', 'timeEnd', 'startDate', 'endDate', 'daysOfWeek', 'rotationRules', 'selectedRotationRuleId', 'rotationTargetOverride', 'userContracts'));
     }
 
     /**
-     * Clôturer un contrat
+     * Supprimer un contrat
      */
-    public function closeContract(int $contractId)
+    public function deleteContract(int $contractId)
     {
-        $this->request->allowMethod(['post', 'put', 'patch']);
+        $this->request->allowMethod(['post', 'delete']);
         $this->Authorization->authorize(new \App\Resource\UsersResource(), 'edit');
-        
+
         $UserContracts = $this->fetchTable('UserContracts');
         $contract = $UserContracts->get($contractId);
-        
-        $endDate = $this->request->getData('end_date') ?? date('Y-m-d');
-        $contract->end_date = $endDate;
-        
-        if ($UserContracts->save($contract)) {
-            $this->Flash->success('Contrat clôturé avec succès.');
+        $userId = (int)$contract->user_id;
+
+        if ($UserContracts->delete($contract)) {
+            $this->Flash->success('Contrat supprimé.');
         } else {
-            $this->Flash->error('Erreur lors de la clôture du contrat.');
+            $this->Flash->error('Le contrat n\'a pas pu être supprimé.');
         }
-        
-        return $this->redirect($this->referer());
+
+        return $this->redirect([
+            'action' => 'edit',
+            $userId,
+            '#' => 'user-tab-contracts',
+        ]);
     }
 
     /**
@@ -895,5 +925,113 @@ class UsersController extends AppController
         }
 
         return $this->redirect(['action' => 'index']);
+    }
+
+    private function userEditTab(mixed $tab): string
+    {
+        $allowed = [
+            'user-tab-identity',
+            'user-tab-contracts',
+            'user-tab-remote',
+            'user-tab-skills',
+            'user-tab-rotation',
+        ];
+
+        return in_array($tab, $allowed, true) ? $tab : 'user-tab-identity';
+    }
+
+    private function firstEntityError(\Cake\Datasource\EntityInterface $entity, string $fallback): string
+    {
+        foreach ($entity->getErrors() as $fieldErrors) {
+            if (!is_array($fieldErrors)) {
+                continue;
+            }
+            foreach ($fieldErrors as $message) {
+                if (is_string($message) && $message !== '') {
+                    return $message;
+                }
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function parseIsoDate(mixed $value): ?string
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m)) {
+            if (checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
+                return $m[0];
+            }
+        }
+        if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $value, $m)) {
+            if (checkdate((int)$m[2], (int)$m[1], (int)$m[3])) {
+                return $m[3] . '-' . $m[2] . '-' . $m[1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    private function normalizePostedAvailabilities(array $rows): array
+    {
+        foreach ($rows as $i => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $works = (string)($row['works'] ?? '0') === '1';
+            $start = $this->parseIsoTime($row['availability_start_time'] ?? null);
+            $end = $this->parseIsoTime($row['availability_end_time'] ?? null);
+            $earliest = $this->parseIsoTime($row['earliest_end_time'] ?? null);
+            if (!$works || ($start === null && $end === null)) {
+                $rows[$i]['availability_start_time'] = '00:00:00';
+                $rows[$i]['availability_end_time'] = '00:00:00';
+                $rows[$i]['earliest_end_time'] = null;
+            } else {
+                $rows[$i]['availability_start_time'] = $start ?? '00:00:00';
+                $rows[$i]['availability_end_time'] = $end ?? '00:00:00';
+                $rows[$i]['earliest_end_time'] = $earliest;
+            }
+            unset($rows[$i]['works']);
+        }
+
+        return $rows;
+    }
+
+    private function parseIsoTime(mixed $value): ?string
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('H:i:s');
+        }
+        if (is_object($value) && method_exists($value, 'format')) {
+            return $value->format('H:i:s');
+        }
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+        if (preg_match('/^(\d{2}):(\d{2})(?::(\d{2}))?$/', $value, $m)) {
+            $sec = $m[3] ?? '00';
+
+            return $m[1] . ':' . $m[2] . ':' . $sec;
+        }
+
+        return null;
     }
 }

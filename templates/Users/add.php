@@ -168,6 +168,7 @@
     </div>
 
     <?= $this->Form->end() ?>
+    <?= $this->fetch('contract_action_forms') ?>
 </div>
 
 <script>

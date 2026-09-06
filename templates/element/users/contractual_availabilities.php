@@ -5,18 +5,32 @@
  * @var \App\View\AppView $this
  * @var array<int,string> $days
  */
+$uaHm = function (mixed $value): string {
+    if ($value === null || $value === '') {
+        return '';
+    }
+    if (is_object($value) && method_exists($value, 'format')) {
+        return $value->format('H:i');
+    }
+    if (is_string($value) && preg_match('/^(\d{2}):(\d{2})/', $value, $m)) {
+        return $m[1] . ':' . $m[2];
+    }
+
+    return '';
+};
 ?>
 
 <section class="crud-section js-contractual-availabilities">
     <h2 class="crud-section-title">Disponibilités contractuelles</h2>
     <p class="text-muted">
-        Définissez les fenêtres de travail pour chaque jour. Mettez 00:00 à 00:00 pour un jour non travaillé.
+        Décochez « Travaille » pour un jour non travaillé. « Fin la plus tôt » peut rester vide.
     </p>
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <thead>
             <tr>
                 <th>Jour</th>
+                <th>Travaille</th>
                 <th>Disponible de</th>
                 <th>Disponible à</th>
                 <th>Fin la plus tôt (optionnelle)</th>
@@ -25,38 +39,58 @@
             </thead>
             <tbody>
             <?php foreach ($days as $dayNum => $dayName): ?>
-                <?php $index = (int)$dayNum - 1; ?>
+                <?php
+                $index = (int)$dayNum - 1;
+                $row = $user->user_availabilities[$index] ?? null;
+                $startHm = $uaHm($row->availability_start_time ?? null);
+                $endHm = $uaHm($row->availability_end_time ?? null);
+                $earliestHm = $uaHm($row->earliest_end_time ?? null);
+                $works = !($startHm === '00:00' && $endHm === '00:00');
+                if (!$works) {
+                    $startHm = '';
+                    $endHm = '';
+                    $earliestHm = '';
+                }
+                ?>
                 <tr data-ua-day="<?= (int)$dayNum ?>" data-ua-index="<?= (int)$index ?>">
                     <td><?= h($dayName) ?></td>
                     <?= $this->Form->hidden("user_availabilities.{$index}.id") ?>
                     <?= $this->Form->hidden("user_availabilities.{$index}.day_of_week", ['value' => (int)$dayNum]) ?>
                     <td>
-                        <?= $this->Form->control("user_availabilities.{$index}.availability_start_time", [
-                            'label' => false,
-                            'type' => 'time',
-                            'class' => 'form-control form-control-sm js-ua-input',
-                            'data-ua-field' => 'availability_start_time',
-                            'templates' => ['inputContainer' => '{{content}}'],
-                        ]) ?>
+                        <input type="hidden" name="user_availabilities[<?= (int)$index ?>][works]" value="0">
+                        <input type="checkbox"
+                               name="user_availabilities[<?= (int)$index ?>][works]"
+                               value="1"
+                               class="form-check-input js-ua-works"
+                               <?= $works ? 'checked' : '' ?>
+                               aria-label="Travaille le <?= h($dayName) ?>">
                     </td>
                     <td>
-                        <?= $this->Form->control("user_availabilities.{$index}.availability_end_time", [
-                            'label' => false,
-                            'type' => 'time',
-                            'class' => 'form-control form-control-sm js-ua-input',
-                            'data-ua-field' => 'availability_end_time',
-                            'templates' => ['inputContainer' => '{{content}}'],
-                        ]) ?>
+                        <input type="time"
+                               name="user_availabilities[<?= (int)$index ?>][availability_start_time]"
+                               class="form-control form-control-sm js-ua-input"
+                               data-ua-field="availability_start_time"
+                               autocomplete="off"
+                               value="<?= h($startHm) ?>"
+                               <?= $works ? '' : 'disabled' ?>>
                     </td>
                     <td>
-                        <?= $this->Form->control("user_availabilities.{$index}.earliest_end_time", [
-                            'label' => false,
-                            'type' => 'time',
-                            'empty' => true,
-                            'class' => 'form-control form-control-sm js-ua-input',
-                            'data-ua-field' => 'earliest_end_time',
-                            'templates' => ['inputContainer' => '{{content}}'],
-                        ]) ?>
+                        <input type="time"
+                               name="user_availabilities[<?= (int)$index ?>][availability_end_time]"
+                               class="form-control form-control-sm js-ua-input"
+                               data-ua-field="availability_end_time"
+                               autocomplete="off"
+                               value="<?= h($endHm) ?>"
+                               <?= $works ? '' : 'disabled' ?>>
+                    </td>
+                    <td>
+                        <input type="time"
+                               name="user_availabilities[<?= (int)$index ?>][earliest_end_time]"
+                               class="form-control form-control-sm js-ua-input"
+                               data-ua-field="earliest_end_time"
+                               autocomplete="off"
+                               value="<?= h($earliestHm) ?>"
+                               <?= $works ? '' : 'disabled' ?>>
                     </td>
                     <td>
                         <div class="btn-group btn-group-sm" role="group" aria-label="Copier / coller les disponibilités">
@@ -93,16 +127,29 @@ document.addEventListener('DOMContentLoaded', function () {
         return row.querySelector('.js-ua-input[data-ua-field="' + fieldName + '"]');
     }
 
+    function applyWorksState(row) {
+        const works = row.querySelector('.js-ua-works');
+        const checked = !!(works && works.checked);
+        fields.forEach(function (fieldName) {
+            const input = getInput(row, fieldName);
+            if (!input) {
+                return;
+            }
+            input.disabled = !checked;
+            if (!checked) {
+                input.value = '';
+            }
+        });
+    }
+
     function enablePasteButtons() {
-        const pasteButtons = container.querySelectorAll('.js-ua-paste-btn');
-        pasteButtons.forEach(function (btn) {
+        container.querySelectorAll('.js-ua-paste-btn').forEach(function (btn) {
             btn.disabled = clipboard === null;
         });
     }
 
     function setCopiedRowState(fromDay) {
-        const rows = container.querySelectorAll('tr[data-ua-day]');
-        rows.forEach(function (r) {
+        container.querySelectorAll('tr[data-ua-day]').forEach(function (r) {
             r.classList.remove('table-info');
         });
         const copiedRow = findRowByDay(fromDay);
@@ -116,13 +163,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!fromRow) {
             return;
         }
-
-        const data = { fromDay: fromDay };
+        const works = fromRow.querySelector('.js-ua-works');
+        const data = { fromDay: fromDay, works: !!(works && works.checked) };
         fields.forEach(function (fieldName) {
             const input = getInput(fromRow, fieldName);
             data[fieldName] = input ? input.value : '';
         });
-
         clipboard = data;
         enablePasteButtons();
         setCopiedRowState(fromDay);
@@ -132,23 +178,36 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!clipboard) {
             return;
         }
-
         const toRow = findRowByDay(toDay);
         if (!toRow) {
             return;
         }
-
+        const works = toRow.querySelector('.js-ua-works');
+        if (works) {
+            works.checked = !!clipboard.works;
+        }
         fields.forEach(function (fieldName) {
             const toInput = getInput(toRow, fieldName);
             if (!toInput) {
                 return;
             }
-
             toInput.value = clipboard[fieldName] ?? '';
             toInput.dispatchEvent(new Event('input', { bubbles: true }));
             toInput.dispatchEvent(new Event('change', { bubbles: true }));
         });
+        applyWorksState(toRow);
     }
+
+    container.addEventListener('change', function (event) {
+        const works = event.target.closest('.js-ua-works');
+        if (!works) {
+            return;
+        }
+        const row = works.closest('tr[data-ua-day]');
+        if (row) {
+            applyWorksState(row);
+        }
+    });
 
     container.addEventListener('click', function (event) {
         const copyBtn = event.target.closest('.js-ua-copy-btn');
@@ -179,6 +238,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    container.querySelectorAll('tr[data-ua-day]').forEach(applyWorksState);
     enablePasteButtons();
 });
 </script>

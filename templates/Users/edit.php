@@ -8,7 +8,7 @@
 ?>
 <?php $this->assign('title', 'Modifier Utilisateur : ' . h($user->full_name)); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
-<?php $this->Html->script('users-form-tabs', ['block' => true]); ?>
+<?php $this->Html->script('users-form-tabs.js?v=' . filemtime(WWW_ROOT . 'js/users-form-tabs.js'), ['block' => true]); ?>
 
 <div class="crud-app users form crud-app-wide content">
     <div class="crud-header">
@@ -163,4 +163,5 @@
     </div>
 
     <?= $this->Form->end() ?>
+    <?= $this->fetch('contract_action_forms') ?>
 </div>

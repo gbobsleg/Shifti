@@ -76,12 +76,22 @@ class UserContractsTable extends Table
             ->allowEmptyDate('end_date')
             ->add('end_date', 'validEndDate', [
                 'rule' => function ($value, $context) {
-                    if (empty($value)) return true;
+                    if (empty($value)) {
+                        return true;
+                    }
                     $startDate = $context['data']['start_date'] ?? null;
-                    if (!$startDate) return true;
-                    return $value > $startDate;
+                    if (!$startDate && !empty($context['providers']['entity'])) {
+                        $startDate = $context['providers']['entity']->start_date ?? null;
+                    }
+                    if (!$startDate) {
+                        return true;
+                    }
+                    $end = $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : (string)$value;
+                    $start = $startDate instanceof \DateTimeInterface ? $startDate->format('Y-m-d') : (string)$startDate;
+
+                    return $end >= $start;
                 },
-                'message' => 'La date de fin doit être postérieure à la date de début.'
+                'message' => 'La date de fin doit être postérieure ou égale à la date de début.'
             ]);
 
         return $validator;
@@ -98,23 +108,74 @@ class UserContractsTable extends Table
     {
         $rules->add($rules->existsIn('user_id', 'Users'), ['errorField' => 'user_id']);
 
-        // Règle métier : Empêcher de créer un nouveau contrat si le précédent n'est pas clôturé
         $rules->add(function ($entity, $options) {
-            if ($entity->isNew()) {
-                $existing = $this->find()
-                    ->where([
-                        'user_id' => $entity->user_id,
-                        'end_date IS' => null,
-                    ])
-                    ->first();
-                return $existing === null;
+            if (!$entity->isNew()) {
+                return true;
             }
-            return true;
+            $existing = $this->find()
+                ->where([
+                    'user_id' => $entity->user_id,
+                    'end_date IS' => null,
+                ])
+                ->first();
+
+            return $existing === null;
         }, 'noOpenContract', [
             'errorField' => 'start_date',
-            'message' => 'Un contrat actif existe déjà. Clôturez-le avant d\'en créer un nouveau.'
+            'message' => 'Un contrat sans date de fin existe déjà. Indiquez-lui une date de fin avant d\'en créer un autre.',
+        ]);
+
+        $rules->add(function ($entity, $options) {
+            $userId = $entity->user_id ?? null;
+            $start = $this->dateString($entity->start_date);
+            if (!$userId || $start === null) {
+                return true;
+            }
+            $end = $this->dateString($entity->end_date);
+            $query = $this->find()->where(['user_id' => $userId]);
+            if (!$entity->isNew() && $entity->id) {
+                $query->where(['id IS NOT' => $entity->id]);
+            }
+            foreach ($query as $other) {
+                if ($this->periodsOverlap(
+                    $start,
+                    $end,
+                    $this->dateString($other->start_date),
+                    $this->dateString($other->end_date)
+                )) {
+                    return false;
+                }
+            }
+
+            return true;
+        }, 'noOverlap', [
+            'errorField' => 'start_date',
+            'message' => 'Ce contrat chevauche une autre période. La nouvelle période doit commencer après la fin de la précédente.',
         ]);
 
         return $rules;
+    }
+
+    private function dateString(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        return (string)$value;
+    }
+
+    private function periodsOverlap(?string $startA, ?string $endA, ?string $startB, ?string $endB): bool
+    {
+        if ($startA === null || $startB === null) {
+            return false;
+        }
+        $endA = $endA ?? '9999-12-31';
+        $endB = $endB ?? '9999-12-31';
+
+        return $startA <= $endB && $startB <= $endA;
     }
 }
