@@ -87,9 +87,22 @@
         const sortSelect = document.getElementById('sort-select');
         if (sortSelect) {
             sortSelect.addEventListener('change', function () {
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('sort_by', this.value);
-                window.location.href = currentUrl.toString();
+                const nextValue = this.value;
+                const current = new URL(window.location.href).searchParams.get('sort_by') || 'site_name';
+                const go = function () {
+                    const currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.set('sort_by', nextValue);
+                    window.location.href = currentUrl.toString();
+                };
+                if (typeof window.gridsWhenLeaveAllowed === 'function') {
+                    this.value = current;
+                    window.gridsWhenLeaveAllowed(function () {
+                        sortSelect.value = nextValue;
+                        go();
+                    });
+                    return;
+                }
+                go();
             });
         }
 

@@ -48,7 +48,6 @@
     <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">Annuler</button>
     <?= $this->Form->button('<i class="bi bi-check-lg me-1"></i> Ajouter', [
         'action' => 'submit',
-        'confirm' => "Attention, sauvegardez les modifications effectuées sur le planning avant d'ajouter une alerte !\r\n\r\nCliquez sur Ajouter pour valider l'alerte.",
         'class' => 'btn btn-primary',
         'escapeTitle' => false
     ]) ?>

@@ -235,6 +235,7 @@
         if (!historyId || !restoreUrl) {
             return;
         }
+        var proceedRestore = function () {
         if (!window.confirm('Restaurer cette version du planning ? Les créneaux actuels de la journée seront remplacés.')) {
             return;
         }
@@ -271,6 +272,13 @@
             window.alert(msg);
             $btn.prop('disabled', false).text('Restaurer cette version');
         });
+        };
+
+        if (typeof window.gridsWhenLeaveAllowed === 'function') {
+            window.gridsWhenLeaveAllowed(proceedRestore);
+            return;
+        }
+        proceedRestore();
     }
 
     $(function () {

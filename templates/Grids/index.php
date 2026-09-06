@@ -42,6 +42,7 @@ $this->Html->scriptBlock('window.gridsBudget = ' . json_encode($budgetThresholds
 echo $this->Html->script('moment.min', ['block' => true]);
 echo $this->Html->script('daterangepicker', ['block' => true]);
 echo $this->Html->script('picker-grids', ['block' => true]);
+echo $this->Html->script('grids-dirty', ['block' => true, 'timestamp' => 'force']);
 echo $this->Html->script('grids-filters', ['block' => true]);
 echo $this->Html->script('grids-nav', ['block' => true, 'timestamp' => 'force']);
 echo $this->Html->script('grids-layout', ['block' => true, 'timestamp' => 'force']);
@@ -175,7 +176,6 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
                                 '<i class="bi bi-x-lg"></i>',
                                 ['controller' => 'Alerts', 'action' => 'delete', $alert->id],
                                 [
-                                    'confirm' => "Supprimer cette alerte ?\n\nPensez à sauvegarder le planning d'abord.",
                                     'class' => 'grids-alert-delete',
                                     'escape' => false,
                                     'title' => 'Supprimer',

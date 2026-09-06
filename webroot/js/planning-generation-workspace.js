@@ -485,7 +485,20 @@
                 indicator.classList.add('inactive');
             }
             // Rechargement pour mettre à jour CTA / onglets
-            window.location.reload();
+            var embedFrame = document.getElementById('draft-embed-frame');
+            var reloadParent = function () {
+                window.location.reload();
+            };
+            try {
+                var frameWin = embedFrame && embedFrame.contentWindow;
+                if (frameWin && typeof frameWin.gridsWhenLeaveAllowed === 'function') {
+                    frameWin.gridsWhenLeaveAllowed(reloadParent);
+                    return;
+                }
+            } catch (e) {
+                // iframe pas prête / erreur / cross-origin : ne pas bloquer le parent
+            }
+            reloadParent();
         }
     }
 

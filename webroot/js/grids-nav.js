@@ -153,32 +153,39 @@
             showFilterError(form, check.message);
             return;
         }
-        const startInput = form.querySelector('#date-start');
-        const endInput = form.querySelector('#date-end');
-        if (startInput) {
-            startInput.value = startStr;
-        }
-        if (endInput) {
-            endInput.value = endStr;
-        }
-        syncPicker(start, end);
-
-        const action = form.getAttribute('action') || window.location.pathname;
-        const url = new URL(action, window.location.origin);
-        const params = new URLSearchParams();
-        new FormData(form).forEach((value, key) => {
-            if (value !== '') {
-                params.append(key, value);
+        const go = function () {
+            const startInput = form.querySelector('#date-start');
+            const endInput = form.querySelector('#date-end');
+            if (startInput) {
+                startInput.value = startStr;
             }
-        });
-        url.search = params.toString();
-        if (hash) {
-            url.hash = hash.replace(/^#/, '');
+            if (endInput) {
+                endInput.value = endStr;
+            }
+            syncPicker(start, end);
+
+            const action = form.getAttribute('action') || window.location.pathname;
+            const url = new URL(action, window.location.origin);
+            const params = new URLSearchParams();
+            new FormData(form).forEach((value, key) => {
+                if (value !== '') {
+                    params.append(key, value);
+                }
+            });
+            url.search = params.toString();
+            if (hash) {
+                url.hash = hash.replace(/^#/, '');
+            }
+            if ('scrollRestoration' in window.history) {
+                window.history.scrollRestoration = 'manual';
+            }
+            window.location.assign(url.toString());
+        };
+        if (typeof window.gridsWhenLeaveAllowed === 'function') {
+            window.gridsWhenLeaveAllowed(go);
+            return;
         }
-        if ('scrollRestoration' in window.history) {
-            window.history.scrollRestoration = 'manual';
-        }
-        window.location.assign(url.toString());
+        go();
     }
 
     function shiftLoadedRange(step, hash) {
