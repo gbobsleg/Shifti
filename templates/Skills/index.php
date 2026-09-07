@@ -5,6 +5,7 @@
  * @var array $roles
  * @var array $sites
  * @var array $offers
+ * @var array $filters
  */
 if (!function_exists('getRoleBadgeClass')) {
     /**
@@ -74,7 +75,7 @@ if (!function_exists('getRoleBadgeClass')) {
                 <?= $this->Form->text('search_name', [
                     'class' => 'form-control form-control-sm',
                     'placeholder' => 'Rechercher par nom...',
-                    'value' => $this->request->getQuery('search_name'),
+                    'value' => $filters['search_name'] ?? '',
                     'id' => 'search-name',
                     'autocomplete' => 'off',
                 ]) ?>
@@ -84,7 +85,7 @@ if (!function_exists('getRoleBadgeClass')) {
                 <?= $this->Form->text('search_firstname', [
                     'class' => 'form-control form-control-sm',
                     'placeholder' => 'Rechercher par prénom...',
-                    'value' => $this->request->getQuery('search_firstname'),
+                    'value' => $filters['search_firstname'] ?? '',
                     'id' => 'search-firstname',
                     'autocomplete' => 'off',
                 ]) ?>
@@ -94,7 +95,7 @@ if (!function_exists('getRoleBadgeClass')) {
                 <?= $this->Form->select('role_id', $roles, [
                     'empty' => 'Tous les rôles',
                     'class' => 'form-control form-control-sm',
-                    'value' => $this->request->getQuery('role_id'),
+                    'value' => $filters['role_id'] ?? '',
                     'id' => 'role-id',
                 ]) ?>
             </div>
@@ -103,7 +104,7 @@ if (!function_exists('getRoleBadgeClass')) {
                 <?= $this->Form->select('site_id', $sites, [
                     'empty' => 'Tous les sites',
                     'class' => 'form-control form-control-sm',
-                    'value' => $this->request->getQuery('site_id'),
+                    'value' => $filters['site_id'] ?? '',
                     'id' => 'site-id',
                 ]) ?>
             </div>
@@ -112,7 +113,7 @@ if (!function_exists('getRoleBadgeClass')) {
                 <?= $this->Form->select('offer_id', $offers, [
                     'empty' => 'Toutes les offres',
                     'class' => 'form-control form-control-sm',
-                    'value' => $this->request->getQuery('offer_id'),
+                    'value' => $filters['offer_id'] ?? '',
                     'id' => 'offer-id',
                 ]) ?>
             </div>
@@ -125,7 +126,7 @@ if (!function_exists('getRoleBadgeClass')) {
                     ]) ?>
                     <?= $this->Html->link(
                         'Réinitialiser',
-                        ['action' => 'index'],
+                        ['action' => 'index', '?' => ['reset' => '1']],
                         ['class' => 'btn btn-sm btn-outline-secondary']
                     ) ?>
                 </div>
@@ -138,6 +139,12 @@ if (!function_exists('getRoleBadgeClass')) {
             <?php
             $columns = ['Site', 'Rôle', 'Code', 'Nom', 'Prénom', 'Offre', 'Début', 'Fin', 'Maj', 'Actions'];
             $colCount = count($columns);
+            $hasActiveFilters = !empty($filters['search_name']) ||
+                !empty($filters['search_firstname']) ||
+                !empty($filters['role_id']) ||
+                !empty($filters['site_id']) ||
+                !empty($filters['offer_id']) ||
+                !empty($filters['user_id']);
             ?>
             <thead>
             <tr>
@@ -158,7 +165,7 @@ if (!function_exists('getRoleBadgeClass')) {
                 <tr>
                     <td colspan="<?= (int)$colCount ?>" class="crud-empty">
                         <p>Aucune compétence.</p>
-                        <?php if (!$this->request->getQuery()): ?>
+                        <?php if (!$hasActiveFilters): ?>
                             <?= $this->Html->link(
                                 '<i class="bi bi-plus-circle me-1"></i> Créer une compétence',
                                 ['action' => 'add'],

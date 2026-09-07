@@ -21,7 +21,7 @@
         </div>
         <div class="crud-header-actions">
             <?= $this->Html->link(
-                '<i class="bi bi-x-circle me-1"></i> Annuler',
+                '<i class="bi bi-list me-1"></i> Liste',
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>

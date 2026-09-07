@@ -18,34 +18,93 @@ class SkillsController extends AppController
     public function index()
     {
         $this->Authorization->authorize(new \App\Resource\SkillsResource(), 'index');
-        
+
+        $session = $this->request->getSession();
+        $sessionKey = 'Skills.index.filters';
+        $sortSessionKey = 'Skills.index.sort';
+
+        if ($this->request->getQuery('reset') === '1') {
+            $session->delete($sessionKey);
+            $session->delete($sortSessionKey);
+
+            return $this->redirect(['action' => 'index']);
+        }
+
+        $queryParams = $this->request->getQueryParams();
+        $filterKeys = ['user_id', 'search_name', 'search_firstname', 'role_id', 'site_id', 'offer_id'];
+        $hasFilterSubmit = false;
+        foreach ($filterKeys as $key) {
+            if (array_key_exists($key, $queryParams)) {
+                $hasFilterSubmit = true;
+                break;
+            }
+        }
+
+        $emptyFilters = [
+            'user_id' => '',
+            'search_name' => '',
+            'search_firstname' => '',
+            'role_id' => '',
+            'site_id' => '',
+            'offer_id' => '',
+        ];
+
+        if ($hasFilterSubmit) {
+            $filters = [
+                'user_id' => (string)($queryParams['user_id'] ?? ''),
+                'search_name' => trim((string)($queryParams['search_name'] ?? '')),
+                'search_firstname' => trim((string)($queryParams['search_firstname'] ?? '')),
+                'role_id' => (string)($queryParams['role_id'] ?? ''),
+                'site_id' => (string)($queryParams['site_id'] ?? ''),
+                'offer_id' => (string)($queryParams['offer_id'] ?? ''),
+            ];
+            $session->write($sessionKey, $filters);
+        } else {
+            $filters = $session->read($sessionKey) ?? $emptyFilters;
+        }
+
+        // Le tri (colonne cliquée) est mémorisé en session pour survivre à une
+        // redirection (ex: retour sur la liste après modification d'une compétence)
+        if (!empty($queryParams['sort'])) {
+            $session->write($sortSessionKey, [
+                'sort' => $queryParams['sort'],
+                'direction' => $queryParams['direction'] ?? 'asc',
+            ]);
+        } else {
+            $storedSort = $session->read($sortSessionKey);
+            if ($storedSort) {
+                $queryParams['sort'] = $storedSort['sort'];
+                $queryParams['direction'] = $storedSort['direction'];
+                $this->setRequest($this->request->withQueryParams($queryParams));
+            }
+        }
+
         $query = $this->Skills->find()
             ->contain(['Users' => ['Roles', 'Sites'], 'Offers'])
             ->leftJoinWith('Users');
-        $params = $this->request->getQueryParams();
 
-        if (!empty($params['user_id'])) {
-            $query->where(['Skills.user_id' => $params['user_id']]);
+        if (!empty($filters['user_id'])) {
+            $query->where(['Skills.user_id' => $filters['user_id']]);
         }
-        if (!empty($params['search_name'])) {
-            $query->where(['Users.last_name LIKE' => '%' . $params['search_name'] . '%']);
+        if (!empty($filters['search_name'])) {
+            $query->where(['Users.last_name LIKE' => '%' . $filters['search_name'] . '%']);
         }
-        if (!empty($params['search_firstname'])) {
-            $query->where(['Users.first_name LIKE' => '%' . $params['search_firstname'] . '%']);
+        if (!empty($filters['search_firstname'])) {
+            $query->where(['Users.first_name LIKE' => '%' . $filters['search_firstname'] . '%']);
         }
-        if (!empty($params['role_id'])) {
-            $query->where(['Users.role_id' => $params['role_id']]);
+        if (!empty($filters['role_id'])) {
+            $query->where(['Users.role_id' => $filters['role_id']]);
         }
-        if (!empty($params['site_id'])) {
-            $query->where(['Users.site_id' => $params['site_id']]);
+        if (!empty($filters['site_id'])) {
+            $query->where(['Users.site_id' => $filters['site_id']]);
         }
-        if (!empty($params['offer_id'])) {
-            $query->where(['Skills.offer_id' => $params['offer_id']]);
+        if (!empty($filters['offer_id'])) {
+            $query->where(['Skills.offer_id' => $filters['offer_id']]);
         }
 
         // Filtre par date de validité début
-        if (!empty($params['validity_start'])) {
-            $validityStart = $params['validity_start'];
+        if (!empty($queryParams['validity_start'])) {
+            $validityStart = $queryParams['validity_start'];
             if (is_array($validityStart) && !empty($validityStart['year']) && !empty($validityStart['month']) && !empty($validityStart['day'])) {
                 $dateString = sprintf('%04d-%02d-%02d', $validityStart['year'], $validityStart['month'], $validityStart['day']);
                 $query->where(['Skills.validity_start >=' => $dateString]);
@@ -53,8 +112,8 @@ class SkillsController extends AppController
         }
 
         // Filtre par date de validité fin
-        if (!empty($params['validity_end'])) {
-            $validityEnd = $params['validity_end'];
+        if (!empty($queryParams['validity_end'])) {
+            $validityEnd = $queryParams['validity_end'];
             if (is_array($validityEnd) && !empty($validityEnd['year']) && !empty($validityEnd['month']) && !empty($validityEnd['day'])) {
                 $dateString = sprintf('%04d-%02d-%02d', $validityEnd['year'], $validityEnd['month'], $validityEnd['day']);
                 $query->where(['Skills.validity_end <=' => $dateString]);
@@ -82,7 +141,7 @@ class SkillsController extends AppController
         $sites = $this->Skills->Users->Sites->find('list', ['limit' => 200])->toArray();
         $offers = $this->Skills->Offers->find('list', ['limit' => 200, 'order' => ['name' => 'ASC']])->toArray();
 
-        $this->set(compact('skills', 'roles', 'sites', 'offers'));
+        $this->set(compact('skills', 'roles', 'sites', 'offers', 'filters'));
     }
 
     /**
