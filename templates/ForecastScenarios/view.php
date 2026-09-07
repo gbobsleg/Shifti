@@ -465,62 +465,69 @@ $statusLabels = [
                             Lance un calcul pour matérialiser les paramètres effectifs.
                         </p>
                     <?php else: ?>
+                        <?php
+                        $seasonalityMode = $offerSnapshot['seasonality_mode'] ?? 'multiplicative';
+                        $seasonalityModeLabel = $seasonalityMode === 'additive'
+                            ? 'Additif (y = tendance + saisonnalité)'
+                            : 'Multiplicatif (y = tendance × saisonnalité)';
+                        $holidays = array_key_exists('use_french_holidays', $offerSnapshot)
+                            ? (bool)$offerSnapshot['use_french_holidays']
+                            : true;
+                        $flags = [
+                            'yearly_seasonality' => 'Saisonnalité annuelle',
+                            'weekly_seasonality' => 'Saisonnalité hebdomadaire',
+                            'daily_seasonality' => 'Saisonnalité journalière',
+                            'monthly_seasonality' => 'Saisonnalité mensuelle',
+                        ];
+                        ?>
                         <dl class="crud-fields mt-3">
                             <div>
                                 <dt>Méthode</dt>
                                 <dd>Prophet</dd>
                             </div>
                             <div>
-                                <dt>Plage historique</dt>
+                                <dt>Plage de données historiques</dt>
                                 <dd>
                                     <?php if ($hasHistory): ?>
-                                        <?= h($historyStart ?: 'Début auto') ?> → <?= h($historyEnd ?: 'Fin auto') ?>
+                                        <span data-bs-toggle="tooltip" title="history_start_date"><?= h($historyStart ?: 'Début auto') ?></span>
+                                        →
+                                        <span data-bs-toggle="tooltip" title="history_end_date"><?= h($historyEnd ?: 'Fin auto') ?></span>
                                     <?php else: ?>
-                                        Historique complet (défauts)
+                                        Tout l'historique disponible
                                     <?php endif; ?>
                                 </dd>
                             </div>
                             <div>
-                                <dt>Mode</dt>
-                                <dd><?= h($offerSnapshot['seasonality_mode'] ?? 'multiplicative') ?></dd>
+                                <dt data-bs-toggle="tooltip" title="seasonality_mode">Mode de saisonnalité</dt>
+                                <dd><?= h($seasonalityModeLabel) ?></dd>
                             </div>
                             <div>
-                                <dt>n_changepoints</dt>
-                                <dd><?= h($offerSnapshot['n_changepoints'] ?? 25) ?></dd>
+                                <dt data-bs-toggle="tooltip" title="use_french_holidays">Jours fériés</dt>
+                                <dd><?= $holidays ? 'Français activés' : 'Désactivés' ?></dd>
                             </div>
-                            <div>
-                                <dt>changepoint_prior_scale</dt>
-                                <dd><?= h($offerSnapshot['changepoint_prior_scale'] ?? 0.1) ?></dd>
-                            </div>
-                            <div>
-                                <dt>seasonality_prior_scale</dt>
-                                <dd><?= h($offerSnapshot['seasonality_prior_scale'] ?? 10.0) ?></dd>
-                            </div>
-                            <div>
-                                <dt>monthly_fourier_order</dt>
-                                <dd><?= h($offerSnapshot['monthly_fourier_order'] ?? 5) ?></dd>
-                            </div>
-                            <?php
-                            $flags = [
-                                'yearly_seasonality' => 'Saisonnalité annuelle',
-                                'weekly_seasonality' => 'Saisonnalité hebdomadaire',
-                                'monthly_seasonality' => 'Saisonnalité mensuelle',
-                                'daily_seasonality' => 'Saisonnalité journalière',
-                            ];
-                            foreach ($flags as $key => $label):
+                            <?php foreach ($flags as $key => $label):
                                 $enabled = array_key_exists($key, $offerSnapshot) ? (bool)$offerSnapshot[$key] : true;
                             ?>
                             <div>
-                                <dt><?= h($label) ?></dt>
+                                <dt data-bs-toggle="tooltip" title="<?= h($key) ?>"><?= h($label) ?></dt>
                                 <dd><?= $enabled ? 'Activée' : 'Désactivée' ?></dd>
                             </div>
                             <?php endforeach; ?>
-                            <?php
-                            $holidays = array_key_exists('use_french_holidays', $offerSnapshot) ? (bool)$offerSnapshot['use_french_holidays'] : true;
-                            ?>
                             <div>
-                                <dt>Jours fériés FR</dt>
-                                <dd><?= $holidays ? 'Pris en compte' : 'Ignorés' ?></dd>
+                                <dt data-bs-toggle="tooltip" title="monthly_fourier_order">Finesse du cycle mensuel</dt>
+                                <dd><?= h($offerSnapshot['monthly_fourier_order'] ?? 5) ?></dd>
+                            </div>
+                            <div>
+                                <dt data-bs-toggle="tooltip" title="changepoint_prior_scale">Sensibilité aux ruptures de tendance</dt>
+                                <dd><?= h($offerSnapshot['changepoint_prior_scale'] ?? 0.1) ?></dd>
+                            </div>
+                            <div>
+                                <dt data-bs-toggle="tooltip" title="seasonality_prior_scale">Force de la saisonnalité</dt>
+                                <dd><?= h($offerSnapshot['seasonality_prior_scale'] ?? 10.0) ?></dd>
+                            </div>
+                            <div>
+                                <dt data-bs-toggle="tooltip" title="n_changepoints">Nombre de ruptures de tendance</dt>
+                                <dd><?= h($offerSnapshot['n_changepoints'] ?? 25) ?></dd>
                             </div>
                         </dl>
                     <?php endif; ?>

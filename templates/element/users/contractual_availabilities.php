@@ -31,8 +31,8 @@ $uaHm = function (mixed $value): string {
             <tr>
                 <th>Jour</th>
                 <th>Travaille</th>
-                <th>Disponible de</th>
-                <th>Disponible à</th>
+                <th>Heure de début</th>
+                <th>Heure de fin</th>
                 <th>Fin la plus tôt (optionnelle)</th>
                 <th>Copier / Coller</th>
             </tr>

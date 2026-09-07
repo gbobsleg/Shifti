@@ -197,12 +197,10 @@ class GridsController extends AppController
      */
     public function index()
     {
-        // Chargement des tables
-        $this->Users = $this->fetchTable('Users');
-        $this->Offers = $this->fetchTable('Offers');
-        $this->Alerts = $this->fetchTable('Alerts');
-        $this->Ranges = $this->fetchTable('Ranges');
-        $this->Sites = $this->fetchTable('Sites');
+        $Users = $this->fetchTable('Users');
+        $Offers = $this->fetchTable('Offers');
+        $Alerts = $this->fetchTable('Alerts');
+        $Sites = $this->fetchTable('Sites');
         $displaySettingsTable = $this->fetchTable('DisplaySettings');
         
         // Charger les paramètres d'affichage de la grille
@@ -283,10 +281,10 @@ class GridsController extends AppController
             && (int)$budgetResult['working_days'] <= 1;
 
         // --- CHARGEMENT DES DONNÉES ---
-        $offers_list = $this->Offers->find('DisplayedInGrid');
-        $users_list = $this->Users->find();
-        $sites_list = $this->Sites->find();
-        $alerts_list = $this->Alerts->find('ThisDay', $day_ranges);
+        $offers_list = $Offers->find('DisplayedInGrid');
+        $users_list = $Users->find();
+        $sites_list = $Sites->find();
+        $alerts_list = $Alerts->find('ThisDay', $day_ranges);
         // Filtrer les alertes pour les utilisateurs simples (priority = 3)
         $identity = $this->request->getAttribute('identity');
         $roleId = null;
@@ -307,7 +305,7 @@ class GridsController extends AppController
         $users_ranges = [];
         $publishedByDate = [];
         if ($budgetResult['allowed']) {
-            $users_ranges_query = $this->Users->find('ThisDay', compact('params', 'day_ranges'));
+            $users_ranges_query = $Users->find('ThisDay', compact('params', 'day_ranges'));
             $users_ranges = $users_ranges_query
                 ->contain(['Sites', 'Roles', 'UserAvailabilities', 'Ranges.Offers', 'UserRemoteWorkSetting', 'UserContracts'])
                 ->leftJoinWith('Sites')
@@ -354,7 +352,7 @@ class GridsController extends AppController
     public function add()
     {
         $this->Authorization->authorize(new \App\Resource\GridsResource(), 'add');
-        $this->Ranges = $this->fetchTable('Ranges');
+        $Ranges = $this->fetchTable('Ranges');
 
         // Initialisation pour éviter les erreurs si ce n'est pas un POST
         $messages = [];
@@ -453,7 +451,7 @@ class GridsController extends AppController
             } $affectedUserIds = array_unique($affectedUserIds);
 
             // 5. Charger état initial BDD
-            $initialDBRanges = $this->Ranges->find()->where(['user_id IN' => $affectedUserIds, 'date_end >' => $minStart, 'date_start <' => $maxEnd])->all()->toList();
+            $initialDBRanges = $Ranges->find()->where(['user_id IN' => $affectedUserIds, 'date_end >' => $minStart, 'date_start <' => $maxEnd])->all()->toList();
             $finalIdsToDelete = [];
             $workingRanges = [];
             foreach ($initialDBRanges as $dbRange) {
@@ -526,16 +524,16 @@ class GridsController extends AppController
                 goto handle_response;
             }
 
-            $entitiesToSave = $this->Ranges->newEntities($finalRangesToSave);
+            $entitiesToSave = $Ranges->newEntities($finalRangesToSave);
 
             try {
-                $this->Ranges->getConnection()->transactional(
-                    function () use ($entitiesToSave, $uniqueIdsToDelete, &$savedCount, &$deletedCount) {
+                $Ranges->getConnection()->transactional(
+                    function () use ($Ranges, $entitiesToSave, $uniqueIdsToDelete, &$savedCount, &$deletedCount) {
                         if (!empty($uniqueIdsToDelete)) {
-                            $deletedCount = $this->Ranges->deleteAll(['id IN' => $uniqueIdsToDelete]);
+                            $deletedCount = $Ranges->deleteAll(['id IN' => $uniqueIdsToDelete]);
                         }
                         if (!empty($entitiesToSave)) {
-                            if (!$this->Ranges->saveMany($entitiesToSave)) {
+                            if (!$Ranges->saveMany($entitiesToSave)) {
                                 $errors = [];
                                 foreach ($entitiesToSave as $record) {
                                     if ($record->hasErrors()) {

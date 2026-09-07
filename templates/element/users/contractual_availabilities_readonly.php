@@ -33,8 +33,8 @@ $formatTime = function ($value): string {
             <thead>
             <tr>
                 <th scope="col">Jour</th>
-                <th scope="col">Disponible de</th>
-                <th scope="col">Disponible à</th>
+                <th scope="col">Heure de début</th>
+                <th scope="col">Heure de fin</th>
                 <th scope="col">Fin la plus tôt</th>
             </tr>
             </thead>

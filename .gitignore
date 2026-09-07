@@ -21,6 +21,7 @@ composer.phar
 *.xlsx
 
 # Tooling local
+/docker-compose.override.yml
 .bolt/
 .cursor/
 .cursorrules
