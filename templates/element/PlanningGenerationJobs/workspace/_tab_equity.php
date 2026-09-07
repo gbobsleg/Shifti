@@ -221,8 +221,8 @@ $equityHeatClass = function (float $gapMin, float $targetMin): string {
                             $tooltipHtml = implode('<br>', array_map('h', $tooltipParts));
                             $csvContent = $target > 0 ? $gapLabel : ($m > 0 ? fmtMinutesWs($m) : '—');
                             ?>
-                            <td class="text-end" data-bs-toggle="tooltip" data-html="true"
-                                title="<?= $tooltipHtml ?>"
+                            <td class="text-end" data-bs-toggle="tooltip" data-bs-html="true"
+                                data-bs-title="<?= $tooltipHtml ?>"
                                 data-csv-content="<?= h($csvContent) ?>"
                                 data-sort-value="<?= $m ?>">
                                 <?php if ($m > 0 || $target > 0): ?>
