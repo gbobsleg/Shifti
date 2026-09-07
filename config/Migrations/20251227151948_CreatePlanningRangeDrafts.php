@@ -42,6 +42,11 @@ class CreatePlanningRangeDrafts extends BaseMigration
                 'null' => true,
                 'default' => null,
             ])
+            ->addColumn('source', 'string', [
+                'default' => null,
+                'limit' => 50,
+                'null' => true,
+            ])
             ->addColumn('created', 'datetime', [
                 'null' => true,
                 'default' => null,
@@ -55,6 +60,7 @@ class CreatePlanningRangeDrafts extends BaseMigration
             ->addIndex(['offer_id'], ['name' => 'IDX_PRD_OFFER'])
             ->addIndex(['job_id', 'date_start'], ['name' => 'IDX_PRD_JOB_DATESTART'])
             ->addIndex(['job_id', 'user_id', 'date_start'], ['name' => 'IDX_PRD_JOB_USER_DATESTART'])
+            ->addIndex(['job_id', 'source'], ['name' => 'IDX_PRD_JOB_SOURCE'])
             ->addForeignKey('job_id', 'planning_generation_jobs', 'id', [
                 'delete' => 'CASCADE',
                 'update' => 'CASCADE',

@@ -7,6 +7,11 @@ class AddSourceToPlanningRangeDrafts extends BaseMigration
 {
     public function change(): void
     {
+        // Sur une BDD neuve, cette migration est antérieure à CreatePlanningRangeDrafts.
+        if (!$this->hasTable('planning_range_drafts')) {
+            return;
+        }
+
         $table = $this->table('planning_range_drafts');
         
         if (!$table->hasColumn('source')) {

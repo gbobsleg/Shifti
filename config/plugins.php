@@ -39,7 +39,7 @@ $plugins = [
 
 // DebugKit désactivé en CLI (inutile sans navigateur et évite le warning pdo_sqlite)
 if (PHP_SAPI !== 'cli') {
-    $plugins['DebugKit'] = ['onlyDebug' => true];
+    $plugins['DebugKit'] = ['onlyDebug' => true, 'optional' => true];
 }
 
 return $plugins;
