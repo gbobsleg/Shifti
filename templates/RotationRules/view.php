@@ -48,28 +48,29 @@
                 <dd><?= $rule->offer ? h($rule->offer->name) : 'Générique' ?></dd>
             </div>
             <div>
-                <dt>Type de période</dt>
-                <dd><?= $rule->period_type === 'WEEKLY' ? 'Hebdomadaire' : 'Mensuelle' ?></dd>
+                <dt>Fréquence</dt>
+                <dd><?= $rule->period_type === 'WEEKLY' ? 'Toutes les semaines' : 'Tous les mois' ?></dd>
             </div>
             <div>
-                <dt>Exclusivité jour</dt>
-                <dd><?= !empty($rule->exclusive_day) ? 'Un duty par jour' : 'Cumul autorisé (non-chevauchement)' ?></dd>
+                <dt>Même jour</dt>
+                <dd><?= !empty($rule->exclusive_day) ? 'Une seule activité par jour' : 'Plusieurs activités possibles si les horaires ne se chevauchent pas' ?></dd>
             </div>
         </dl>
     </section>
 
     <section class="crud-section">
-        <h2 class="crud-section-title">Paramètres du shift</h2>
+        <h2 class="crud-section-title">Vacation de référence</h2>
+        <p class="text-muted small">Recopiée de la première activité « objectif par agent ».</p>
         <dl class="crud-fields">
             <div>
                 <dt>Durée</dt>
                 <dd>
                     <?= h($rule->shift_duration) ?> minutes
-                    <span class="text-muted">(<?= round($rule->shift_duration / 60, 1) ?>h)</span>
+                    <span class="text-muted">(<?= round($rule->shift_duration / 60, 1) ?> h)</span>
                 </dd>
             </div>
             <div>
-                <dt>Fenêtre horaire</dt>
+                <dt>Peut commencer entre</dt>
                 <dd>
                     <?= h(substr($rule->time_window_start ?? '', 0, 5)) ?> –
                     <?= h(substr($rule->time_window_end ?? '', 0, 5)) ?>
@@ -80,13 +81,13 @@
 
     <?php if (!empty($rule->rotation_rule_lines)): ?>
         <section class="crud-section">
-            <h2 class="crud-section-title">Lignes</h2>
+            <h2 class="crud-section-title">Activités</h2>
             <div class="table-responsive">
                 <table class="table table-hover table-sm crud-table">
                     <thead>
                     <tr>
-                        <th scope="col">Rang</th>
-                        <th scope="col">Type</th>
+                        <th scope="col">Priorité</th>
+                        <th scope="col">Mode</th>
                         <th scope="col">Offre</th>
                         <th scope="col">Paramètres</th>
                     </tr>
@@ -95,7 +96,7 @@
                     <?php foreach ($rule->rotation_rule_lines as $line): ?>
                         <tr>
                             <td><?= (int)$line->sort_order ?></td>
-                            <td><?= $line->line_type === 'quota' ? 'Quota' : 'Couverture' ?></td>
+                            <td><?= $line->line_type === 'quota' ? 'Objectif par agent' : 'Présence sur des plages' ?></td>
                             <td><?= h($line->offer->name ?? '—') ?></td>
                             <td>
                                 <?php if ($line->line_type === 'quota'): ?>

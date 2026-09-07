@@ -8,12 +8,17 @@
 <?php $this->assign('title', 'Modifier la règle de rotation'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
-<div class="crud-app rotation-rules form content">
+<div class="crud-app rotation-rules form crud-app-wide content">
     <div class="crud-header">
-        <h1>
-            <i class="bi bi-pencil"></i>
-            Modifier la règle de rotation
-        </h1>
+        <div>
+            <h1>
+                <i class="bi bi-pencil"></i>
+                Modifier la règle de rotation
+            </h1>
+            <p class="crud-header-meta">
+                Combien de fois, et à quels horaires, les agents doivent tenir une activité.
+            </p>
+        </div>
         <div class="crud-header-actions">
             <?= $this->Html->link(
                 '<i class="bi bi-x-circle me-1"></i> Annuler',
@@ -25,50 +30,46 @@
     <?= $this->Form->create($rule) ?>
 
     <section class="crud-section">
-        <h2 class="crud-section-title">Informations générales</h2>
+        <h2 class="crud-section-title">Paramètres généraux</h2>
         <div class="row">
             <div class="col-md-6 mb-3">
-                <label class="form-label">Nom de la règle</label>
+                <label class="form-label">Nom</label>
                 <?= $this->Form->control('name', [
                     'label' => false,
                     'class' => 'form-control',
-                    'placeholder' => 'Ex: GRC Hebdo TI',
+                    'placeholder' => 'Ex. : Téléphone 2 fois par semaine',
                 ]) ?>
             </div>
             <div class="col-md-6 mb-3">
-                <label class="form-label">Offre (optionnel)</label>
-                <?= $this->Form->control('offer_id', [
-                    'type' => 'select',
-                    'options' => ['' => '— Aucune (règle générique) —'] + $offers,
-                    'label' => false,
-                    'class' => 'form-control',
-                    'empty' => false,
-                ]) ?>
-                <small class="text-muted">L'offre sanctuarisée par cette règle (peut être laissée vide pour une règle générique)</small>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Type de période</label>
+                <label class="form-label">Fréquence</label>
                 <?= $this->Form->control('period_type', [
                     'type' => 'select',
                     'options' => [
-                        'WEEKLY' => 'Hebdomadaire',
-                        'MONTHLY' => 'Mensuelle',
+                        'WEEKLY' => 'Toutes les semaines',
+                        'MONTHLY' => 'Tous les mois',
                     ],
                     'label' => false,
                     'class' => 'form-control',
                 ]) ?>
             </div>
-            <div class="col-md-6 mb-3">
-                <?= $this->Form->control('exclusive_day', [
-                    'type' => 'checkbox',
-                    'checked' => $rule->exclusive_day ?? true,
-                    'label' => 'Un seul shift (duty) par agent et par jour',
-                ]) ?>
-                <small class="text-muted d-block">Décochez pour autoriser livechat + téléphonie le même jour s’ils ne se chevauchent pas.</small>
-            </div>
         </div>
+        <div class="form-check mb-2">
+            <?= $this->Form->control('exclusive_day', [
+                'type' => 'checkbox',
+                'checked' => $rule->exclusive_day ?? true,
+                'label' => 'Un agent ne tient qu’une seule activité de cette règle le même jour',
+                'class' => 'form-check-input',
+                'templates' => [
+                    'inputContainer' => '{{content}}',
+                    'nestingLabel' => '{{hidden}}{{input}}<label class="form-check-label"{{attrs}}>{{text}}</label>',
+                ],
+            ]) ?>
+        </div>
+        <p class="form-text text-muted mb-0">
+            Décochez pour autoriser deux activités le même jour si les horaires ne se chevauchent pas
+            (ex. chat le matin, téléphone l’après-midi).
+        </p>
+        <?= $this->Form->hidden('offer_id') ?>
         <?= $this->Form->hidden('target_count') ?>
         <?= $this->Form->hidden('shift_duration') ?>
         <?= $this->Form->hidden('time_window_start') ?>

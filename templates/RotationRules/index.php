@@ -40,10 +40,10 @@
                 ]) ?>
             </div>
             <div class="col-md-4">
-                <label for="period-type" class="form-label small text-muted mb-1">Type de période</label>
+                <label for="period-type" class="form-label small text-muted mb-1">Fréquence</label>
                 <?= $this->Form->select('period_type', [
-                    'WEEKLY' => 'Hebdomadaire',
-                    'MONTHLY' => 'Mensuelle',
+                    'WEEKLY' => 'Toutes les semaines',
+                    'MONTHLY' => 'Tous les mois',
                 ], [
                     'empty' => 'Tous les types',
                     'class' => 'form-control form-control-sm',
@@ -68,7 +68,7 @@
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <?php
-            $columns = ['Nom', 'Lignes', 'Agents', 'Période', 'Exclusivité', 'Actions'];
+            $columns = ['Nom', 'Activités', 'Agents', 'Fréquence', 'Même jour', 'Actions'];
             $colCount = count($columns);
             ?>
             <thead>
@@ -109,12 +109,12 @@
                     }
                 }
                 $nAgents = is_countable($r->users_rotation_rules) ? count($r->users_rotation_rules) : 0;
-                $linesLabel = (int)$nLines . ' ligne(s)';
+                $linesLabel = (int)$nLines . ' activité(s)';
                 if ($nQuota) {
-                    $linesLabel .= ' · Quota ×' . (int)$nQuota;
+                    $linesLabel .= ' · Objectif ×' . (int)$nQuota;
                 }
                 if ($nCov) {
-                    $linesLabel .= ' · Couverture ×' . (int)$nCov;
+                    $linesLabel .= ' · Présence ×' . (int)$nCov;
                 }
                 ?>
                 <tr>
@@ -127,8 +127,8 @@
                     </td>
                     <td><?= h($linesLabel) ?></td>
                     <td><?= (int)$nAgents ?></td>
-                    <td><?= $r->period_type === 'WEEKLY' ? 'Hebdomadaire' : 'Mensuelle' ?></td>
-                    <td><?= !empty($r->exclusive_day) ? '1 duty / jour' : 'Cumul possible' ?></td>
+                    <td><?= $r->period_type === 'WEEKLY' ? 'Toutes les semaines' : 'Tous les mois' ?></td>
+                    <td><?= !empty($r->exclusive_day) ? '1 activité / jour' : 'Cumul possible' ?></td>
                     <td class="actions">
                         <?= $this->Html->link(
                             '<i class="bi bi-pencil" aria-hidden="true"></i>',
