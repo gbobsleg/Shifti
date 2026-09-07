@@ -8,8 +8,8 @@
 .grids-app .grids-rail {
     position: sticky;
     top: calc(var(--grids-navbar) + var(--grids-chrome-h) + 0.75rem);
-    flex: 0 0 var(--grids-rail-width);
-    width: var(--grids-rail-width);
+    flex: 0 0 calc(var(--grids-rail-width) + var(--grids-rail-scrollbar, 10px));
+    width: calc(var(--grids-rail-width) + var(--grids-rail-scrollbar, 10px));
     z-index: var(--grids-z-rail);
     display: block;
 }
@@ -22,16 +22,36 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 0.4rem;
-    width: var(--grids-rail-width);
+    width: calc(var(--grids-rail-width) + var(--grids-rail-scrollbar, 10px));
     max-height: calc(100vh - var(--grids-navbar) - var(--grids-chrome-h) - 1.5rem);
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(31, 42, 48, 0.35) transparent;
     background: var(--grids-surface);
     transition: width 0.2s ease, box-shadow 0.2s ease;
     border-radius: 8px;
     padding: 4px 0;
     z-index: 100;
+}
+
+.grids-app .grids-rail-inner::-webkit-scrollbar {
+    width: 8px;
+}
+
+.grids-app .grids-rail-inner::-webkit-scrollbar-track {
+    background: transparent;
+    margin: 4px 0;
+}
+
+.grids-app .grids-rail-inner::-webkit-scrollbar-thumb {
+    background: rgba(31, 42, 48, 0.28);
+    border-radius: 999px;
+}
+
+.grids-app .grids-rail-inner::-webkit-scrollbar-thumb:hover {
+    background: rgba(31, 42, 48, 0.45);
 }
 
 .grids-app .grids-rail:hover .grids-rail-inner {
