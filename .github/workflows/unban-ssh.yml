@@ -1,0 +1,53 @@
+name: Unban SSH IP
+
+on:
+  workflow_dispatch:
+    inputs:
+      ip:
+        description: "IP publique à débannir (IPv4)"
+        required: true
+        type: string
+
+concurrency:
+  group: unban-ssh
+  cancel-in-progress: false
+
+jobs:
+  unban:
+    name: Diagnostiquer et débannir
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Unban + diagnostic SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 2m
+          script: |
+            set -euo pipefail
+            IP='${{ inputs.ip }}'
+            if [[ ! "$IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+              echo "IP invalide: $IP"
+              exit 1
+            fi
+            echo "=== whoami / sshd ==="
+            whoami
+            sudo -n ss -tlnp | grep -E 'ssh|sshd' || ss -tlnp | grep -E 'ssh|sshd' || true
+            echo "=== fail2ban ==="
+            if sudo -n fail2ban-client status >/dev/null 2>&1; then
+              sudo -n fail2ban-client status || true
+              sudo -n fail2ban-client status sshd || true
+              echo "--- unban $IP ---"
+              sudo -n fail2ban-client set sshd unbanip "$IP" || true
+              sudo -n fail2ban-client unban "$IP" || true
+              sudo -n fail2ban-client status sshd || true
+            else
+              echo "fail2ban-client indisponible (ou sudo mot de passe requis)"
+            fi
+            echo "=== ufw / iptables / nft (lignes contenant l'IP) ==="
+            sudo -n ufw status 2>/dev/null || true
+            sudo -n iptables -L -n 2>/dev/null | grep -F "$IP" || true
+            sudo -n nft list ruleset 2>/dev/null | grep -F "$IP" || true
+            echo "=== done ==="
