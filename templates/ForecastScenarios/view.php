@@ -312,6 +312,9 @@ $statusLabels = [
                         </button>
                     </div>
                 </div>
+                <p class="small text-muted mb-2 d-none" id="chartLegendHint">
+                    Cliquez sur le nom d’une série dans la légende pour l’afficher ou la masquer.
+                </p>
                 <div id="chartContainer"></div>
             <?php else: ?>
                 <p class="text-muted mb-0">
@@ -568,6 +571,18 @@ $statusLabels = [
                 && a.getDate() === b.getDate();
         }
 
+        function setChartLegendHintVisible(visible) {
+            const hint = document.getElementById('chartLegendHint');
+            if (!hint) {
+                return;
+            }
+            if (visible) {
+                hint.classList.remove('d-none');
+            } else {
+                hint.classList.add('d-none');
+            }
+        }
+
         function getVizRange() {
             const startEl = document.getElementById('vizDateStart');
             const endEl = document.getElementById('vizDateEnd');
@@ -616,9 +631,36 @@ $statusLabels = [
             }
         }
 
-        function aggregateScenarioData(categories, forecastData, needData, granularity) {
+        const SERIES_VOLUME = 'Prévision (volume)';
+        const SERIES_NEED = 'Besoin';
+        const SERIES_DMT = 'DMT';
+
+        function toFiniteNumber(v) {
+            if (v === null || typeof v === 'undefined' || v === '') {
+                return null;
+            }
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function isPositiveFinite(n) {
+            return typeof n === 'number' && Number.isFinite(n) && n > 0;
+        }
+
+        function dmtMinutesFromSeconds(vol, dmtSeconds) {
+            if (!isPositiveFinite(vol) || typeof dmtSeconds !== 'number' || !Number.isFinite(dmtSeconds)) {
+                return null;
+            }
+            return dmtSeconds / 60;
+        }
+
+        function aggregateScenarioData(categories, forecastData, needData, dmtSecondsData, granularity) {
             if (granularity === '15min') {
-                return { categories, forecastData, needData };
+                const dmtData = [];
+                for (let i = 0; i < forecastData.length; i++) {
+                    dmtData.push(dmtMinutesFromSeconds(forecastData[i], dmtSecondsData[i]));
+                }
+                return { categories, forecastData, needData, dmtData };
             }
 
             const buckets = {};
@@ -642,29 +684,45 @@ $statusLabels = [
                     buckets[key] = {
                         forecastSum: 0,
                         needSum: 0,
-                        count: 0
+                        count: 0,
+                        dmtWeightedSum: 0,
+                        dmtVolSum: 0
                     };
                 }
 
-                buckets[key].forecastSum += forecastData[i] || 0;
+                const vol = forecastData[i];
+                buckets[key].forecastSum += (typeof vol === 'number' && Number.isFinite(vol)) ? vol : 0;
                 buckets[key].needSum += needData[i] || 0;
                 buckets[key].count++;
+
+                const dmtS = dmtSecondsData[i];
+                if (isPositiveFinite(vol) && typeof dmtS === 'number' && Number.isFinite(dmtS)) {
+                    buckets[key].dmtWeightedSum += dmtS * vol;
+                    buckets[key].dmtVolSum += vol;
+                }
             }
 
             const aggCategories = [];
             const aggForecastData = [];
             const aggNeedData = [];
+            const aggDmtData = [];
 
             for (const key in buckets) {
                 aggCategories.push(key);
                 aggForecastData.push(buckets[key].forecastSum);
                 aggNeedData.push(Math.round(buckets[key].needSum / buckets[key].count));
+                if (buckets[key].dmtVolSum > 0) {
+                    aggDmtData.push((buckets[key].dmtWeightedSum / buckets[key].dmtVolSum) / 60);
+                } else {
+                    aggDmtData.push(null);
+                }
             }
 
             return {
                 categories: aggCategories,
                 forecastData: aggForecastData,
-                needData: aggNeedData
+                needData: aggNeedData,
+                dmtData: aggDmtData
             };
         }
 
@@ -708,12 +766,14 @@ $statusLabels = [
                     return;
                 }
 
+                setChartLegendHintVisible(true);
                 document.getElementById('chartContainer').innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Chargement...</span></div><p class="mt-2">Chargement prévision + besoin...</p></div>';
 
                 try {
                     const allCategories = [];
                     const forecastData = [];
                     const needData = [];
+                    const dmtSecondsData = [];
 
                     for (let cursor = new Date(range.start); cursor <= range.end; cursor.setDate(cursor.getDate() + 1)) {
                         const day = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
@@ -744,43 +804,102 @@ $statusLabels = [
 
                                 allCategories.push(dayLabel + ' ' + cleanTime);
 
-                                const valueForecast = typeof dataForecast[timeKey] === 'object' ? dataForecast[timeKey].volume : dataForecast[timeKey];
-                                forecastData.push(valueForecast || 0);
+                                let valueForecast;
+                                let dmtSeconds = null;
+                                if (typeof dataForecast[timeKey] === 'object' && dataForecast[timeKey] !== null) {
+                                    valueForecast = toFiniteNumber(dataForecast[timeKey].volume);
+                                    dmtSeconds = toFiniteNumber(dataForecast[timeKey].dmt);
+                                } else {
+                                    valueForecast = toFiniteNumber(dataForecast[timeKey]);
+                                }
+                                forecastData.push(valueForecast === null ? 0 : valueForecast);
+                                dmtSecondsData.push(dmtSeconds);
 
-                                const valueNeed = typeof dataNeed[timeKey] === 'object' ? dataNeed[timeKey].volume : dataNeed[timeKey];
-                                needData.push(valueNeed || 0);
+                                const valueNeed = toFiniteNumber(
+                                    typeof dataNeed[timeKey] === 'object' && dataNeed[timeKey] !== null
+                                        ? dataNeed[timeKey].volume
+                                        : dataNeed[timeKey]
+                                );
+                                needData.push(valueNeed === null ? 0 : valueNeed);
                             });
 
                             if (!sameDay(day, range.end)) {
                                 allCategories.push(dayLabel + ' 18:00');
                                 forecastData.push(null);
                                 needData.push(null);
+                                dmtSecondsData.push(null);
 
                                 allCategories.push(dayLabel + ' 21:00');
                                 forecastData.push(null);
                                 needData.push(null);
+                                dmtSecondsData.push(null);
 
                                 allCategories.push(dayLabel + ' 23:59');
                                 forecastData.push(null);
                                 needData.push(null);
+                                dmtSecondsData.push(null);
                             }
                         }
                     }
 
                     if (allCategories.length === 0) {
+                        setChartLegendHintVisible(false);
                         document.getElementById('chartContainer').innerHTML = '<div class="alert alert-info">Aucune donnée pour cette sélection. Lance le calcul du scénario.</div>';
                         return;
                     }
 
-                    const aggregated = aggregateScenarioData(allCategories, forecastData, needData, granularity);
+                    const aggregated = aggregateScenarioData(allCategories, forecastData, needData, dmtSecondsData, granularity);
 
                     window.renderApexArea('chartContainer', aggregated.categories, [
-                        { name: 'Prévision (volume)', data: aggregated.forecastData },
-                        { name: 'Besoin', data: aggregated.needData }
+                        { name: SERIES_VOLUME, type: 'area', data: aggregated.forecastData },
+                        { name: SERIES_NEED, type: 'line', data: aggregated.needData },
+                        { name: SERIES_DMT, type: 'line', data: aggregated.dmtData }
                     ], {
-                        colors: ['#007bff', '#28a745']
+                        chart: { type: 'line' },
+                        colors: ['#007bff', '#28a745', '#fd7e14'],
+                        stroke: { width: [2, 2, 2], curve: 'smooth' },
+                        fill: {
+                            type: ['gradient', 'solid', 'solid'],
+                            opacity: [0.3, 1, 1]
+                        },
+                        grid: {
+                            padding: { right: 100 }
+                        },
+                        yaxis: [
+                            {
+                                seriesName: SERIES_VOLUME,
+                                min: 0,
+                                tickAmount: 5,
+                                forceNiceScale: true,
+                                title: { text: 'Appels' }
+                            },
+                            {
+                                seriesName: SERIES_NEED,
+                                opposite: true,
+                                min: 0,
+                                tickAmount: 5,
+                                forceNiceScale: true,
+                                title: { text: 'Agents' }
+                            },
+                            {
+                                seriesName: SERIES_DMT,
+                                opposite: true,
+                                min: 0,
+                                tickAmount: 5,
+                                offsetX: 70,
+                                labels: { offsetX: 15 },
+                                title: { text: 'DMT (min)' }
+                            }
+                        ],
+                        customFormats: {
+                            [SERIES_VOLUME]: 'int',
+                            [SERIES_NEED]: 'int',
+                            [SERIES_DMT]: 'time',
+                            'default': 'int'
+                        }
                     });
                 } catch (e) {
+                    setChartLegendHintVisible(false);
                     document.getElementById('chartContainer').innerHTML = '<div class="alert alert-danger">Erreur lors du chargement des données: ' + e.message + '</div>';
                 }
             });

@@ -122,7 +122,7 @@ class ProphetForecastHelper
      * @param DateTimeInterface $endDate Date de fin
      * @param array $prophetSettings Paramètres Prophet
      * @param WfmSetting $wfmSettings Paramètres WFM
-     * @return array Array de prévisions par date ['2024-01-15' => [...], '2024-01-16' => [...]]
+     * @return array {days: [date => forecast], dmt_profile: ?array}
      */
     public function generateBatchForecast(
         int $offerId,
@@ -186,7 +186,10 @@ class ProphetForecastHelper
                         ];
                     }
 
-                    return $forecasts;
+                    return [
+                        'days' => $forecasts,
+                        'dmt_profile' => self::normalizeDmtProfile($data['dmt_profile'] ?? null),
+                    ];
                 }
 
                 throw new Exception('Réponse Prophet batch invalide: ' . json_encode($data));
@@ -211,8 +214,8 @@ class ProphetForecastHelper
     {
         return [
             // Plage de données historiques (IMPORTANT !)
-            'history_start_date' => $settings['history_start_date'] ?? null,
-            'history_end_date' => $settings['history_end_date'] ?? null,
+            'history_start_date' => $this->nullableDate($settings['history_start_date'] ?? null),
+            'history_end_date' => $this->nullableDate($settings['history_end_date'] ?? null),
             
             // Mode de saisonnalité
             'seasonality_mode' => $settings['seasonality_mode'] ?? 'additive',
@@ -237,6 +240,15 @@ class ProphetForecastHelper
             'use_french_holidays' => (bool)($settings['use_french_holidays'] ?? true),
             'custom_holidays' => $settings['custom_holidays'] ?? null
         ];
+    }
+
+    private function nullableDate(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $text = trim((string)$value);
+        return $text === '' ? null : $text;
     }
 
     /**
@@ -266,6 +278,40 @@ class ProphetForecastHelper
         }
 
         return $result;
+    }
+
+    /**
+     * Clés jour ISO en string ("1" = lundi) pour un JSON objet O(1), pas un tableau [].
+     *
+     * @param array|null $profile
+     * @return array|null
+     */
+    public static function normalizeDmtProfile(?array $profile): ?array
+    {
+        if ($profile === null || $profile === []) {
+            return null;
+        }
+
+        $coefficients = [];
+        foreach (($profile['coefficients'] ?? []) as $dow => $slots) {
+            $dayKey = (string)((int)$dow);
+            if ($dayKey === '0') {
+                continue;
+            }
+            $coefficients[$dayKey] = [];
+            if (!is_array($slots)) {
+                continue;
+            }
+            foreach ($slots as $hhmm => $coeff) {
+                $coefficients[$dayKey][(string)$hhmm] = (float)$coeff;
+            }
+        }
+        $profile['coefficients'] = $coefficients;
+        if (array_key_exists('level_seconds', $profile)) {
+            $profile['level_seconds'] = (float)$profile['level_seconds'];
+        }
+
+        return $profile;
     }
 
     /**

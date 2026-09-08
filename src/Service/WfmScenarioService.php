@@ -308,13 +308,27 @@ class WfmScenarioService
             error_log("[Scenario {$scenarioId}] Settings Prophet finaux pour offre {$offerId}: " . json_encode($effectiveProphetSettings));
 
             // Appel API externe (hors transaction) — peut durer longtemps
-            $forecasts = $this->ProphetForecastHelper->generateBatchForecast(
+            $batch = $this->ProphetForecastHelper->generateBatchForecast(
                 $offerId,
                 $start,
                 $end,
                 $effectiveProphetSettings,
                 $effectiveWfmSettings,
             );
+            $forecasts = [];
+            $dmtProfile = null;
+            if (isset($batch['days']) && is_array($batch['days'])) {
+                $forecasts = $batch['days'];
+                $dmtProfile = $batch['dmt_profile'] ?? null;
+            } elseif (is_array($batch)) {
+                $forecasts = $batch;
+            }
+            if (is_array($dmtProfile)) {
+                $effectiveProphetSettings['dmt_profile'] = $dmtProfile;
+                $this->reconnectDb();
+                $link->prophet_settings_json = $this->encodeProphetSettingsJson($effectiveProphetSettings);
+                $this->ForecastScenariosOffers->save($link);
+            }
 
             if (!empty($forecasts)) {
                 $firstDay = array_key_first($forecasts);
@@ -720,6 +734,22 @@ class WfmScenarioService
                 'offer_id IN' => $toRemove,
             ]);
         }
+    }
+
+    /**
+     * JSON du snapshot Prophet : coefficients DMT en objet {"1":{...}} (clés string ISO).
+     */
+    private function encodeProphetSettingsJson(array $settings): string
+    {
+        if (isset($settings['dmt_profile']['coefficients']) && is_array($settings['dmt_profile']['coefficients'])) {
+            $coeffJson = json_encode($settings['dmt_profile']['coefficients'], JSON_FORCE_OBJECT);
+            $decoded = json_decode($coeffJson);
+            if (is_object($decoded)) {
+                $settings['dmt_profile']['coefficients'] = $decoded;
+            }
+        }
+
+        return json_encode($settings);
     }
 }
 

@@ -216,45 +216,56 @@ window.renderApexStacked = function(containerId, categories, series, customOptio
 window.renderApexArea = function(containerId, categories, series, options = {}) {
   const el = document.getElementById(containerId);
   if (!el) return;
-  
-  // Détecter si on a plusieurs jours
+
+  const { customFormats, ...apexOptions } = options || {};
+
   const hasMultipleDays = categories.length > 0 && categories[0].includes('/');
   console.log('[renderApexArea] Nombre total de catégories:', categories.length);
-  
-  const chartOptions = {
-    chart: { 
-      type: 'area',
-      height: 450,
-      animations: {
-        enabled: true,
-        easing: 'easeinout',
-        speed: 400,
-        animateGradually: {
-          enabled: false
-        },
-        dynamicAnimation: {
-          enabled: true,
-          speed: 200
-        }
+
+  const defaultChart = {
+    type: 'area',
+    height: 450,
+    animations: {
+      enabled: true,
+      easing: 'easeinout',
+      speed: 400,
+      animateGradually: {
+        enabled: false
       },
-      toolbar: {
-        show: true,
-        tools: {
-          download: true,
-          zoom: true,
-          zoomin: true,
-          zoomout: true,
-          pan: true,
-          reset: true
-        }
-      },
-      zoom: {
+      dynamicAnimation: {
         enabled: true,
-        type: 'x',
-        autoScaleYaxis: true
+        speed: 200
       }
     },
-    xaxis: { 
+    toolbar: {
+      show: true,
+      tools: {
+        download: true,
+        zoom: true,
+        zoomin: true,
+        zoomout: true,
+        pan: true,
+        reset: true
+      }
+    },
+    zoom: {
+      enabled: true,
+      type: 'x',
+      autoScaleYaxis: true
+    }
+  };
+
+  const defaultGrid = {
+    borderColor: '#e7e7e7',
+    row: {
+      colors: ['#f3f3f3', 'transparent'],
+      opacity: 0.5
+    }
+  };
+
+  const chartOptions = {
+    chart: Object.assign({}, defaultChart, apexOptions.chart || {}),
+    xaxis: {
       categories,
       labels: {
         rotate: -45,
@@ -271,42 +282,36 @@ window.renderApexArea = function(containerId, categories, series, options = {}) 
           if (!opts || typeof opts.dataPointIndex === 'undefined') {
             return value;
           }
-          
+
           if (hasMultipleDays && value.includes(' ')) {
             const parts = value.split(' ');
-            const dateWithYear = parts[0]; // Format DD/MM/YYYY
+            const dateWithYear = parts[0];
             const index = opts.dataPointIndex;
             const totalPoints = categories.length;
-            
-            // Debug premier point
+
             if (index === 0) {
               console.log('[renderApexArea formatter] totalPoints:', totalPoints, '> 288?', totalPoints > 288);
             }
-            
-            // Pour les plages longues (> 3 jours), afficher SEULEMENT les dates (pas d'heures)
+
             if (totalPoints > 288) {
-              // Afficher la date uniquement au changement de jour
               if (index === 0 || (index > 0 && categories[index - 1] && categories[index - 1].split(' ')[0] !== dateWithYear)) {
                 return dateWithYear;
               }
               return '';
             }
-            
-            // Pour les plages courtes (≤ 3 jours), afficher date + heures
-            const time = parts[1]; // Format HH:mm
+
+            const time = parts[1];
             let showInterval = 8;
             if (totalPoints > 200) showInterval = 16;
-            
-            // Changement de jour ? Afficher date + heure
+
             if (index === 0 || (index > 0 && categories[index - 1] && categories[index - 1].split(' ')[0] !== dateWithYear)) {
               return dateWithYear + '\n' + time;
             }
-            
-            // Afficher juste l'heure
+
             if (index % showInterval === 0) {
               return time;
             }
-            
+
             return '';
           }
           return value;
@@ -314,12 +319,9 @@ window.renderApexArea = function(containerId, categories, series, options = {}) 
       }
     },
     series,
-    stroke: { 
-      width: 2, 
-      curve: 'smooth' 
-    },
+    stroke: Object.assign({ width: 2, curve: 'smooth' }, apexOptions.stroke || {}),
     connectNulls: false,
-    fill: {
+    fill: Object.assign({
       type: 'gradient',
       gradient: {
         shadeIntensity: 1,
@@ -327,28 +329,81 @@ window.renderApexArea = function(containerId, categories, series, options = {}) 
         opacityTo: 0.3,
         stops: [0, 90, 100]
       }
-    },
+    }, apexOptions.fill || {}),
     markers: {
       size: 0
     },
     dataLabels: { enabled: false },
-    legend: { 
+    legend: {
       position: 'top',
       horizontalAlign: 'left'
     },
-    grid: {
-      borderColor: '#e7e7e7',
-      row: {
-        colors: ['#f3f3f3', 'transparent'],
-        opacity: 0.5
-      }
-    },
-    tooltip: {
+    grid: Object.assign({}, defaultGrid, apexOptions.grid || {}, {
+      padding: Object.assign({}, (apexOptions.grid && apexOptions.grid.padding) || {})
+    }),
+    tooltip: Object.assign({
       shared: true,
       intersect: false
-    },
-    ...options
+    }, apexOptions.tooltip || {}),
+    colors: apexOptions.colors,
+    yaxis: apexOptions.yaxis
   };
+
+  if (!chartOptions.colors) {
+    delete chartOptions.colors;
+  }
+  if (!chartOptions.yaxis) {
+    delete chartOptions.yaxis;
+  }
+
+  if (customFormats && typeof customFormats === 'object') {
+    const formatValue = function(type, val) {
+      if (val === null || typeof val === 'undefined' || val === '') {
+        return '';
+      }
+      if (type === 'time') {
+        return Number(val).toFixed(1).replace('.', ',') + ' min';
+      }
+      const n = Number(val);
+      if (!Number.isFinite(n)) {
+        return '';
+      }
+      return String(Math.round(n));
+    };
+
+    const typeForSeriesName = function(name) {
+      if (name && customFormats[name]) {
+        return customFormats[name];
+      }
+      return customFormats['default'] || 'int';
+    };
+
+    const prevTooltipY = (chartOptions.tooltip && chartOptions.tooltip.y) || {};
+    chartOptions.tooltip = Object.assign({}, chartOptions.tooltip, {
+      y: Object.assign({}, prevTooltipY, {
+        formatter: function(val, opts) {
+          const names = (opts && opts.w && opts.w.globals && opts.w.globals.seriesNames) || [];
+          const idx = opts && typeof opts.seriesIndex === 'number' ? opts.seriesIndex : 0;
+          return formatValue(typeForSeriesName(names[idx]), val);
+        }
+      })
+    });
+
+    if (Array.isArray(chartOptions.yaxis)) {
+      chartOptions.yaxis = chartOptions.yaxis.map(function(axis) {
+        const type = typeForSeriesName(axis.seriesName);
+        const prevLabels = axis.labels || {};
+        return Object.assign({}, axis, {
+          labels: Object.assign({}, prevLabels, {
+            formatter: function(val) {
+              return formatValue(type, val);
+            }
+          })
+        });
+      });
+    }
+  }
+
   el.innerHTML = '';
   const chart = new ApexCharts(el, chartOptions);
   chart.render();

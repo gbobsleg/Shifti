@@ -19,6 +19,7 @@ from prophet_common import (
     load_historical_data,
     train_prophet_model,
 )
+from dmt_profile import build_dmt_profile, dmt_for_datetime, fallback_profile
 
 app = FastAPI(title="Prophet Forecast Service", version="1.0.0")
 
@@ -149,7 +150,7 @@ def generate_forecast_for_date(
     model: Prophet,
     target_date: datetime,
     wfm_settings: WfmSettings,
-    avg_dmt: int = 300,
+    dmt_profile: Optional[Dict] = None,
     growth_cap: Optional[float] = None,
     worked_days: Optional[List[int]] = None
 ) -> Dict[str, ForecastPoint]:
@@ -160,13 +161,16 @@ def generate_forecast_for_date(
         model: Modèle Prophet entraîné
         target_date: Date cible
         wfm_settings: Paramètres WFM  
-        avg_dmt: DMT moyenne
+        dmt_profile: Profil DMT (niveau + coefficients), figé pour le batch
         growth_cap: Capacité maximale pour logistic growth
         worked_days: Liste des jours travaillés (1=Lundi à 7=Dimanche)
     
     Returns:
         Dict avec clés HH:MM:SS et valeurs ForecastPoint
     """
+    if dmt_profile is None:
+        dmt_profile = fallback_profile()
+
     # Charger les jours travaillés si non fournis
     if worked_days is None:
         worked_days = get_worked_days_from_db()
@@ -189,7 +193,7 @@ def generate_forecast_for_date(
                 volume=0,
                 volume_lower=0,
                 volume_upper=0,
-                dmt=avg_dmt
+                dmt=dmt_for_datetime(dmt_profile, target_date, time_slot)
             )
             current += timedelta(minutes=15)
         
@@ -230,7 +234,7 @@ def generate_forecast_for_date(
             volume=volume,
             volume_lower=max(0, int(round(row['yhat_lower']))),
             volume_upper=max(0, int(round(row['yhat_upper']))),
-            dmt=avg_dmt
+            dmt=dmt_for_datetime(dmt_profile, target_date, time_slot)
         )
     
     # Log
@@ -313,9 +317,14 @@ def generate_forecast(request: ForecastRequest):
             start_date=request.prophet_settings.history_start_date,
             end_date=request.prophet_settings.history_end_date
         )
-        
-        # Calculer la DMT moyenne
-        avg_dmt = int(df['dmt'].mean()) if 'dmt' in df.columns else 300
+
+        # Profil DMT sur le DataFrame brut 15 min, avant tout agrégat Prophet
+        dmt_profile = build_dmt_profile(
+            df,
+            history_end=request.prophet_settings.history_end_date,
+            day_start=request.wfm_settings.day_start_time,
+            day_end=request.wfm_settings.day_end_time,
+        )
         
         # Préparer les données pour Prophet
         df_volume = df[['ds', 'y']].copy()
@@ -329,7 +338,7 @@ def generate_forecast(request: ForecastRequest):
             model,
             target_date,
             request.wfm_settings,
-            avg_dmt,
+            dmt_profile,
             None  # growth_cap retiré (mode linear uniquement)
         )
         
@@ -368,9 +377,14 @@ def generate_batch_forecast(request: BatchForecastRequest):
             start_date=request.prophet_settings.history_start_date,
             end_date=request.prophet_settings.history_end_date
         )
-        
-        # Calculer la DMT moyenne
-        avg_dmt = int(df['dmt'].mean()) if 'dmt' in df.columns else 300
+
+        # Profil DMT sur le DataFrame brut 15 min, avant tout agrégat Prophet
+        dmt_profile = build_dmt_profile(
+            df,
+            history_end=request.prophet_settings.history_end_date,
+            day_start=request.wfm_settings.day_start_time,
+            day_end=request.wfm_settings.day_end_time,
+        )
         
         # Préparer les données
         df_volume = df[['ds', 'y']].copy()
@@ -402,7 +416,7 @@ def generate_batch_forecast(request: BatchForecastRequest):
                 model,
                 current_date,
                 request.wfm_settings,
-                avg_dmt,
+                dmt_profile,
                 None  # Mode linear seulement
             )
             
@@ -421,7 +435,8 @@ def generate_batch_forecast(request: BatchForecastRequest):
             'start_date': request.start_date,
             'end_date': request.end_date,
             'results': results,
-            'metrics': metrics
+            'metrics': metrics,
+            'dmt_profile': dmt_profile,
         }
         
     except Exception as e:
