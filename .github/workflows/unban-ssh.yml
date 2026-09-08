@@ -24,30 +24,41 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          request_pty: true
           command_timeout: 2m
           script: |
             set -euo pipefail
             IP='${{ inputs.ip }}'
+            PASS='${{ secrets.VPS_SUDO_PASSWORD }}'
             if [[ ! "$IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
               echo "IP invalide: $IP"
               exit 1
             fi
-            echo "=== whoami / sshd ==="
-            whoami
-            sudo -n ss -tlnp | grep -E 'ssh|sshd' || ss -tlnp | grep -E 'ssh|sshd' || true
-            echo "=== fail2ban ==="
-            if sudo -n fail2ban-client status >/dev/null 2>&1; then
-              sudo -n fail2ban-client status || true
-              sudo -n fail2ban-client status sshd || true
-              echo "--- unban $IP ---"
-              sudo -n fail2ban-client set sshd unbanip "$IP" || true
-              sudo -n fail2ban-client unban "$IP" || true
-              sudo -n fail2ban-client status sshd || true
-            else
-              echo "fail2ban-client indisponible (ou sudo mot de passe requis)"
+            if [[ -z "$PASS" ]]; then
+              echo "Secret VPS_SUDO_PASSWORD absent. Ajoute-le : Settings > Secrets and variables > Actions."
+              exit 1
             fi
-            echo "=== ufw / iptables / nft (lignes contenant l'IP) ==="
-            sudo -n ufw status 2>/dev/null || true
-            sudo -n iptables -L -n 2>/dev/null | grep -F "$IP" || true
-            sudo -n nft list ruleset 2>/dev/null | grep -F "$IP" || true
+            run_sudo() { printf '%s\n' "$PASS" | sudo -S -p '' -- "$@"; }
+            echo "=== id ==="
+            id
+            echo "=== ports (sans sudo) ==="
+            ss -tln 2>/dev/null | grep -E ':22|:2222|ssh' || true
+            echo "=== sudo whoami ==="
+            run_sudo whoami
+            echo "=== sshd listen ==="
+            run_sudo ss -tlnp | grep -E 'ssh|sshd' || true
+            echo "=== fail2ban ==="
+            if run_sudo fail2ban-client status; then
+              run_sudo fail2ban-client status sshd || true
+              echo "--- unban $IP ---"
+              run_sudo fail2ban-client set sshd unbanip "$IP" || true
+              run_sudo fail2ban-client unban "$IP" || true
+              run_sudo fail2ban-client status sshd || true
+            else
+              echo "fail2ban-client a echoue"
+            fi
+            echo "=== ufw / iptables / nft (IP) ==="
+            run_sudo ufw status || true
+            run_sudo iptables -L INPUT -n -v | grep -F "$IP" || true
+            run_sudo nft list ruleset | grep -F "$IP" || true
             echo "=== done ==="
