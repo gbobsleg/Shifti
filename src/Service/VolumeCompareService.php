@@ -18,6 +18,8 @@ class VolumeCompareService
     /**
      * @param list<array{at: string, volume: int, dmt: int}> $actuals
      * @param array<string, mixed> $forecastByDate date Y-m-d => data_json (chaîne ou tableau)
+     * @param string|null $startDate Borne inclusive Y-m-d. En granularité jour, chaque jour de l'intervalle a un point, à 0 s'il n'y a aucune donnée.
+     * @param string|null $endDate Borne inclusive Y-m-d.
      * @return array{
      *   points: list<array{key: string, category: string, volume: int, dmt: int|null, forecast: int|null}>,
      *   volume_total: int,
@@ -34,7 +36,7 @@ class VolumeCompareService
      *   }|null
      * }
      */
-    public function build(array $actuals, array $forecastByDate, string $granularity, bool $compare): array
+    public function build(array $actuals, array $forecastByDate, string $granularity, bool $compare, ?string $startDate = null, ?string $endDate = null): array
     {
         if (!in_array($granularity, ['15min', 'hour', 'day'], true)) {
             $granularity = '15min';
@@ -100,6 +102,10 @@ class VolumeCompareService
             if ($comparable) {
                 $buckets[$bucketKey]['forecast'] = (int)$buckets[$bucketKey]['forecast'] + (int)($forecastSlots[$slotKey] ?? 0);
             }
+        }
+
+        if ($granularity === 'day') {
+            $this->fillMissingDays($buckets, $startDate, $endDate, $compare, $comparableDates);
         }
 
         ksort($buckets);
@@ -224,6 +230,47 @@ class VolumeCompareService
         }
 
         return $matches[1] . ' ' . $time;
+    }
+
+    /**
+     * @param array<string, array{volume: int, dmt_weight: int, forecast: int|null, comparable: bool}> $buckets
+     * @param array<string, true> $comparableDates
+     */
+    private function fillMissingDays(array &$buckets, ?string $startDate, ?string $endDate, bool $compare, array $comparableDates): void
+    {
+        $start = $this->parseDay($startDate);
+        $end = $this->parseDay($endDate);
+        if ($start === null || $end === null || $start > $end) {
+            return;
+        }
+
+        $cursor = $start;
+        while ($cursor <= $end) {
+            $day = $cursor->format('Y-m-d');
+            if (!isset($buckets[$day])) {
+                $comparable = $compare && isset($comparableDates[$day]);
+                $buckets[$day] = [
+                    'volume' => 0,
+                    'dmt_weight' => 0,
+                    'forecast' => $comparable ? 0 : null,
+                    'comparable' => $comparable,
+                ];
+            }
+            $cursor = $cursor->modify('+1 day');
+        }
+    }
+
+    private function parseDay(?string $value): ?DateTimeImmutable
+    {
+        if ($value === null || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        if (!$date instanceof DateTimeImmutable || $date->format('Y-m-d') !== $value) {
+            return null;
+        }
+
+        return $date;
     }
 
     private function bucketKey(string $slotKey, string $granularity): string

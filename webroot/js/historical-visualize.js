@@ -2,46 +2,154 @@
  * Script pour la visualisation des données historiques
  */
 
-$(document).ready(function() {
-    function enforceOfferLimit() {
-        const compareOn = $('#compare-forecast').is(':checked');
-        const max = compareOn ? 1 : 3;
-        const checkedCount = $('.offer-checkbox:checked').length;
-        $('.offer-checkbox:not(:checked)').prop('disabled', checkedCount >= max);
+/**
+ * « 01/09/2026 » ou « 01/09/2026 10:00 » → « Lundi 01/09/2026 … ».
+ * L'axe garde la date seule ; seul le titre de l'info-bulle change.
+ */
+function categoryLabelWithWeekday(value, opts) {
+    let label = value;
+    const index = opts && typeof opts.dataPointIndex === 'number' ? opts.dataPointIndex : -1;
+    const globals = opts && opts.w && opts.w.globals;
+    const categories = (globals && (globals.categoryLabels || globals.labels)) || [];
+    if (index >= 0 && categories[index]) {
+        label = categories[index];
     }
 
-    function syncCompareAvailability() {
-        const checkedCount = $('.offer-checkbox:checked').length;
-        const $compare = $('#compare-forecast');
-        const $hint = $('#compare-hint');
-        if (checkedCount === 1) {
-            $compare.prop('disabled', false);
-            $hint.addClass('d-none');
-        } else {
-            $compare.prop('checked', false).prop('disabled', true);
-            $hint.removeClass('d-none');
+    const text = String(label == null ? '' : label);
+    const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})([\s\S]*)$/);
+    if (!match) {
+        return text;
+    }
+
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+        return text;
+    }
+
+    const weekday = date.toLocaleDateString('fr-FR', { weekday: 'long' });
+    const titled = weekday.charAt(0).toLocaleUpperCase('fr-FR') + weekday.slice(1);
+
+    return titled + ' ' + match[1] + '/' + match[2] + '/' + match[3] + match[4];
+}
+
+/**
+ * Décale un libellé « jj/mm/aaaa HH:MM » de deltaMinutes.
+ * Sert aux créneaux virtuels entre deux jours.
+ */
+function shiftCategoryLabel(label, deltaMinutes) {
+    const match = String(label).match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})$/);
+    if (!match) {
+        return null;
+    }
+
+    const date = new Date(
+        Number(match[3]),
+        Number(match[2]) - 1,
+        Number(match[1]),
+        Number(match[4]),
+        Number(match[5])
+    );
+    date.setMinutes(date.getMinutes() + deltaMinutes);
+
+    const pad = function (value) {
+        return String(value).padStart(2, '0');
+    };
+
+    return pad(date.getDate()) + '/' + pad(date.getMonth() + 1) + '/' + date.getFullYear()
+        + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+}
+
+/**
+ * Entre deux jours, ajoute le créneau juste après le dernier point
+ * et celui juste avant le premier, tous deux à 0.
+ * La courbe retombe au lieu de relier 17 h à 9 h.
+ * Affichage seulement : l'export garde les créneaux réels.
+ * La DMT reste vide sur ces points.
+ */
+function withVirtualDayEdges(categories, series) {
+    const granularity = $('#granularity-select').val();
+    const step = granularity === 'hour' ? 60 : (granularity === '15min' ? 15 : 0);
+    if (!step || categories.length < 2) {
+        return { categories: categories, series: series };
+    }
+
+    const known = {};
+    categories.forEach(function (label) {
+        known[label] = true;
+    });
+
+    const dateOf = function (label) {
+        const cut = String(label).indexOf(' ');
+        return cut > 0 ? String(label).slice(0, cut) : null;
+    };
+
+    const nextCategories = [];
+    const nextData = series.map(function () {
+        return [];
+    });
+
+    const pushVirtual = function (label) {
+        if (!label || known[label]) {
+            return;
         }
-        enforceOfferLimit();
+        known[label] = true;
+        nextCategories.push(label);
+        series.forEach(function (serie, index) {
+            const isDmt = String(serie.name).indexOf('DMT') !== -1;
+            nextData[index].push(isDmt ? null : 0);
+        });
+    };
+
+    for (let i = 0; i < categories.length; i++) {
+        if (i > 0) {
+            const prevDate = dateOf(categories[i - 1]);
+            const currDate = dateOf(categories[i]);
+            if (prevDate && currDate && prevDate !== currDate) {
+                pushVirtual(shiftCategoryLabel(categories[i - 1], step));
+                pushVirtual(shiftCategoryLabel(categories[i], -step));
+            }
+        }
+        nextCategories.push(categories[i]);
+        series.forEach(function (serie, serieIndex) {
+            nextData[serieIndex].push(serie.data[i]);
+        });
+    }
+
+    return {
+        categories: nextCategories,
+        series: series.map(function (serie, index) {
+            return Object.assign({}, serie, { data: nextData[index] });
+        })
+    };
+}
+
+$(document).ready(function() {
+    function enforceOfferLimit() {
+        const checkedCount = $('.offer-checkbox:checked').length;
+        $('.offer-checkbox:not(:checked)').prop('disabled', checkedCount >= 3);
     }
 
     $('.offer-checkbox').on('change', function() {
-        if ($(this).is(':checked') && $('#compare-forecast').is(':checked')) {
-            if ($('.offer-checkbox:checked').length > 1) {
-                $(this).prop('checked', false);
-                return;
-            }
-        }
-        syncCompareAvailability();
-    });
-
-    $('#compare-forecast').on('change', function() {
-        if (this.checked && $('.offer-checkbox:checked').length !== 1) {
-            this.checked = false;
-        }
         enforceOfferLimit();
+        refreshOfferSummary();
     });
 
-    syncCompareAvailability();
+    function refreshOfferSummary() {
+        const $checked = $('.offer-checkbox:checked');
+        const count = $checked.length;
+        let label = 'Aucune offre';
+        if (count === 1) {
+            label = $('label[for="' + $checked.attr('id') + '"]').text().trim() || '1 offre';
+        } else if (count > 1) {
+            label = count + ' offres';
+        }
+        $('#offers-toggle').text(label);
+    }
+
+    enforceOfferLimit();
     
     function parseIsoDateLocal(value) {
         if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -209,6 +317,65 @@ $(document).ready(function() {
         return next.start.getTime() <= startOfDay(new Date()).getTime();
     }
 
+    function formatFrenchDate(date) {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return day + '/' + month + '/' + date.getFullYear();
+    }
+
+    function syncPeriodPicker() {
+        const start = parseIsoDateLocal($('#start-date').val());
+        const end = parseIsoDateLocal($('#end-date').val());
+        if (!start || !end) {
+            return;
+        }
+        $('#period-display').val(formatFrenchDate(start) + ' – ' + formatFrenchDate(end));
+        const picker = $('#period-display').data('daterangepicker');
+        if (picker && typeof moment !== 'undefined') {
+            picker.setStartDate(moment($('#start-date').val(), 'YYYY-MM-DD'));
+            picker.setEndDate(moment($('#end-date').val(), 'YYYY-MM-DD'));
+        }
+    }
+
+    function initPeriodPicker() {
+        const $display = $('#period-display');
+        if (!$display.length || typeof moment === 'undefined' || typeof $.fn.daterangepicker !== 'function') {
+            return;
+        }
+        const start = moment($('#start-date').val(), 'YYYY-MM-DD');
+        const end = moment($('#end-date').val(), 'YYYY-MM-DD');
+        $display.daterangepicker({
+            startDate: start.isValid() ? start : moment(),
+            endDate: end.isValid() ? end : moment(),
+            autoApply: true,
+            autoUpdateInput: false,
+            showDropdowns: true,
+            minYear: 2020,
+            maxYear: 2035,
+            maxSpan: { days: 366 },
+            opens: 'center',
+            locale: {
+                format: 'DD/MM/YYYY',
+                separator: ' – ',
+                applyLabel: 'Valider',
+                cancelLabel: 'Annuler',
+                fromLabel: 'Du',
+                toLabel: 'Au',
+                customRangeLabel: 'Personnaliser',
+                weekLabel: 'S',
+                daysOfWeek: ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'],
+                monthNames: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
+                firstDay: 1
+            }
+        }, function (startDate, endDate) {
+            $('#start-date').val(startDate.format('YYYY-MM-DD'));
+            $('#end-date').val(endDate.format('YYYY-MM-DD'));
+            $display.val(startDate.format('DD/MM/YYYY') + ' – ' + endDate.format('DD/MM/YYYY'));
+            syncGranularity(true);
+            restorePresets();
+        });
+    }
+
     function refreshPresetRows(activeUnit) {
         $('.hv-preset-row').each(function () {
             const $row = $(this);
@@ -216,9 +383,11 @@ $(document).ready(function() {
             const offset = parseInt($row.attr('data-offset'), 10) || 0;
             const range = periodRange(unit, offset);
             $row.find('.preset-current').text(periodLabel(unit, offset, range));
-            $row.find('.preset-step[data-step="1"]').prop('disabled', !canGoForward(unit, offset));
             $row.toggleClass('is-active', unit === activeUnit);
         });
+        const $active = activeUnit ? $('.hv-preset-row[data-unit="' + activeUnit + '"]') : $();
+        $('#preset-prev').prop('disabled', $active.length === 0);
+        $('#preset-next').prop('disabled', $active.length === 0 || !canGoForward(activeUnit, parseInt($active.attr('data-offset'), 10) || 0));
     }
 
     function applyPeriod($row, offset) {
@@ -235,6 +404,7 @@ $(document).ready(function() {
         const range = periodRange(unit, offset);
         $('#start-date').val(formatDateForInput(range.start));
         $('#end-date').val(formatDateForInput(range.end));
+        syncPeriodPicker();
         syncGranularity(true);
         refreshPresetRows(unit);
     }
@@ -243,15 +413,27 @@ $(document).ready(function() {
         applyPeriod($(this).closest('.hv-preset-row'), 0);
     });
 
-    $('.preset-step').on('click', function () {
-        const $row = $(this).closest('.hv-preset-row');
-        const step = parseInt($(this).data('step'), 10);
-        const offset = (parseInt($row.attr('data-offset'), 10) || 0) + step;
-        if (step > 0 && !canGoForward($row.data('unit'), offset - step)) {
+    $('#preset-prev').on('click', function () {
+        const $row = $('.hv-preset-row.is-active');
+        if (!$row.length) {
             return;
         }
-        applyPeriod($row, offset);
+        applyPeriod($row, (parseInt($row.attr('data-offset'), 10) || 0) - 1);
     });
+
+    $('#preset-next').on('click', function () {
+        const $row = $('.hv-preset-row.is-active');
+        if (!$row.length) {
+            return;
+        }
+        const offset = parseInt($row.attr('data-offset'), 10) || 0;
+        if (!canGoForward($row.data('unit'), offset)) {
+            return;
+        }
+        applyPeriod($row, offset + 1);
+    });
+
+    initPeriodPicker();
 
     function findPeriodOffset(unit, startValue, endValue) {
         for (let offset = 0; offset >= -80; offset--) {
@@ -312,7 +494,7 @@ $(document).ready(function() {
 });
 
 /**
- * Formate une date pour input type="date"
+ * Formate une date en AAAA-MM-JJ pour les champs cachés du formulaire.
  */
 function formatDateForInput(date) {
     const year = date.getFullYear();
@@ -511,7 +693,9 @@ function renderCharts() {
         });
     });
 
-    window.renderApexArea('volume-chart', data.categories, series, {
+    const edged = withVirtualDayEdges(data.categories, series);
+
+    window.renderApexArea('volume-chart', edged.categories, edged.series, {
         chart: { type: 'line' },
         colors: colors,
         stroke: {
@@ -530,6 +714,11 @@ function renderCharts() {
             }
         },
         yaxis: yaxis,
+        tooltip: {
+            x: {
+                formatter: categoryLabelWithWeekday
+            }
+        },
         customFormats: {
             'DMT réelle': 'time',
             'default': 'int'

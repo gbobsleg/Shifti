@@ -14,10 +14,36 @@
 <?php $this->assign('title', 'Réel et prévision'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
+<?php $this->Html->css('daterangepicker', ['block' => true]); ?>
 <?php $this->Html->css('historical-visualize', ['block' => true, 'timestamp' => 'force']); ?>
+<?php $this->Html->script('moment.min', ['block' => true]); ?>
+<?php $this->Html->script('daterangepicker', ['block' => true]); ?>
 <?php $this->Html->script('historical-visualize', ['block' => true, 'timestamp' => 'force']); ?>
 <?= $this->element('apex_series_chart'); ?>
 
+<?php
+$selectedLookup = array_fill_keys(array_map('strval', (array)$selectedOffers), true);
+$selectedNames = [];
+foreach ($offers as $offer) {
+    if (isset($selectedLookup[(string)$offer->id])) {
+        $selectedNames[] = (string)$offer->name;
+    }
+}
+if (count($selectedNames) === 1) {
+    $offerButtonLabel = $selectedNames[0];
+} elseif (count($selectedNames) > 1) {
+    $offerButtonLabel = count($selectedNames) . ' offres';
+} else {
+    $offerButtonLabel = 'Aucune offre';
+}
+$startFr = $startDate;
+$endFr = $endDate;
+try {
+    $startFr = (new DateTime($startDate))->format('d/m/Y');
+    $endFr = (new DateTime($endDate))->format('d/m/Y');
+} catch (Exception $e) {
+}
+?>
 <div class="crud-app historical-visualize content">
     <div class="crud-header">
         <h1>Réel et prévision</h1>
@@ -30,8 +56,7 @@
         </div>
     </div>
 
-    <section class="crud-section filters-section">
-        <h2 class="crud-section-title">Filtres</h2>
+    <section class="crud-section hv-filters">
         <?= $this->Form->create(null, ['type' => 'get', 'id' => 'filter-form']) ?>
         <?= $this->Form->hidden('period_unit', [
             'value' => $this->request->getQuery('period_unit', ''),
@@ -41,101 +66,65 @@
             'value' => $this->request->getQuery('period_offset', ''),
             'id' => 'period-offset',
         ]) ?>
-        <div class="mb-3">
-            <label class="form-label mb-1">Offres</label>
-            <small class="text-muted d-block mb-2">Maximum 3 · uniquement les offres utilisables en prévision</small>
-            <div class="hv-offers">
-                <?php if ($offers->isEmpty()): ?>
-                    <p class="text-muted mb-0">Aucune offre utilisable en prévision.</p>
-                <?php else: ?>
-                    <?php foreach ($offers as $offer): ?>
-                        <div class="form-check">
-                            <?= $this->Form->checkbox('offers[]', [
-                                'value' => $offer->id,
-                                'checked' => in_array((string)$offer->id, array_map('strval', (array)$selectedOffers), true),
-                                'id' => 'offer-' . $offer->id,
-                                'class' => 'form-check-input offer-checkbox',
-                            ]) ?>
-                            <label class="form-check-label" for="offer-<?= $offer->id ?>">
-                                <?= h($offer->name) ?>
-                            </label>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-            <div class="form-check mt-3">
-                <input
-                    type="checkbox"
-                    name="compare"
-                    value="1"
-                    id="compare-forecast"
-                    class="form-check-input"
-                    <?= !empty($compare) ? 'checked' : '' ?>
-                >
-                <label class="form-check-label" for="compare-forecast">Comparer à la prévision publiée</label>
-                <small id="compare-hint" class="text-muted hv-compare-hint<?= !empty($compare) ? ' d-none' : '' ?>">Sélectionnez une seule offre pour comparer à la prévision publiée.</small>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-5 mb-3">
-                <label class="form-label">Période</label>
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="start-date" class="small">Date de début</label>
-                        <?= $this->Form->control('start_date', [
-                            'type' => 'date',
-                            'value' => $startDate,
-                            'class' => 'form-control',
-                            'label' => false,
-                            'required' => true,
-                            'id' => 'start-date',
-                            'templates' => ['inputContainer' => '{{content}}'],
-                        ]) ?>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="end-date" class="small">Date de fin</label>
-                        <?= $this->Form->control('end_date', [
-                            'type' => 'date',
-                            'value' => $endDate,
-                            'class' => 'form-control',
-                            'label' => false,
-                            'required' => true,
-                            'id' => 'end-date',
-                            'templates' => ['inputContainer' => '{{content}}'],
-                        ]) ?>
-                    </div>
-                </div>
-                <small class="text-muted">Maximum une année civile</small>
-                <div class="mt-3">
-                    <label class="small">Raccourcis</label>
-                    <div class="hv-presets">
-                        <div class="hv-preset-row" data-unit="week" data-offset="0">
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-step" data-step="-1" aria-label="Période précédente">−</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-current">Cette semaine</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-step" data-step="1" aria-label="Période suivante" disabled>+</button>
-                        </div>
-                        <div class="hv-preset-row" data-unit="month" data-offset="0">
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-step" data-step="-1" aria-label="Période précédente">−</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-current">Ce mois</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-step" data-step="1" aria-label="Période suivante" disabled>+</button>
-                        </div>
-                        <div class="hv-preset-row" data-unit="quarter" data-offset="0">
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-step" data-step="-1" aria-label="Période précédente">−</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-current">Ce trimestre</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-step" data-step="1" aria-label="Période suivante" disabled>+</button>
-                        </div>
-                        <div class="hv-preset-row" data-unit="year" data-offset="0">
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-step" data-step="-1" aria-label="Période précédente">−</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-current">Cette année</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary preset-step" data-step="1" aria-label="Période suivante" disabled>+</button>
-                        </div>
+        <?= $this->Form->hidden('start_date', [
+            'value' => $startDate,
+            'id' => 'start-date',
+        ]) ?>
+        <?= $this->Form->hidden('end_date', [
+            'value' => $endDate,
+            'id' => 'end-date',
+        ]) ?>
+        <div class="hv-filter-rows">
+        <div class="hv-filter-row">
+            <div class="hv-filter-field">
+                <label>Offres</label>
+                <div class="dropdown">
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary hv-offers-toggle"
+                        id="offers-toggle"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-haspopup="true"
+                    ><?= h($offerButtonLabel) ?></button>
+                    <div class="dropdown-menu hv-offers-menu" aria-labelledby="offers-toggle">
+                        <p class="hv-offers-help">3 offres maximum. En comparaison, les volumes s’additionnent et la DMT est pondérée.</p>
+                        <?php if ($offers->isEmpty()): ?>
+                            <p class="text-muted mb-0">Aucune offre utilisable en prévision.</p>
+                        <?php else: ?>
+                            <?php foreach ($offers as $offer): ?>
+                                <div class="form-check">
+                                    <?= $this->Form->checkbox('offers[]', [
+                                        'value' => $offer->id,
+                                        'checked' => isset($selectedLookup[(string)$offer->id]),
+                                        'hiddenField' => false,
+                                        'id' => 'offer-' . $offer->id,
+                                        'class' => 'form-check-input offer-checkbox',
+                                    ]) ?>
+                                    <label class="form-check-label" for="offer-<?= $offer->id ?>">
+                                        <?= h($offer->name) ?>
+                                    </label>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
 
-            <div class="col-md-4 mb-3">
-                <label class="form-label" for="granularity-select">Granularité</label>
-                <small class="text-muted d-block mb-2">Niveau de détail</small>
+            <div class="hv-filter-field">
+                <label for="period-display">Période</label>
+                <input
+                    type="text"
+                    id="period-display"
+                    class="form-control hv-period-display"
+                    value="<?= h($startFr . ' – ' . $endFr) ?>"
+                    readonly
+                    title="Maximum une année civile"
+                >
+            </div>
+
+            <div class="hv-filter-field">
+                <label for="granularity-select">Granularité</label>
                 <?= $this->Form->control('granularity', [
                     'type' => 'select',
                     'options' => [
@@ -144,23 +133,55 @@
                         'day' => 'Jour',
                     ],
                     'value' => $granularity ?? '15min',
-                    'class' => 'form-control',
+                    'class' => 'form-control hv-granularity',
                     'label' => false,
                     'id' => 'granularity-select',
                     'templates' => ['inputContainer' => '{{content}}'],
                 ]) ?>
-                <small class="text-muted mt-1 d-block">
-                    <span id="granularity-hint"></span>
-                </small>
             </div>
 
-            <div class="col-md-3 mb-3 d-flex align-items-end flex-column justify-content-end gap-2">
-                <button type="submit" class="btn btn-primary w-100">Afficher</button>
-                <button type="button" id="export-csv-btn" class="btn btn-outline-secondary w-100" <?= !$hasData ? 'disabled' : '' ?>>
+            <div class="form-check hv-compare">
+                <input
+                    type="checkbox"
+                    name="compare"
+                    value="1"
+                    id="compare-forecast"
+                    class="form-check-input"
+                    <?= !empty($compare) ? 'checked' : '' ?>
+                >
+                <label class="form-check-label" for="compare-forecast">Comparer à la prévision</label>
+            </div>
+        </div>
+        <div class="hv-filter-row hv-filter-row-bottom">
+            <div class="hv-filter-field">
+                <label>Raccourcis</label>
+                <div class="hv-presets">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="preset-prev" aria-label="Période précédente">−</button>
+                    <div class="hv-preset-row" data-unit="week" data-offset="0">
+                        <button type="button" class="btn btn-sm btn-outline-secondary preset-current">Cette semaine</button>
+                    </div>
+                    <div class="hv-preset-row" data-unit="month" data-offset="0">
+                        <button type="button" class="btn btn-sm btn-outline-secondary preset-current">Ce mois</button>
+                    </div>
+                    <div class="hv-preset-row" data-unit="quarter" data-offset="0">
+                        <button type="button" class="btn btn-sm btn-outline-secondary preset-current">Ce trimestre</button>
+                    </div>
+                    <div class="hv-preset-row" data-unit="year" data-offset="0">
+                        <button type="button" class="btn btn-sm btn-outline-secondary preset-current">Cette année</button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="preset-next" aria-label="Période suivante" disabled>+</button>
+                </div>
+            </div>
+
+            <div class="hv-filter-actions">
+                <button type="submit" class="btn btn-primary">Afficher</button>
+                <button type="button" id="export-csv-btn" class="btn btn-outline-secondary" <?= !$hasData ? 'disabled' : '' ?>>
                     Exporter CSV
                 </button>
             </div>
         </div>
+        </div>
+        <small id="granularity-hint" class="text-muted hv-filter-note"></small>
         <?= $this->Form->end() ?>
     </section>
 

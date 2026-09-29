@@ -2,12 +2,97 @@
  * Styles pour la page de visualisation des données historiques
  */
 
+.historical-visualize .hv-filters .crud-section-title {
+    margin-bottom: 0.5rem;
+}
+
+.historical-visualize .hv-filter-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.historical-visualize .hv-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1.25rem;
+}
+
+.historical-visualize .hv-filter-row-bottom {
+    justify-content: space-between;
+}
+
+.historical-visualize .hv-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.historical-visualize .hv-filter-field > label {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.historical-visualize .hv-period-display {
+    width: 15.5rem;
+    cursor: pointer;
+    background-color: #fff;
+}
+
+.historical-visualize .hv-granularity {
+    width: 9rem;
+}
+
+.historical-visualize .hv-filter-actions {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.historical-visualize .hv-offers-toggle {
+    min-width: 11rem;
+    max-width: 16rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+}
+
+.historical-visualize .hv-offers-menu {
+    min-width: 18rem;
+    max-width: 22rem;
+    max-height: 18rem;
+    overflow: auto;
+    padding: 0.5rem 0.75rem;
+    white-space: normal;
+}
+
+.historical-visualize .hv-offers-help {
+    margin: 0 0 0.4rem;
+    font-size: 0.75rem;
+    color: var(--crud-muted, #6c757d);
+}
+
+.historical-visualize .hv-compare {
+    margin: 0 0 0.4rem;
+    padding-left: 1.4rem;
+}
+
+.historical-visualize .hv-filter-note {
+    display: block;
+    margin-top: 0.35rem;
+}
+
+.historical-visualize .hv-filter-note:empty {
+    display: none;
+}
+
 .historical-visualize .hv-presets {
-    display: grid;
-    grid-template-columns: 2rem minmax(9.5rem, max-content) 2rem;
-    gap: 0.35rem 0.25rem;
-    justify-content: start;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 0.35rem;
 }
 
 .historical-visualize .hv-preset-row {
@@ -15,13 +100,14 @@
 }
 
 .historical-visualize .hv-preset-row .preset-current {
-    width: 100%;
+    width: auto;
     padding-left: 0.6rem;
     padding-right: 0.6rem;
     text-align: center;
+    white-space: nowrap;
 }
 
-.historical-visualize .hv-preset-row .preset-step {
+.historical-visualize .hv-presets > .btn {
     width: 2rem;
     padding-left: 0;
     padding-right: 0;
@@ -36,15 +122,9 @@
     background-color: var(--crud-accent, #318f9b);
 }
 
-.historical-visualize .hv-offers {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
-    gap: 0.15rem 1rem;
-}
-
-.historical-visualize .hv-offers .form-check {
+.historical-visualize .hv-offers-menu .form-check {
     padding-left: 1.4rem;
-    margin-bottom: 0;
+    margin-bottom: 0.15rem;
     min-width: 0;
 }
 
@@ -57,10 +137,6 @@
     cursor: not-allowed;
 }
 
-.historical-visualize .hv-compare-hint {
-    display: block;
-    margin-top: 0.25rem;
-}
 
 #loading-indicator {
     min-height: 300px;

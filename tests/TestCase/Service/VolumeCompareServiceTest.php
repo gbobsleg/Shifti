@@ -150,4 +150,65 @@ class VolumeCompareServiceTest extends TestCase
         $this->assertSame('02/03/2026', $built['points'][0]['category']);
         $this->assertSame(0, $built['compare']['missing_days']);
     }
+
+    public function testDayRangeIncludesDaysWithoutActuals(): void
+    {
+        $built = $this->service->build(
+            [
+                ['at' => '2026-03-02 10:00:00', 'volume' => 4, 'dmt' => 60],
+            ],
+            [],
+            'day',
+            false,
+            '2026-03-01',
+            '2026-03-03'
+        );
+
+        $this->assertSame(['2026-03-01', '2026-03-02', '2026-03-03'], array_column($built['points'], 'key'));
+        $this->assertSame([0, 4, 0], array_column($built['points'], 'volume'));
+        $this->assertSame([null, null, null], array_column($built['points'], 'forecast'));
+        $this->assertSame(['01/03/2026', '02/03/2026', '03/03/2026'], array_column($built['points'], 'category'));
+        $this->assertSame(4, $built['volume_total']);
+        $this->assertNull($built['compare']);
+    }
+
+    public function testFilledDaysStayOutOfWapeWhenForecastIsMissing(): void
+    {
+        $built = $this->service->build(
+            [
+                ['at' => '2026-03-02 10:00:00', 'volume' => 10, 'dmt' => 60],
+            ],
+            [
+                '2026-03-02' => json_encode(['10:00:00' => ['volume' => 8]]),
+            ],
+            'day',
+            true,
+            '2026-03-01',
+            '2026-03-03'
+        );
+
+        $this->assertCount(3, $built['points']);
+        $this->assertNull($built['points'][0]['forecast']);
+        $this->assertNull($built['points'][2]['forecast']);
+        $this->assertSame(10, $built['compare']['volume_real']);
+        $this->assertSame(8, $built['compare']['volume_forecast']);
+        $this->assertSame(20.0, $built['compare']['wape']);
+        $this->assertSame(0, $built['compare']['missing_days']);
+    }
+
+    public function testHourGranularityDoesNotFillEmptyDays(): void
+    {
+        $built = $this->service->build(
+            [
+                ['at' => '2026-03-02 10:00:00', 'volume' => 4, 'dmt' => 60],
+            ],
+            [],
+            'hour',
+            false,
+            '2026-03-01',
+            '2026-03-03'
+        );
+
+        $this->assertCount(1, $built['points']);
+    }
 }

@@ -424,12 +424,7 @@ class HistoricalDataController extends AppController
         }
         
         $selectedOffers = $this->normalizeOfferIds($selectedOffers);
-        $compareRequested = $this->isCompareRequested();
-        $compareIgnored = $compareRequested && count($selectedOffers) !== 1;
-        $compare = $compareRequested && !$compareIgnored;
-        if ($compareIgnored) {
-            $this->Flash->warning('La comparaison nécessite une seule offre.');
-        }
+        $compare = $this->isCompareRequested();
 
         // Initialiser les données
         $chartData = null;
@@ -533,9 +528,7 @@ class HistoricalDataController extends AppController
             $dayStartTime = (string)$WfmSettings->day_start_time;
             $dayEndTime = (string)$WfmSettings->day_end_time;
 
-            $compareRequested = $this->isCompareRequested();
-            $compareIgnored = $compareRequested && count($offerIds) !== 1;
-            $compare = $compareRequested && !$compareIgnored;
+            $compare = $this->isCompareRequested();
             
             // Charger les données
             $result = $this->loadHistoricalDataForChart(
@@ -553,9 +546,6 @@ class HistoricalDataController extends AppController
                 'chartData' => $result['chartData'],
                 'statistics' => $result['statistics'],
             ];
-            if ($compareIgnored) {
-                $payload['warning'] = 'La comparaison nécessite une seule offre.';
-            }
             
             return $this->response->withType('application/json')
                 ->withStringBody(json_encode($payload));
@@ -578,7 +568,7 @@ class HistoricalDataController extends AppController
      * @param string $dayStartTime Heure de début de journée
      * @param string $dayEndTime Heure de fin de journée
      * @param string $granularity Granularité ('15min', 'hour', 'day')
-     * @param bool $compare Comparer à la prévision publiée (une seule offre)
+     * @param bool $compare Comparer à la prévision publiée. Plusieurs offres : volumes additionnés, DMT pondérée par le volume.
      * @return array
      */
     private function loadHistoricalDataForChart(array $offerIds, string $startDate, string $endDate, string $dayStartTime, string $dayEndTime, string $granularity = '15min', bool $compare = false): array
@@ -594,10 +584,6 @@ class HistoricalDataController extends AppController
 
         if ($offerIds === []) {
             return ['chartData' => [], 'statistics' => []];
-        }
-
-        if ($compare && count($offerIds) !== 1) {
-            $compare = false;
         }
 
         $start = new \DateTime($startDate . ' ' . $dayStartTime);
@@ -641,7 +627,7 @@ class HistoricalDataController extends AppController
 
             $perOffer[] = [
                 'name' => $offerNames[$offerId] ?? ('Offre #' . $offerId),
-                'built' => $service->build($actuals, $forecastByDate, $granularity, $compare),
+                'built' => $service->build($actuals, $forecastByDate, $granularity, $compare, $startDate, $endDate),
             ];
         }
 
@@ -656,6 +642,20 @@ class HistoricalDataController extends AppController
             }
         }
         ksort($keyOrder);
+
+        if ($compare && count($perOffer) > 1) {
+            $combined = $this->combineComparedOffers($perOffer, $keyOrder);
+
+            return [
+                'chartData' => [
+                    'categories' => array_values($keyOrder),
+                    'volumeSeries' => $combined['volumeSeries'],
+                    'dmtSeries' => $combined['dmtSeries'],
+                    'forecastSeries' => $combined['forecastSeries'],
+                ],
+                'statistics' => $combined['statistics'],
+            ];
+        }
 
         $single = count($perOffer) === 1;
         $volumeSeries = [];
@@ -720,6 +720,106 @@ class HistoricalDataController extends AppController
                 'forecastSeries' => $forecastSeries,
             ],
             'statistics' => $allStatistics,
+        ];
+    }
+
+    /**
+     * Plusieurs offres en comparaison : un volume somme, une prévision somme,
+     * une DMT pondérée par le volume de chaque offre.
+     * Un créneau sans prévision sur une offre qui a du volume réel est exclu du WAPE.
+     *
+     * @param list<array{name: string, built: array}> $perOffer
+     * @param array<string, string> $keyOrder
+     * @return array{volumeSeries: list<array>, dmtSeries: list<array>, forecastSeries: list<array>, statistics: array}
+     */
+    private function combineComparedOffers(array $perOffer, array $keyOrder): array
+    {
+        $byOffer = [];
+        foreach ($perOffer as $item) {
+            $map = [];
+            foreach ($item['built']['points'] as $point) {
+                $map[$point['key']] = $point;
+            }
+            $byOffer[] = $map;
+        }
+
+        $volumes = [];
+        $dmts = [];
+        $forecasts = [];
+        $volumeTotal = 0;
+        $dmtWeightTotal = 0;
+        $comparedReal = 0;
+        $comparedForecast = 0;
+        $absError = 0;
+        $comparedDmtWeight = 0;
+        $missingDates = [];
+        $hasForecast = false;
+
+        foreach (array_keys($keyOrder) as $key) {
+            $volume = 0;
+            $weight = 0;
+            $forecastSum = 0;
+            $forecastComplete = true;
+            $sawForecast = false;
+            foreach ($byOffer as $map) {
+                if (!isset($map[$key])) {
+                    continue;
+                }
+                $pointVolume = (int)$map[$key]['volume'];
+                $volume += $pointVolume;
+                if ($pointVolume > 0 && $map[$key]['dmt'] !== null) {
+                    $weight += $pointVolume * (int)$map[$key]['dmt'];
+                }
+                if ($map[$key]['forecast'] === null) {
+                    if ($pointVolume > 0) {
+                        $forecastComplete = false;
+                    }
+                } else {
+                    $sawForecast = true;
+                    $forecastSum += (int)$map[$key]['forecast'];
+                }
+            }
+
+            $forecast = ($forecastComplete && $sawForecast) ? $forecastSum : null;
+            $volumes[] = $volume;
+            $dmts[] = $volume > 0 ? (int)round($weight / $volume) : null;
+            $forecasts[] = $forecast;
+            $volumeTotal += $volume;
+            $dmtWeightTotal += $weight;
+            if ($forecast !== null) {
+                $hasForecast = true;
+                $comparedReal += $volume;
+                $comparedForecast += $forecast;
+                $absError += abs($forecast - $volume);
+                $comparedDmtWeight += $weight;
+            } elseif ($volume > 0) {
+                $missingDates[substr((string)$key, 0, 10)] = true;
+            }
+        }
+
+        $name = implode(', ', array_column($perOffer, 'name'));
+        $compare = [
+            'has_forecast' => $hasForecast,
+            'volume_real' => $comparedReal,
+            'volume_forecast' => $comparedForecast,
+            'gap' => $comparedForecast - $comparedReal,
+            'gap_percent' => $comparedReal > 0 ? round((($comparedForecast - $comparedReal) / $comparedReal) * 100, 2) : null,
+            'wape' => $comparedReal > 0 ? round(($absError / $comparedReal) * 100, 2) : null,
+            'missing_days' => count($missingDates),
+            'dmt_weighted' => $comparedReal > 0 ? (int)round($comparedDmtWeight / $comparedReal) : null,
+        ];
+
+        return [
+            'volumeSeries' => [['name' => 'Volume réel', 'data' => $volumes]],
+            'dmtSeries' => [['name' => 'DMT réelle', 'data' => $dmts]],
+            'forecastSeries' => $hasForecast ? [['name' => 'Volume prévu', 'data' => $forecasts]] : [],
+            'statistics' => [
+                $name => [
+                    'volume_total' => $volumeTotal,
+                    'dmt_avg' => $volumeTotal > 0 ? (int)round($dmtWeightTotal / $volumeTotal) : null,
+                    'compare' => $compare,
+                ],
+            ],
         ];
     }
 
