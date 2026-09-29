@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 // Importe le lecteur CSV
+use App\Service\VolumeCompareService;
 use League\Csv\Reader;
 use League\Csv\Statement;
 
@@ -422,15 +423,31 @@ class HistoricalDataController extends AppController
             $granularity = $recommendedGranularity;
         }
         
+        $selectedOffers = $this->normalizeOfferIds($selectedOffers);
+        $compareRequested = $this->isCompareRequested();
+        $compareIgnored = $compareRequested && count($selectedOffers) !== 1;
+        $compare = $compareRequested && !$compareIgnored;
+        if ($compareIgnored) {
+            $this->Flash->warning('La comparaison nécessite une seule offre.');
+        }
+
         // Initialiser les données
         $chartData = null;
         $statistics = null;
         $hasData = false;
         
         // Si des offres sont sélectionnées, charger les données
-        if (!empty($selectedOffers) && is_array($selectedOffers)) {
+        if ($selectedOffers !== []) {
             try {
-                $result = $this->loadHistoricalDataForChart($selectedOffers, $startDate, $endDate, $dayStartTime, $dayEndTime, $granularity);
+                $result = $this->loadHistoricalDataForChart(
+                    $selectedOffers,
+                    $startDate,
+                    $endDate,
+                    $dayStartTime,
+                    $dayEndTime,
+                    $granularity,
+                    $compare
+                );
                 $chartData = $result['chartData'];
                 $statistics = $result['statistics'];
                 $hasData = !empty($statistics)
@@ -440,7 +457,17 @@ class HistoricalDataController extends AppController
             }
         }
         
-        $this->set(compact('offers', 'selectedOffers', 'startDate', 'endDate', 'granularity', 'chartData', 'statistics', 'hasData'));
+        $this->set(compact(
+            'offers',
+            'selectedOffers',
+            'startDate',
+            'endDate',
+            'granularity',
+            'chartData',
+            'statistics',
+            'hasData',
+            'compare'
+        ));
     }
 
     /**
@@ -453,7 +480,7 @@ class HistoricalDataController extends AppController
         
         $this->request->allowMethod(['get', 'post']);
         
-        $offerIds = $this->request->getQuery('offers', []);
+        $offerIds = $this->normalizeOfferIds($this->request->getQuery('offers', []));
         $startDate = $this->request->getQuery('start_date');
         $endDate = $this->request->getQuery('end_date');
         $granularity = $this->request->getQuery('granularity', '15min');
@@ -505,16 +532,33 @@ class HistoricalDataController extends AppController
             $WfmSettings = $this->fetchTable('WfmSettings')->find()->first();
             $dayStartTime = (string)$WfmSettings->day_start_time;
             $dayEndTime = (string)$WfmSettings->day_end_time;
+
+            $compareRequested = $this->isCompareRequested();
+            $compareIgnored = $compareRequested && count($offerIds) !== 1;
+            $compare = $compareRequested && !$compareIgnored;
             
             // Charger les données
-            $result = $this->loadHistoricalDataForChart($offerIds, $startDate, $endDate, $dayStartTime, $dayEndTime, $granularity);
+            $result = $this->loadHistoricalDataForChart(
+                $offerIds,
+                $startDate,
+                $endDate,
+                $dayStartTime,
+                $dayEndTime,
+                $granularity,
+                $compare
+            );
+
+            $payload = [
+                'success' => true,
+                'chartData' => $result['chartData'],
+                'statistics' => $result['statistics'],
+            ];
+            if ($compareIgnored) {
+                $payload['warning'] = 'La comparaison nécessite une seule offre.';
+            }
             
             return $this->response->withType('application/json')
-                ->withStringBody(json_encode([
-                    'success' => true,
-                    'chartData' => $result['chartData'],
-                    'statistics' => $result['statistics']
-                ]));
+                ->withStringBody(json_encode($payload));
             
         } catch (\Exception $e) {
             return $this->response->withType('application/json')
@@ -526,7 +570,7 @@ class HistoricalDataController extends AppController
     }
 
     /**
-     * Charge les données historiques et les formate pour les graphiques
+     * Charge les données historiques et les formate pour les graphiques.
      *
      * @param array $offerIds IDs des offres
      * @param string $startDate Date de début (Y-m-d)
@@ -534,9 +578,10 @@ class HistoricalDataController extends AppController
      * @param string $dayStartTime Heure de début de journée
      * @param string $dayEndTime Heure de fin de journée
      * @param string $granularity Granularité ('15min', 'hour', 'day')
+     * @param bool $compare Comparer à la prévision publiée (une seule offre)
      * @return array
      */
-    private function loadHistoricalDataForChart(array $offerIds, string $startDate, string $endDate, string $dayStartTime, string $dayEndTime, string $granularity = '15min'): array
+    private function loadHistoricalDataForChart(array $offerIds, string $startDate, string $endDate, string $dayStartTime, string $dayEndTime, string $granularity = '15min', bool $compare = false): array
     {
         $OffersTable = $this->fetchTable('Offers');
         $offerIds = $OffersTable->find('forecastable')
@@ -551,6 +596,10 @@ class HistoricalDataController extends AppController
             return ['chartData' => [], 'statistics' => []];
         }
 
+        if ($compare && count($offerIds) !== 1) {
+            $compare = false;
+        }
+
         $start = new \DateTime($startDate . ' ' . $dayStartTime);
         $end = new \DateTime($endDate . ' ' . $dayEndTime);
 
@@ -558,17 +607,11 @@ class HistoricalDataController extends AppController
             'keyField' => 'id',
             'valueField' => 'name'
         ])->where(['id IN' => $offerIds])->toArray();
-        
-        // Structure pour stocker les séries
-        $volumeSeries = [];
-        $dmtSeries = [];
-        $allCategories = [];
-        $allStatistics = [];
-        
+
+        $service = new VolumeCompareService();
+        $perOffer = [];
+
         foreach ($offerIds as $offerId) {
-            $offerName = $offerNames[$offerId] ?? "Offre #$offerId";
-            
-            // Récupérer les données
             $data = $this->HistoricalData->find()
                 ->where([
                     'offer_id' => $offerId,
@@ -577,137 +620,170 @@ class HistoricalDataController extends AppController
                 ])
                 ->order(['datetime_interval' => 'ASC'])
                 ->all();
-            
+
             if ($data->count() === 0) {
                 continue;
             }
-            
-            $volumeData = [];
-            $dmtData = [];
-            $categories = [];
-            
-            $totalVolume = 0;
-            $totalDmt = 0;
-            $maxVolume = 0;
-            $minDmt = PHP_INT_MAX;
-            $maxDmt = 0;
-            $count = 0;
-            
-            // Agréger les données selon la granularité
-            $aggregated = $this->aggregateData($data, $granularity);
-            
-            foreach ($aggregated as $point) {
-                $categories[] = $point['category'];
-                $volumeData[] = $point['volume'];
-                $dmtData[] = $point['dmt'];
-                
-                // Calcul des statistiques
-                $totalVolume += $point['volume'];
-                $totalDmt += $point['dmt'];
-                $maxVolume = max($maxVolume, $point['volume']);
-                $minDmt = min($minDmt, $point['dmt']);
-                $maxDmt = max($maxDmt, $point['dmt']);
-                $count++;
+
+            $actuals = [];
+            foreach ($data as $row) {
+                $at = $row->datetime_interval;
+                $actuals[] = [
+                    'at' => $at instanceof \DateTimeInterface ? $at->format('Y-m-d H:i:s') : (string)$at,
+                    'volume' => (int)$row->call_volume,
+                    'dmt' => (int)$row->avg_handle_time_seconds,
+                ];
             }
-            
-            $volumeSeries[] = [
-                'name' => $offerName . ' (Volume)',
-                'data' => $volumeData
-            ];
-            
-            $dmtSeries[] = [
-                'name' => $offerName . ' (DMT)',
-                'data' => $dmtData
-            ];
-            
-            if (empty($allCategories)) {
-                $allCategories = $categories;
-            }
-            
-            $allStatistics[$offerName] = [
-                'volume_total' => $totalVolume,
-                'volume_avg' => $count > 0 ? round($totalVolume / $count, 2) : 0,
-                'volume_max' => $maxVolume,
-                'dmt_avg' => $count > 0 ? round($totalDmt / $count, 0) : 0,
-                'dmt_min' => $minDmt === PHP_INT_MAX ? 0 : $minDmt,
-                'dmt_max' => $maxDmt,
-                'data_points' => $count
+
+            $forecastByDate = $compare
+                ? $this->loadPublishedForecastPayloads((int)$offerId, $startDate, $endDate)
+                : [];
+
+            $perOffer[] = [
+                'name' => $offerNames[$offerId] ?? ('Offre #' . $offerId),
+                'built' => $service->build($actuals, $forecastByDate, $granularity, $compare),
             ];
         }
-        
+
+        if ($perOffer === []) {
+            return ['chartData' => [], 'statistics' => []];
+        }
+
+        $keyOrder = [];
+        foreach ($perOffer as $item) {
+            foreach ($item['built']['points'] as $point) {
+                $keyOrder[$point['key']] = $point['category'];
+            }
+        }
+        ksort($keyOrder);
+
+        $single = count($perOffer) === 1;
+        $volumeSeries = [];
+        $dmtSeries = [];
+        $forecastSeries = [];
+        $allStatistics = [];
+
+        foreach ($perOffer as $item) {
+            $byKey = [];
+            foreach ($item['built']['points'] as $point) {
+                $byKey[$point['key']] = $point;
+            }
+
+            $volumes = [];
+            $dmts = [];
+            $forecasts = [];
+            foreach (array_keys($keyOrder) as $key) {
+                if (!isset($byKey[$key])) {
+                    $volumes[] = null;
+                    $dmts[] = null;
+                    $forecasts[] = null;
+                    continue;
+                }
+                $volumes[] = $byKey[$key]['volume'];
+                $dmts[] = $byKey[$key]['dmt'];
+                $forecasts[] = $byKey[$key]['forecast'];
+            }
+
+            $volumeSeries[] = [
+                'name' => $single ? 'Volume réel' : $item['name'],
+                'data' => $volumes,
+            ];
+
+            $compareStats = $item['built']['compare'];
+            if ($single) {
+                $dmtSeries[] = [
+                    'name' => 'DMT réelle',
+                    'data' => $dmts,
+                ];
+                if (is_array($compareStats) && !empty($compareStats['has_forecast'])) {
+                    $forecastSeries[] = [
+                        'name' => 'Volume prévu',
+                        'data' => $forecasts,
+                    ];
+                }
+            }
+
+            $allStatistics[$item['name']] = [
+                'volume_total' => $item['built']['volume_total'],
+                'dmt_avg' => $item['built']['dmt_weighted'],
+            ];
+            if (is_array($compareStats)) {
+                $allStatistics[$item['name']]['compare'] = $compareStats;
+            }
+        }
+
         return [
             'chartData' => [
-                'categories' => $allCategories,
+                'categories' => array_values($keyOrder),
                 'volumeSeries' => $volumeSeries,
-                'dmtSeries' => $dmtSeries
+                'dmtSeries' => $dmtSeries,
+                'forecastSeries' => $forecastSeries,
             ],
-            'statistics' => $allStatistics
+            'statistics' => $allStatistics,
         ];
     }
 
     /**
-     * Agrège les données selon la granularité demandée
+     * Séries forecast publiées pour une offre, indexées par jour.
+     * Le filtre offre est dans la jointure SQL.
      *
-     * @param \Cake\Datasource\ResultSetInterface $data Données brutes
-     * @param string $granularity Granularité ('15min', 'hour', 'day')
-     * @return array Données agrégées
+     * @return array<string, mixed>
      */
-    private function aggregateData($data, string $granularity): array
+    private function loadPublishedForecastPayloads(int $offerId, string $startDate, string $endDate): array
     {
-        $aggregated = [];
-        $tempBuckets = [];
-        
-        foreach ($data as $row) {
-            $dt = $row->datetime_interval;
-            
-            // Déterminer la clé d'agrégation selon la granularité
-            switch ($granularity) {
-                case 'hour':
-                    // Regrouper par heure
-                    $key = $dt->format('Y-m-d H:00:00');
-                    $category = $dt->format('d/m/Y H:00');
-                    break;
-                    
-                case 'day':
-                    // Regrouper par jour
-                    $key = $dt->format('Y-m-d');
-                    $category = $dt->format('d/m/Y');
-                    break;
-                    
-                case '15min':
-                default:
-                    // Pas d'agrégation, garder les tranches de 15 minutes
-                    $key = $dt->format('Y-m-d H:i:00');
-                    $category = $dt->format('d/m/Y H:i');
-                    break;
-            }
-            
-            // Agréger les données
-            if (!isset($tempBuckets[$key])) {
-                $tempBuckets[$key] = [
-                    'category' => $category,
-                    'volume_sum' => 0,
-                    'dmt_sum' => 0,
-                    'count' => 0
-                ];
-            }
-            
-            $tempBuckets[$key]['volume_sum'] += (int)$row->call_volume;
-            $tempBuckets[$key]['dmt_sum'] += (int)$row->avg_handle_time_seconds;
-            $tempBuckets[$key]['count']++;
+        $rows = $this->fetchTable('ScenarioSeries')->find()
+            ->select(['ScenarioSeries.date', 'ScenarioSeries.data_json'])
+            ->innerJoin(
+                ['Publications' => 'forecast_scenario_publications'],
+                [
+                    'Publications.scenario_id = ScenarioSeries.scenario_id',
+                    'Publications.date = ScenarioSeries.date',
+                ]
+            )
+            ->where([
+                'ScenarioSeries.offer_id' => $offerId,
+                'ScenarioSeries.type' => 'forecast',
+                'ScenarioSeries.date >=' => $startDate,
+                'ScenarioSeries.date <=' => $endDate,
+            ])
+            ->all();
+
+        $byDate = [];
+        foreach ($rows as $row) {
+            // Cake\I18n\Date n'est pas un DateTimeInterface : (string) donnerait 07/09/2026 en fr_FR.
+            $byDate[$row->date->format('Y-m-d')] = $row->data_json;
         }
-        
-        // Formater le résultat
-        // Volume = SOMME (total des appels sur la période)
-        // DMT = MOYENNE (durée moyenne de traitement)
-        foreach ($tempBuckets as $bucket) {
-            $aggregated[] = [
-                'category' => $bucket['category'],
-                'volume' => $bucket['volume_sum'], // Toujours la somme (total)
-                'dmt' => round($bucket['dmt_sum'] / $bucket['count'], 0) // Moyenne
-            ];
+
+        return $byDate;
+    }
+
+    private function isCompareRequested(): bool
+    {
+        $value = $this->request->getQuery('compare');
+
+        return $value === '1' || $value === 1 || $value === true || $value === 'true';
+    }
+
+    /**
+     * Les cases Cake envoient un hidden offers[]=0 pour chaque offre non cochée.
+     *
+     * @param mixed $offerIds
+     * @return list<int>
+     */
+    private function normalizeOfferIds(mixed $offerIds): array
+    {
+        if (!is_array($offerIds)) {
+            return [];
         }
-        
-        return $aggregated;
+
+        $ids = [];
+        foreach ($offerIds as $id) {
+            $id = (int)$id;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+
+        return array_values($ids);
     }
 }

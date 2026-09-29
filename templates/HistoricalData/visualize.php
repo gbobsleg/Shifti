@@ -8,9 +8,10 @@
  * @var array|null $chartData
  * @var array|null $statistics
  * @var bool $hasData
+ * @var bool $compare
  */
 ?>
-<?php $this->assign('title', 'Visualisation des Données Historiques'); ?>
+<?php $this->assign('title', 'Réel et prévision'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
 <?php $this->Html->css('historical-visualize', ['block' => true, 'timestamp' => 'force']); ?>
@@ -19,7 +20,7 @@
 
 <div class="crud-app historical-visualize content">
     <div class="crud-header">
-        <h1>Visualisation des données historiques</h1>
+        <h1>Réel et prévision</h1>
         <div class="crud-header-actions">
             <?= $this->Html->link(
                 '<i class="bi bi-arrow-left me-1"></i> Retour Administration',
@@ -61,6 +62,18 @@
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
+            </div>
+            <div class="form-check mt-3">
+                <input
+                    type="checkbox"
+                    name="compare"
+                    value="1"
+                    id="compare-forecast"
+                    class="form-check-input"
+                    <?= !empty($compare) ? 'checked' : '' ?>
+                >
+                <label class="form-check-label" for="compare-forecast">Comparer à la prévision publiée</label>
+                <small id="compare-hint" class="text-muted hv-compare-hint<?= !empty($compare) ? ' d-none' : '' ?>">Sélectionnez une seule offre pour comparer à la prévision publiée.</small>
             </div>
         </div>
         <div class="row">
@@ -159,6 +172,36 @@
     </div>
 
     <?php if ($hasData): ?>
+        <?php
+        $formatDmt = static function ($seconds): string {
+            if ($seconds === null || $seconds === '') {
+                return '—';
+            }
+            $seconds = max(0, (int)$seconds);
+
+            return sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
+        };
+        $formatSigned = static function (int $value): string {
+            $text = number_format($value, 0, ',', ' ');
+
+            return $value > 0 ? '+' . $text : $text;
+        };
+        $formatSignedPct = static function ($value): string {
+            if ($value === null) {
+                return '—';
+            }
+            $text = number_format((float)$value, 2, ',', ' ');
+
+            return ((float)$value > 0 ? '+' : '') . $text . ' %';
+        };
+        $formatPct = static function ($value): string {
+            if ($value === null) {
+                return '—';
+            }
+
+            return number_format((float)$value, 2, ',', ' ') . ' %';
+        };
+        ?>
         <section class="crud-section statistics-section">
             <h2 class="crud-section-title">Statistiques</h2>
             <div class="hv-stats-layout<?= count($statistics) > 1 ? ' has-share' : '' ?>">
@@ -167,34 +210,52 @@
                         <p class="text-muted mb-0">Aucune statistique pour les offres et la période sélectionnées.</p>
                     <?php endif; ?>
                     <?php foreach ($statistics as $offerName => $stats): ?>
+                        <?php $cmp = $stats['compare'] ?? null; ?>
                         <h3 class="crud-subsection-title"><?= h($offerName) ?></h3>
-                        <dl class="crud-fields mb-2">
-                            <div>
-                                <dt>Volume total</dt>
-                                <dd><?= number_format($stats['volume_total']) ?></dd>
-                            </div>
-                            <div>
-                                <dt>Moyenne / 15 min</dt>
-                                <dd><?= number_format($stats['volume_avg'], 2) ?></dd>
-                            </div>
-                            <div>
-                                <dt>Volume max</dt>
-                                <dd><?= number_format($stats['volume_max']) ?></dd>
-                            </div>
-                            <div>
-                                <dt>DMT moyen</dt>
-                                <dd><?= gmdate('i:s', $stats['dmt_avg']) ?></dd>
-                            </div>
-                            <div>
-                                <dt>DMT min</dt>
-                                <dd><?= gmdate('i:s', $stats['dmt_min']) ?></dd>
-                            </div>
-                            <div>
-                                <dt>DMT max</dt>
-                                <dd><?= gmdate('i:s', $stats['dmt_max']) ?></dd>
-                            </div>
-                        </dl>
-                        <p class="crud-header-meta"><?= number_format($stats['data_points']) ?> points de données</p>
+                        <?php if (is_array($cmp) && empty($cmp['has_forecast'])): ?>
+                            <p class="text-muted">Aucune prévision publiée sur cette période.</p>
+                        <?php endif; ?>
+                        <?php if (is_array($cmp) && !empty($cmp['has_forecast'])): ?>
+                            <dl class="crud-fields mb-2">
+                                <div>
+                                    <dt>Volume réel</dt>
+                                    <dd><?= number_format((int)$cmp['volume_real'], 0, ',', ' ') ?></dd>
+                                </div>
+                                <div>
+                                    <dt>Volume prévu</dt>
+                                    <dd><?= number_format((int)$cmp['volume_forecast'], 0, ',', ' ') ?></dd>
+                                </div>
+                                <div>
+                                    <dt>Écart</dt>
+                                    <dd><?= h($formatSigned((int)$cmp['gap'])) ?> appels (<?= h($formatSignedPct($cmp['gap_percent'])) ?>)</dd>
+                                </div>
+                                <div>
+                                    <dt>WAPE à cette granularité</dt>
+                                    <dd><?= h($formatPct($cmp['wape'])) ?></dd>
+                                </div>
+                                <div>
+                                    <dt>DMT réelle</dt>
+                                    <dd><?= h($formatDmt($cmp['dmt_weighted'])) ?></dd>
+                                </div>
+                            </dl>
+                            <?php $missingDays = (int)($cmp['missing_days'] ?? 0); ?>
+                            <?php if ($missingDays === 1): ?>
+                                <p class="crud-header-meta">1 jour sans prévision, exclu des totaux</p>
+                            <?php elseif ($missingDays > 1): ?>
+                                <p class="crud-header-meta"><?= number_format($missingDays, 0, ',', ' ') ?> jours sans prévision, exclus des totaux</p>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <dl class="crud-fields mb-2">
+                                <div>
+                                    <dt>Volume total</dt>
+                                    <dd><?= number_format((int)$stats['volume_total'], 0, ',', ' ') ?></dd>
+                                </div>
+                                <div>
+                                    <dt>DMT réelle</dt>
+                                    <dd><?= h($formatDmt($stats['dmt_avg'])) ?></dd>
+                                </div>
+                            </dl>
+                        <?php endif; ?>
                     <?php endforeach; ?>
                 </div>
                 <?php if (count($statistics) > 1): ?>
@@ -207,13 +268,11 @@
         </section>
 
         <section class="crud-section chart-section">
-            <h2 class="crud-section-title">Volume d'appels</h2>
+            <h2 class="crud-section-title"><?= count($statistics) > 1 ? 'Volume' : 'Volume et DMT' ?></h2>
+            <?php if (count($statistics) > 1): ?>
+                <p class="text-muted">DMT affichée pour une seule offre.</p>
+            <?php endif; ?>
             <div id="volume-chart"></div>
-        </section>
-
-        <section class="crud-section chart-section">
-            <h2 class="crud-section-title">Durée moyenne de traitement (DMT)</h2>
-            <div id="dmt-chart"></div>
         </section>
 
         <script>

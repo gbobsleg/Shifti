@@ -3,19 +3,45 @@
  */
 
 $(document).ready(function() {
-    
-    // Limiter la sélection à 3 offres maximum
-    $('.offer-checkbox').on('change', function() {
+    function enforceOfferLimit() {
+        const compareOn = $('#compare-forecast').is(':checked');
+        const max = compareOn ? 1 : 3;
         const checkedCount = $('.offer-checkbox:checked').length;
-        if (checkedCount >= 3) {
-            $('.offer-checkbox:not(:checked)').prop('disabled', true);
+        $('.offer-checkbox:not(:checked)').prop('disabled', checkedCount >= max);
+    }
+
+    function syncCompareAvailability() {
+        const checkedCount = $('.offer-checkbox:checked').length;
+        const $compare = $('#compare-forecast');
+        const $hint = $('#compare-hint');
+        if (checkedCount === 1) {
+            $compare.prop('disabled', false);
+            $hint.addClass('d-none');
         } else {
-            $('.offer-checkbox').prop('disabled', false);
+            $compare.prop('checked', false).prop('disabled', true);
+            $hint.removeClass('d-none');
         }
+        enforceOfferLimit();
+    }
+
+    $('.offer-checkbox').on('change', function() {
+        if ($(this).is(':checked') && $('#compare-forecast').is(':checked')) {
+            if ($('.offer-checkbox:checked').length > 1) {
+                $(this).prop('checked', false);
+                return;
+            }
+        }
+        syncCompareAvailability();
     });
-    
-    // Trigger initial au chargement
-    $('.offer-checkbox:checked').trigger('change');
+
+    $('#compare-forecast').on('change', function() {
+        if (this.checked && $('.offer-checkbox:checked').length !== 1) {
+            this.checked = false;
+        }
+        enforceOfferLimit();
+    });
+
+    syncCompareAvailability();
     
     function parseIsoDateLocal(value) {
         if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -382,140 +408,185 @@ function renderVolumeShare(statistics) {
 }
 
 /**
- * Rend les graphiques ApexCharts
+ * Rend le graphe unique : volume, prévision éventuelle, DMT en minutes.
  */
 function renderCharts() {
     const data = window.historicalChartData;
-    
-    if (!data || !data.categories || data.categories.length === 0) {
-        const empty = '<p class="text-muted mb-0">Aucune donnée à afficher pour cette période.</p>';
-        const volume = document.getElementById('volume-chart');
-        const dmt = document.getElementById('dmt-chart');
-        if (volume) {
-            volume.innerHTML = empty;
-        }
-        if (dmt) {
-            dmt.innerHTML = empty;
-        }
+    const chart = document.getElementById('volume-chart');
+
+    if (!chart) {
         return;
     }
-    
-    // Graphique Volume
-    if (data.volumeSeries && data.volumeSeries.length > 0) {
-        window.renderApexLine('volume-chart', data.categories, data.volumeSeries, {
-            colors: ['#007bff', '#28a745', '#dc3545'],
-            yaxis: {
-                title: {
-                    text: 'Volume d\'appels'
-                },
-                labels: {
-                    formatter: function(val) {
-                        return Math.round(val);
-                    }
-                }
-            },
-            tooltip: {
-                y: {
-                    formatter: function(val) {
-                        return Math.round(val) + ' appels';
-                    }
-                }
-            }
-        });
+
+    if (!data || !data.categories || data.categories.length === 0) {
+        chart.innerHTML = '<p class="text-muted mb-0">Aucune donnée à afficher pour cette période.</p>';
+        return;
     }
-    
-    // Graphique DMT
-    if (data.dmtSeries && data.dmtSeries.length > 0) {
-        window.renderApexLine('dmt-chart', data.categories, data.dmtSeries, {
-            colors: ['#17a2b8', '#ffc107', '#6f42c1'],
-            yaxis: {
-                title: {
-                    text: 'DMT (secondes)'
-                },
-                labels: {
-                    formatter: function(val) {
-                        return Math.round(val) + 's';
-                    }
-                }
-            },
-            tooltip: {
-                y: {
-                    formatter: function(val) {
-                        const minutes = Math.floor(val / 60);
-                        const seconds = Math.round(val % 60);
-                        return minutes + 'min ' + seconds + 's';
-                    }
-                }
-            }
+
+    const series = [];
+    const colors = [];
+    const strokeWidth = [];
+    const dashArray = [];
+    const fillTypes = [];
+    const fillOpacity = [];
+    const volumeColors = ['#007bff', '#28a745', '#dc3545'];
+    const volumeSeries = data.volumeSeries || [];
+    const singleVolume = volumeSeries.length === 1;
+    const firstVolumeName = volumeSeries.length ? volumeSeries[0].name : 'Volume réel';
+
+    volumeSeries.forEach(function(item, index) {
+        series.push({
+            name: item.name,
+            type: singleVolume ? 'area' : 'line',
+            data: item.data
         });
+        colors.push(volumeColors[index % volumeColors.length]);
+        strokeWidth.push(2);
+        dashArray.push(0);
+        fillTypes.push(singleVolume ? 'gradient' : 'solid');
+        fillOpacity.push(singleVolume ? 0.3 : 1);
+    });
+
+    const forecastSeries = data.forecastSeries || [];
+    forecastSeries.forEach(function(item) {
+        series.push({
+            name: item.name,
+            type: 'line',
+            data: item.data
+        });
+        colors.push('#0056b3');
+        strokeWidth.push(2);
+        dashArray.push(6);
+        fillTypes.push('solid');
+        fillOpacity.push(1);
+    });
+
+    const dmtSeries = data.dmtSeries || [];
+    dmtSeries.forEach(function(item) {
+        series.push({
+            name: item.name,
+            type: 'line',
+            data: (item.data || []).map(function(value) {
+                return value === null || typeof value === 'undefined' ? null : value / 60;
+            })
+        });
+        colors.push('#fd7e14');
+        strokeWidth.push(2);
+        dashArray.push(0);
+        fillTypes.push('solid');
+        fillOpacity.push(1);
+    });
+
+    if (series.length === 0 || typeof window.renderApexArea !== 'function') {
+        chart.innerHTML = '<p class="text-muted mb-0">Aucune donnée à afficher pour cette période.</p>';
+        return;
     }
+
+    const yaxis = [];
+    volumeSeries.forEach(function(item, index) {
+        yaxis.push({
+            seriesName: firstVolumeName,
+            min: 0,
+            tickAmount: 5,
+            forceNiceScale: true,
+            show: index === 0,
+            title: { text: index === 0 ? 'Appels' : '' }
+        });
+    });
+    forecastSeries.forEach(function() {
+        yaxis.push({
+            seriesName: firstVolumeName,
+            min: 0,
+            show: false
+        });
+    });
+    dmtSeries.forEach(function(item) {
+        yaxis.push({
+            seriesName: item.name,
+            opposite: true,
+            min: 0,
+            tickAmount: 5,
+            forceNiceScale: true,
+            title: { text: 'DMT (min)' }
+        });
+    });
+
+    window.renderApexArea('volume-chart', data.categories, series, {
+        chart: { type: 'line' },
+        colors: colors,
+        stroke: {
+            width: strokeWidth,
+            curve: 'smooth',
+            dashArray: dashArray
+        },
+        fill: {
+            type: fillTypes,
+            opacity: fillOpacity,
+            gradient: {
+                shadeIntensity: 1,
+                opacityFrom: 0.35,
+                opacityTo: 0.05,
+                stops: [0, 90, 100]
+            }
+        },
+        yaxis: yaxis,
+        customFormats: {
+            'DMT réelle': 'time',
+            'default': 'int'
+        }
+    });
 }
 
 /**
- * Exporte les données en CSV
+ * Exporte les séries déjà agrégées. La colonne prévu n'existe que si elle est dans le payload.
+ * La DMT reste en secondes.
  */
 function exportToCSV() {
     const data = window.historicalChartData;
-    
+
     if (!data || !data.categories) {
         return;
     }
-    
-    // Construction du CSV
+
+    const columns = [];
+    (data.volumeSeries || []).forEach(function(series) {
+        columns.push({ header: series.name, data: series.data });
+    });
+    (data.forecastSeries || []).forEach(function(series) {
+        columns.push({ header: series.name, data: series.data });
+    });
+    (data.dmtSeries || []).forEach(function(series) {
+        columns.push({ header: series.name + ' (s)', data: series.data });
+    });
+
     let csv = 'Date/Heure';
-    
-    // En-têtes colonnes (Volume pour chaque offre)
-    if (data.volumeSeries) {
-        data.volumeSeries.forEach(function(series) {
-            csv += ';' + series.name;
-        });
-    }
-    
-    // En-têtes colonnes (DMT pour chaque offre)
-    if (data.dmtSeries) {
-        data.dmtSeries.forEach(function(series) {
-            csv += ';' + series.name;
-        });
-    }
-    
+    columns.forEach(function(column) {
+        csv += ';' + column.header;
+    });
     csv += '\n';
-    
-    // Lignes de données
+
     for (let i = 0; i < data.categories.length; i++) {
         csv += data.categories[i];
-        
-        // Volumes
-        if (data.volumeSeries) {
-            data.volumeSeries.forEach(function(series) {
-                csv += ';' + (series.data[i] !== null ? series.data[i] : '');
-            });
-        }
-        
-        // DMT
-        if (data.dmtSeries) {
-            data.dmtSeries.forEach(function(series) {
-                csv += ';' + (series.data[i] !== null ? series.data[i] : '');
-            });
-        }
-        
+        columns.forEach(function(column) {
+            const value = column.data ? column.data[i] : null;
+            csv += ';' + (value !== null && typeof value !== 'undefined' ? value : '');
+        });
         csv += '\n';
     }
-    
-    // Téléchargement du fichier
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
     const now = new Date();
-    const filename = 'donnees_historiques_' + 
-        now.getFullYear() + 
-        String(now.getMonth() + 1).padStart(2, '0') + 
-        String(now.getDate()).padStart(2, '0') + 
-        '_' + 
-        String(now.getHours()).padStart(2, '0') + 
-        String(now.getMinutes()).padStart(2, '0') + 
+    const filename = 'reel_et_prevision_' +
+        now.getFullYear() +
+        String(now.getMonth() + 1).padStart(2, '0') +
+        String(now.getDate()).padStart(2, '0') +
+        '_' +
+        String(now.getHours()).padStart(2, '0') +
+        String(now.getMinutes()).padStart(2, '0') +
         '.csv';
-    
+
     link.setAttribute('href', url);
     link.setAttribute('download', filename);
     link.style.visibility = 'hidden';

@@ -57,6 +57,11 @@
     cursor: not-allowed;
 }
 
+.historical-visualize .hv-compare-hint {
+    display: block;
+    margin-top: 0.25rem;
+}
+
 #loading-indicator {
     min-height: 300px;
 }

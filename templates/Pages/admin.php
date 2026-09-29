@@ -259,7 +259,7 @@ $dirItem = function (string $icon, string $title, string $help, array $url, stri
                 <?php if ($isAdmin): ?>
                     <?= $tile('bi-upload', 'Import CSV', 'Charger les données historiques depuis un fichier CSV', ['controller' => 'HistoricalData', 'action' => 'import']) ?>
                 <?php endif; ?>
-                <?= $tile('bi-graph-up', 'Visualisation graphique', 'Analyser les données historiques', ['controller' => 'HistoricalData', 'action' => 'visualize']) ?>
+                <?= $tile('bi-graph-up', 'Réel et prévision', 'Comparer le volume réel à la prévision publiée', ['controller' => 'HistoricalData', 'action' => 'visualize']) ?>
             </div>
         </section>
     <?php endif; ?>
