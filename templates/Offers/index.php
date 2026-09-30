@@ -2,6 +2,10 @@
 /**
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\Offer[]|\Cake\Collection\CollectionInterface $offers
+ * @var string $tab
+ * @var \App\Model\Entity\Offer[]|\Cake\Collection\CollectionInterface $colorOffers
+ * @var \App\Model\Entity\OfferColorPreset[]|\Cake\Collection\CollectionInterface $colorPresets
+ * @var \App\Model\Entity\OfferColorFamily[]|\Cake\Collection\CollectionInterface $colorFamilies
  */
 $typeLabels = [
     'normal' => 'Normale',
@@ -22,7 +26,11 @@ $typeLabels = [
                 <i class="bi bi-basket"></i>
                 Offres
             </h1>
-            <p class="crud-header-meta"><?= $this->Paginator->counter('{{count}} offres') ?></p>
+            <?php if ($tab === 'couleurs'): ?>
+                <p class="crud-header-meta"><?= count($colorOffers) ?> offres</p>
+            <?php else: ?>
+                <p class="crud-header-meta"><?= $this->Paginator->counter('{{count}} offres') ?></p>
+            <?php endif; ?>
         </div>
         <div class="crud-header-actions">
             <?= $this->Html->link(
@@ -50,6 +58,34 @@ $typeLabels = [
         </div>
     </div>
 
+    <ul class="nav nav-tabs crud-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <?= $this->Html->link(
+                'Liste',
+                ['action' => 'index'],
+                [
+                    'class' => 'nav-link' . ($tab === 'liste' ? ' active' : ''),
+                    'role' => 'tab',
+                    'aria-selected' => $tab === 'liste' ? 'true' : 'false',
+                ]
+            ) ?>
+        </li>
+        <li class="nav-item" role="presentation">
+            <?= $this->Html->link(
+                'Couleurs',
+                ['action' => 'index', '?' => ['tab' => 'couleurs']],
+                [
+                    'class' => 'nav-link' . ($tab === 'couleurs' ? ' active' : ''),
+                    'role' => 'tab',
+                    'aria-selected' => $tab === 'couleurs' ? 'true' : 'false',
+                ]
+            ) ?>
+        </li>
+    </ul>
+
+    <?php if ($tab === 'couleurs'): ?>
+        <?= $this->element('Offers/colors_tab') ?>
+    <?php else: ?>
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <?php
@@ -155,6 +191,7 @@ $typeLabels = [
         </ul>
         <p><?= $this->Paginator->counter('Page {{page}} sur {{pages}}, affichant {{current}} sur {{count}}') ?></p>
     </div>
+    <?php endif; ?>
 </div>
 
 <script>

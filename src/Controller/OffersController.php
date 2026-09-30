@@ -24,9 +24,153 @@ class OffersController extends AppController
     public function index()
     {
         $this->Authorization->authorize(new \App\Resource\OffersResource(), 'index');
-        $offers = $this->paginate($this->Offers);
+        $tab = (string)$this->request->getQuery('tab');
+        if ($tab !== 'couleurs') {
+            $tab = 'liste';
+        }
 
-        $this->set(compact('offers'));
+        $offers = [];
+        $colorOffers = [];
+        $colorPresets = [];
+        $colorFamilies = [];
+        if ($tab === 'couleurs') {
+            $colorOffers = $this->Offers->find()
+                ->orderBy(['display_order' => 'ASC', 'name' => 'ASC'])
+                ->all();
+            $colorPresets = $this->fetchTable('OfferColorPresets')->find()
+                ->orderBy(['OfferColorPresets.created' => 'DESC', 'OfferColorPresets.id' => 'DESC'])
+                ->all();
+            $colorFamilies = $this->fetchTable('OfferColorFamilies')->find()
+                ->contain([
+                    'OfferColorFamilyOffers' => function ($query) {
+                        return $query
+                            ->contain(['Offers'])
+                            ->orderBy(['OfferColorFamilyOffers.position' => 'ASC', 'OfferColorFamilyOffers.id' => 'ASC']);
+                    },
+                ])
+                ->orderBy(['OfferColorFamilies.position' => 'ASC', 'OfferColorFamilies.id' => 'ASC'])
+                ->all();
+        } else {
+            $offers = $this->paginate($this->Offers);
+        }
+
+        $this->set(compact('offers', 'tab', 'colorOffers', 'colorPresets', 'colorFamilies'));
+    }
+
+    /**
+     * Enregistre une palette des couleurs et de l'ordre courants.
+     * Le POST ne fournit que le nom.
+     *
+     * @return \Cake\Http\Response|null
+     */
+    public function saveColorPreset()
+    {
+        $this->request->allowMethod(['post']);
+        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
+
+        $name = trim((string)$this->request->getData('name'));
+        $preset = $this->fetchTable('OfferColorPresets')->capture($name);
+        if ($preset->id) {
+            $this->Flash->success('La palette « ' . $preset->name . ' » a été enregistrée.');
+        } else {
+            $nameErrors = $preset->getError('name');
+            $message = $nameErrors ? (string)reset($nameErrors) : 'La palette n\'a pas pu être enregistrée.';
+            $this->Flash->error($message);
+        }
+
+        return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
+    }
+
+    /**
+     * Restaure les couleurs et l'ordre d'affichage figés dans une palette.
+     *
+     * @param string|null $id Offer color preset id.
+     * @return \Cake\Http\Response|null
+     */
+    public function restoreColorPreset($id = null)
+    {
+        $this->request->allowMethod(['post']);
+        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
+
+        $presets = $this->fetchTable('OfferColorPresets');
+        $preset = $presets->get($id);
+        $presets->restore((int)$preset->id);
+        $this->Flash->success('Les couleurs et l\'ordre d\'affichage de « ' . $preset->name . ' » ont été restaurés.');
+
+        return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
+    }
+
+    /**
+     * Supprime une palette sans modifier les couleurs en cours.
+     *
+     * @param string|null $id Offer color preset id.
+     * @return \Cake\Http\Response|null
+     */
+    public function deleteColorPreset($id = null)
+    {
+        $this->request->allowMethod(['post', 'delete']);
+        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
+
+        $presets = $this->fetchTable('OfferColorPresets');
+        $preset = $presets->get($id);
+        if ($presets->delete($preset)) {
+            $this->Flash->success('La palette « ' . $preset->name . ' » a été supprimée. Les couleurs en cours n\'ont pas changé.');
+        } else {
+            $this->Flash->error('La palette n\'a pas pu être supprimée.');
+        }
+
+        return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
+    }
+
+    /**
+     * Remplace le rangement des offres par famille.
+     * N'écrit ni la couleur ni l'ordre d'affichage.
+     *
+     * @return \Cake\Http\Response|null
+     */
+    public function saveColorFamilies()
+    {
+        $this->request->allowMethod(['post']);
+        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
+
+        $families = $this->request->getData('families');
+        if (!is_array($families)) {
+            $families = [];
+        }
+
+        $error = $this->fetchTable('OfferColorFamilies')->replaceArrangement($families);
+        if ($error === null) {
+            $this->Flash->success('Le rangement des familles a été enregistré.');
+        } else {
+            $this->Flash->error($error);
+        }
+
+        return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
+    }
+
+    /**
+     * Enregistre le rangement et l'applique aux couleurs et à l'ordre d'affichage.
+     *
+     * @return \Cake\Http\Response|null
+     */
+    public function applyColorFamilies()
+    {
+        $this->request->allowMethod(['post']);
+        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
+
+        $families = $this->request->getData('families');
+        if (!is_array($families)) {
+            $families = [];
+        }
+
+        $error = $this->fetchTable('OfferColorFamilies')->publishArrangement($families);
+        if ($error === null) {
+            $this->Flash->success('Le rangement a été appliqué au planning.');
+        } else {
+            $this->Flash->error($error);
+        }
+
+        return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
     }
 
     /**
