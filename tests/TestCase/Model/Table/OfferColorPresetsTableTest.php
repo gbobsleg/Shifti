@@ -57,7 +57,7 @@ class OfferColorPresetsTableTest extends TestCase
         TableRegistry::getTableLocator()->clear();
     }
 
-    public function testRestoreRewritesSnapshotAndLeavesLaterOfferUntouched(): void
+    public function testRestoreRewritesMembersAndPlacesLaterOfferAfter(): void
     {
         $kept = $this->createOffer('OCP_Test_Kept', '#112233', 4);
         $changed = $this->createOffer('OCP_Test_Changed', '#445566', 5);
@@ -76,13 +76,16 @@ class OfferColorPresetsTableTest extends TestCase
         $keptAfter = $this->Offers->get($kept->id);
         $changedAfter = $this->Offers->get($changed->id);
         $laterAfter = $this->Offers->get($later->id);
+        $itemCount = $this->getTableLocator()->get('OfferColorPresetItems')->find()
+            ->where(['preset_id' => $preset->id])
+            ->count();
 
         $this->assertSame('#112233', $keptAfter->color);
-        $this->assertSame(4, $keptAfter->display_order);
         $this->assertSame('#445566', $changedAfter->color);
-        $this->assertSame(5, $changedAfter->display_order);
         $this->assertSame('#778899', $laterAfter->color);
-        $this->assertSame(6, $laterAfter->display_order);
+        $this->assertLessThan((int)$changedAfter->display_order, (int)$keptAfter->display_order);
+        $this->assertLessThan((int)$laterAfter->display_order, (int)$changedAfter->display_order);
+        $this->assertSame($itemCount, (int)$laterAfter->display_order);
     }
 
     public function testCaptureRejectsSameNameIgnoringCase(): void

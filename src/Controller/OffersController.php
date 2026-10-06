@@ -3,7 +3,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Model\Entity\OfferColorFamily;
+use App\Model\Entity\OfferColorFamilyOffer;
 use App\Model\Entity\ProphetTuningJob;
+use App\Service\OfferColors\BoardOutcome;
+use App\Service\OfferColors\OfferColorBoard;
 use App\Service\ProphetOptunaConfig;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Routing\Router;
@@ -30,36 +34,16 @@ class OffersController extends AppController
         }
 
         $offers = [];
-        $colorOffers = [];
-        $colorPresets = [];
-        $colorFamilies = [];
         if ($tab === 'couleurs') {
-            $colorOffers = $this->Offers->find()
-                ->orderBy(['display_order' => 'ASC', 'name' => 'ASC'])
-                ->all();
-            $colorPresets = $this->fetchTable('OfferColorPresets')->find()
-                ->orderBy(['OfferColorPresets.created' => 'DESC', 'OfferColorPresets.id' => 'DESC'])
-                ->all();
-            $colorFamilies = $this->fetchTable('OfferColorFamilies')->find()
-                ->contain([
-                    'OfferColorFamilyOffers' => function ($query) {
-                        return $query
-                            ->contain(['Offers'])
-                            ->orderBy(['OfferColorFamilyOffers.position' => 'ASC', 'OfferColorFamilyOffers.id' => 'ASC']);
-                    },
-                ])
-                ->orderBy(['OfferColorFamilies.position' => 'ASC', 'OfferColorFamilies.id' => 'ASC'])
-                ->all();
+            $this->set($this->colorsContext());
         } else {
             $offers = $this->paginate($this->Offers);
+            $this->set(compact('offers', 'tab'));
         }
-
-        $this->set(compact('offers', 'tab', 'colorOffers', 'colorPresets', 'colorFamilies'));
     }
 
     /**
-     * Enregistre une palette des couleurs et de l'ordre courants.
-     * Le POST ne fournit que le nom.
+     * Enregistre la palette ouverte, ou en crée une.
      *
      * @return \Cake\Http\Response|null
      */
@@ -68,40 +52,78 @@ class OffersController extends AppController
         $this->request->allowMethod(['post']);
         $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
 
-        $name = trim((string)$this->request->getData('name'));
-        $preset = $this->fetchTable('OfferColorPresets')->capture($name);
-        if ($preset->id) {
-            $this->Flash->success('La palette « ' . $preset->name . ' » a été enregistrée.');
-        } else {
-            $nameErrors = $preset->getError('name');
-            $message = $nameErrors ? (string)reset($nameErrors) : 'La palette n\'a pas pu être enregistrée.';
-            $this->Flash->error($message);
+        $data = $this->request->getData();
+        if (!is_array($data)) {
+            $data = [];
         }
 
-        return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
+        return $this->finishBoard((new OfferColorBoard())->save($data), 'save', false);
     }
 
     /**
-     * Restaure les couleurs et l'ordre d'affichage figés dans une palette.
+     * Crée une palette en copiant une palette déjà enregistrée.
      *
-     * @param string|null $id Offer color preset id.
      * @return \Cake\Http\Response|null
      */
-    public function restoreColorPreset($id = null)
+    public function createColorPreset()
     {
         $this->request->allowMethod(['post']);
         $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
 
-        $presets = $this->fetchTable('OfferColorPresets');
-        $preset = $presets->get($id);
-        $presets->restore((int)$preset->id);
-        $this->Flash->success('Les couleurs et l\'ordre d\'affichage de « ' . $preset->name . ' » ont été restaurés.');
+        $data = $this->request->getData();
+        if (!is_array($data)) {
+            $data = [];
+        }
+        $source = $data['source'] ?? '';
+        if ($source === '' || $source === 'current') {
+            $this->Flash->error('Choisissez une palette de départ, ou l\'arrangement actuel.');
 
-        return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
+            return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
+        }
+
+        return $this->redirectBoard((new OfferColorBoard())->createFromPreset((int)$source, $data), false);
     }
 
     /**
-     * Supprime une palette sans modifier les couleurs en cours.
+     * Charge une palette dans le bandeau, sans toucher au planning.
+     *
+     * @param string|null $id Offer color preset id.
+     * @return \Cake\Http\Response|null
+     */
+    public function openColorPreset($id = null)
+    {
+        $this->request->allowMethod(['post']);
+        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
+
+        $data = $this->request->getData();
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        return $this->redirectBoard((new OfferColorBoard())->open((int)$id, $data), false);
+    }
+
+    /**
+     * Applique une palette enregistrée au planning et au bandeau.
+     *
+     * @param string|null $id Offer color preset id.
+     * @return \Cake\Http\Response|null
+     */
+    public function applyColorPreset($id = null)
+    {
+        $this->request->allowMethod(['post']);
+        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
+
+        $data = $this->request->getData();
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        return $this->redirectBoard((new OfferColorBoard())->applyPreset((int)$id, $data), false);
+    }
+
+    /**
+     * Supprime une palette nommée. Le bandeau, le planning et le jeton restent.
      *
      * @param string|null $id Offer color preset id.
      * @return \Cake\Http\Response|null
@@ -114,7 +136,8 @@ class OffersController extends AppController
         $presets = $this->fetchTable('OfferColorPresets');
         $preset = $presets->get($id);
         if ($presets->delete($preset)) {
-            $this->Flash->success('La palette « ' . $preset->name . ' » a été supprimée. Les couleurs en cours n\'ont pas changé.');
+            $this->request->getSession()->delete('OfferColors.liveSwatches');
+            $this->Flash->success('La palette « ' . $preset->name . ' » a été supprimée. Le bandeau n\'a pas changé.');
         } else {
             $this->Flash->error('La palette n\'a pas pu être supprimée.');
         }
@@ -123,54 +146,265 @@ class OffersController extends AppController
     }
 
     /**
-     * Remplace le rangement des offres par famille.
-     * N'écrit ni la couleur ni l'ordre d'affichage.
-     *
-     * @return \Cake\Http\Response|null
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
      */
-    public function saveColorFamilies()
+    private function colorsContext(array $overrides = []): array
     {
-        $this->request->allowMethod(['post']);
-        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
-
-        $families = $this->request->getData('families');
-        if (!is_array($families)) {
-            $families = [];
+        $colorOffers = $this->Offers->find()
+            ->orderBy(['display_order' => 'ASC', 'name' => 'ASC'])
+            ->all()
+            ->toList();
+        $presets = $this->fetchTable('OfferColorPresets');
+        $colorPresets = $presets->find()
+            ->orderBy(['OfferColorPresets.created' => 'DESC', 'OfferColorPresets.id' => 'DESC'])
+            ->all();
+        $colorFamilies = $this->fetchTable('OfferColorFamilies')->find()
+            ->contain([
+                'OfferColorFamilyOffers' => function ($query) {
+                    return $query
+                        ->contain(['Offers'])
+                        ->orderBy(['OfferColorFamilyOffers.position' => 'ASC', 'OfferColorFamilyOffers.id' => 'ASC']);
+                },
+            ])
+            ->orderBy(['OfferColorFamilies.position' => 'ASC', 'OfferColorFamilies.id' => 'ASC'])
+            ->all();
+        $metadata = $this->fetchTable('OfferColorMetadata')->current();
+        $openPreset = null;
+        $swatchColors = [];
+        if ($metadata->preset_id) {
+            $openPreset = $presets->find()
+                ->contain(['OfferColorPresetItems'])
+                ->where(['OfferColorPresets.id' => (int)$metadata->preset_id])
+                ->first();
+        }
+        if ($openPreset !== null && !$this->request->getSession()->read('OfferColors.liveSwatches')) {
+            foreach ($openPreset->offer_color_preset_items as $item) {
+                $swatchColors[(int)$item->offer_id] = (string)$item->color;
+            }
+            $colorOffers = $this->sortOffersForOpenPalette($colorOffers, $openPreset);
         }
 
-        $error = $this->fetchTable('OfferColorFamilies')->replaceArrangement($families);
-        if ($error === null) {
-            $this->Flash->success('Le rangement des familles a été enregistré.');
+        $context = [
+            'offers' => [],
+            'tab' => 'couleurs',
+            'colorOffers' => $colorOffers,
+            'colorPresets' => $colorPresets,
+            'colorFamilies' => $colorFamilies,
+            'openPreset' => $openPreset,
+            'swatchColors' => $swatchColors,
+            'revision' => (int)$metadata->revision,
+            'boardName' => $openPreset ? (string)$openPreset->name : '',
+            'boardPresetId' => $openPreset ? (int)$openPreset->id : null,
+            'paletteTitle' => $openPreset ? (string)$openPreset->name : '',
+            'conflict' => false,
+            'missingPreset' => false,
+            'overwriteRevision' => null,
+            'conflictAction' => 'save',
+            'boardDirty' => false,
+            'liveSwatches' => (bool)$this->request->getSession()->read('OfferColors.liveSwatches'),
+        ];
+
+        return array_merge($context, $overrides);
+    }
+
+    /**
+     * @param \Cake\Http\Response|null $response
+     * @return \Cake\Http\Response|null
+     */
+    private function redirectBoard(BoardOutcome $outcome, bool $liveSwatches)
+    {
+        if ($outcome->status === BoardOutcome::OK) {
+            $this->rememberSwatchSource($liveSwatches);
+            $this->Flash->success($outcome->message);
         } else {
-            $this->Flash->error($error);
+            $this->Flash->error($outcome->message);
         }
 
         return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
     }
 
     /**
-     * Enregistre le rangement et l'applique aux couleurs et à l'ordre d'affichage.
-     *
      * @return \Cake\Http\Response|null
      */
-    public function applyColorFamilies()
+    private function finishBoard(BoardOutcome $outcome, string $action, bool $liveSwatches)
     {
-        $this->request->allowMethod(['post']);
-        $this->Authorization->authorize(new \App\Resource\OffersResource(), 'edit');
+        if ($outcome->status === BoardOutcome::OK) {
+            $this->rememberSwatchSource($liveSwatches);
+            $this->Flash->success($outcome->message);
 
-        $families = $this->request->getData('families');
-        if (!is_array($families)) {
-            $families = [];
+            return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
         }
 
-        $error = $this->fetchTable('OfferColorFamilies')->publishArrangement($families);
-        if ($error === null) {
-            $this->Flash->success('Le rangement a été appliqué au planning.');
-        } else {
-            $this->Flash->error($error);
+        $this->Flash->error($outcome->message);
+        $data = $this->request->getData();
+        if (!is_array($data)) {
+            $data = [];
+        }
+        $context = $this->colorsContext();
+        $offersById = [];
+        foreach ($context['colorOffers'] as $offer) {
+            $offersById[(int)$offer->id] = $offer;
+        }
+        [$families, $swatches, $orderedOffers] = $this->boardFromPost($data, $offersById, $context['colorOffers']);
+        $missing = $outcome->status === BoardOutcome::MISSING;
+        $postedPresetId = isset($data['preset_id']) && $data['preset_id'] !== '' ? (int)$data['preset_id'] : null;
+        $paletteTitle = '';
+        if (!$missing && $postedPresetId) {
+            foreach ($context['colorPresets'] as $preset) {
+                if ((int)$preset->id === $postedPresetId) {
+                    $paletteTitle = (string)$preset->name;
+                    break;
+                }
+            }
+        }
+        $context['colorFamilies'] = $families;
+        $context['colorOffers'] = $orderedOffers;
+        $context['swatchColors'] = $swatches;
+        $postedName = trim((string)($data['name'] ?? ''));
+        if (!empty($data['save_as_new']) && $paletteTitle !== '') {
+            $postedName = $paletteTitle;
+        }
+        $context['boardName'] = $postedName;
+        $context['boardPresetId'] = $missing ? null : $postedPresetId;
+        $context['paletteTitle'] = $paletteTitle;
+        $context['revision'] = (int)($data['revision'] ?? $context['revision']);
+        $context['conflict'] = $outcome->status === BoardOutcome::CONFLICT;
+        $context['missingPreset'] = $missing;
+        $context['overwriteRevision'] = $outcome->status === BoardOutcome::CONFLICT ? $outcome->serverRevision : null;
+        $context['conflictAction'] = $action;
+        $context['boardDirty'] = true;
+        $this->set($context);
+
+        return $this->render('index');
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @param array<int, \App\Model\Entity\Offer> $offersById
+     * @param list<\App\Model\Entity\Offer> $colorOffers
+     * @return array{0: list<\App\Model\Entity\OfferColorFamily>, 1: array<int, string>, 2: list<\App\Model\Entity\Offer>}
+     */
+    private function boardFromPost(array $data, array $offersById, array $colorOffers): array
+    {
+        $swatches = [];
+        $families = [];
+        $rawFamilies = is_array($data['families'] ?? null) ? array_values($data['families']) : [];
+        foreach ($rawFamilies as $index => $family) {
+            if (!is_array($family)) {
+                continue;
+            }
+            $entity = new OfferColorFamily();
+            $entity->set('name', (string)($family['name'] ?? ''));
+            $entity->set('position', (int)($family['position'] ?? $index));
+            $hue = $family['hue'] ?? '';
+            $entity->set('hue', ($hue === '' || $hue === null) ? null : (int)$hue);
+            $pastel = $family['pastel'] ?? null;
+            $entity->set('pastel', $pastel === true || $pastel === 1 || $pastel === '1');
+            $links = [];
+            $ids = is_array($family['offer_ids'] ?? null) ? array_values($family['offer_ids']) : [];
+            $colors = is_array($family['colors'] ?? null) ? array_values($family['colors']) : [];
+            foreach ($ids as $offerIndex => $rawId) {
+                $offerId = (int)$rawId;
+                if (!isset($offersById[$offerId])) {
+                    continue;
+                }
+                $link = new OfferColorFamilyOffer();
+                $link->set('offer_id', $offerId);
+                $link->set('position', $offerIndex);
+                $link->set('offer', $offersById[$offerId], ['guard' => false]);
+                $links[] = $link;
+                if (isset($colors[$offerIndex])) {
+                    $swatches[$offerId] = (string)$colors[$offerIndex];
+                }
+            }
+            $entity->set('offer_color_family_offers', $links);
+            $families[] = $entity;
         }
 
-        return $this->redirect(['action' => 'index', '?' => ['tab' => 'couleurs']]);
+        $unassignedIds = [];
+        $rawUnassigned = is_array($data['unassigned'] ?? null) ? array_values($data['unassigned']) : [];
+        foreach ($rawUnassigned as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $offerId = (int)($row['offer_id'] ?? 0);
+            if ($offerId <= 0) {
+                continue;
+            }
+            $unassignedIds[] = $offerId;
+            if (isset($row['color'])) {
+                $swatches[$offerId] = (string)$row['color'];
+            }
+        }
+
+        $ordered = [];
+        $seen = [];
+        foreach ($unassignedIds as $offerId) {
+            if (isset($offersById[$offerId]) && !isset($seen[$offerId])) {
+                $ordered[] = $offersById[$offerId];
+                $seen[$offerId] = true;
+            }
+        }
+        foreach ($colorOffers as $offer) {
+            $offerId = (int)$offer->id;
+            if (!isset($seen[$offerId])) {
+                $ordered[] = $offer;
+                $seen[$offerId] = true;
+            }
+        }
+
+        return [$families, $swatches, $ordered];
+    }
+
+    /**
+     * @param list<\App\Model\Entity\Offer> $offers
+     * @return list<\App\Model\Entity\Offer>
+     */
+    private function sortOffersForOpenPalette(array $offers, \App\Model\Entity\OfferColorPreset $preset): array
+    {
+        $order = [];
+        foreach ($preset->offer_color_preset_items as $item) {
+            $order[(int)$item->offer_id] = (int)$item->display_order;
+        }
+        usort($offers, function ($left, $right) use ($order): int {
+            $leftId = (int)$left->id;
+            $rightId = (int)$right->id;
+            $leftIn = array_key_exists($leftId, $order);
+            $rightIn = array_key_exists($rightId, $order);
+            if ($leftIn !== $rightIn) {
+                return $leftIn ? -1 : 1;
+            }
+            if ($leftIn) {
+                $compared = $order[$leftId] <=> $order[$rightId];
+                if ($compared !== 0) {
+                    return $compared;
+                }
+            } else {
+                $compared = ((int)$left->display_order) <=> ((int)$right->display_order);
+                if ($compared !== 0) {
+                    return $compared;
+                }
+            }
+            $name = strcmp((string)$left->name, (string)$right->name);
+            if ($name !== 0) {
+                return $name;
+            }
+
+            return $leftId <=> $rightId;
+        });
+
+        return $offers;
+    }
+
+    private function rememberSwatchSource(bool $liveSwatches): void
+    {
+        if ($liveSwatches) {
+            $this->request->getSession()->write('OfferColors.liveSwatches', true);
+
+            return;
+        }
+        $this->request->getSession()->delete('OfferColors.liveSwatches');
     }
 
     /**

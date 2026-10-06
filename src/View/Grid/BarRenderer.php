@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\View\Grid;
 
+use App\Service\OfferColors\FamilyShadeGenerator;
+
 /**
  * Décore une ligne de créneaux 15 min (runs visuels) et émet les <td>.
  * La source de vérité reste data-offer-id / data-start / data-end.
@@ -174,7 +176,11 @@ final class BarRenderer
 
         $labelHtml = '';
         if (!empty($slot['show_label'])) {
-            $labelHtml = '<span class="bar-label">' . $this->esc((string)$slot['label']) . '</span>';
+            $labelClass = 'bar-label';
+            if ($color !== '' && (new FamilyShadeGenerator())->labelNeedsInk($color)) {
+                $labelClass .= ' bar-label-ink';
+            }
+            $labelHtml = '<span class="' . $labelClass . '">' . $this->esc((string)$slot['label']) . '</span>';
         }
 
         return '<td class="' . implode(' ', $classes) . '"' . $style . $titleAttr

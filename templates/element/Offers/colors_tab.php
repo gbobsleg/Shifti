@@ -1,38 +1,47 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Model\Entity\Offer[]|\Cake\Collection\CollectionInterface $colorOffers
+ * @var \App\Model\Entity\Offer[] $colorOffers
  * @var \App\Model\Entity\OfferColorPreset[]|\Cake\Collection\CollectionInterface $colorPresets
- * @var \App\Model\Entity\OfferColorFamily[]|\Cake\Collection\CollectionInterface $colorFamilies
+ * @var int $revision
  */
 ?>
 <p class="text-muted">
-    Enregistre les couleurs et l'ordre d'affichage de toutes les offres.
-    Restaurer réécrit ces deux valeurs. Une offre créée après l'enregistrement n'est pas modifiée.
+    Le bandeau édite une palette. Enregistrer la fige. Appliquer, sur une palette de la liste, est la seule action qui modifie le planning.
 </p>
 
-<?= $this->Form->create(null, ['url' => ['action' => 'saveColorPreset'], 'class' => 'mb-4']) ?>
-    <label class="form-label" for="name">Nom de la palette</label>
-    <div class="row g-2 align-items-center">
-        <div class="col-md-6">
-            <?= $this->Form->control('name', [
-                'label' => false,
-                'id' => 'name',
-                'class' => 'form-control',
-                'required' => true,
-                'maxlength' => 255,
-                'templates' => [
-                    'inputContainer' => '<div class="m-0">{{content}}</div>',
-                ],
-            ]) ?>
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="h5 mb-0">Palettes</h2>
+    <button type="button" class="btn btn-primary btn-sm" id="offer-color-create-toggle">Créer une palette</button>
+</div>
+<div id="offer-color-create-panel" class="mb-4 d-none">
+    <?= $this->Form->create(null, [
+        'url' => ['action' => 'createColorPreset'],
+        'id' => 'offer-color-create-form',
+        'class' => 'row g-2 align-items-end',
+    ]) ?>
+        <?= $this->Form->hidden('revision', [
+            'value' => (int)$revision,
+            'id' => 'offer-color-create-revision',
+        ]) ?>
+        <div class="col-md-4">
+            <label class="form-label" for="offer-color-create-name">Nom</label>
+            <input class="form-control" id="offer-color-create-name" name="name" maxlength="255" required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="offer-color-create-source">Partir de</label>
+            <select class="form-select" id="offer-color-create-source" name="source">
+                <option value="current">Arrangement actuel</option>
+                <?php foreach ($colorPresets as $preset): ?>
+                    <option value="<?= (int)$preset->id ?>"><?= h($preset->name) ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
         <div class="col-auto">
-            <?= $this->Form->button('Enregistrer les couleurs actuelles', ['class' => 'btn btn-primary']) ?>
+            <button type="submit" class="btn btn-primary" id="offer-color-create-submit">Créer</button>
         </div>
-    </div>
-<?= $this->Form->end() ?>
-
-<h2 class="h5">Palettes</h2>
+    <?= $this->Form->end() ?>
+</div>
 <div class="table-responsive mb-4">
     <table class="table table-hover table-sm crud-table">
         <thead>
@@ -55,22 +64,33 @@
                     <?= $preset->created ? h($preset->created->i18nFormat('dd/MM/yyyy HH:mm')) : '' ?>
                 </td>
                 <td class="actions">
-                    <?= $this->Form->postLink(
-                        'Restaurer',
-                        ['action' => 'restoreColorPreset', $preset->id],
-                        [
-                            'confirm' => 'Restaurer « ' . h($preset->name) . ' » remplace les couleurs et l\'ordre d\'affichage des offres présentes dans cette palette. Les offres créées après ne sont pas modifiées.',
-                            'class' => 'btn btn-sm btn-outline-primary',
-                            'escape' => false,
-                        ]
-                    ) ?>
+                    <?= $this->Form->create(null, [
+                        'url' => ['action' => 'openColorPreset', $preset->id],
+                        'class' => 'd-inline js-confirm-if-dirty',
+                    ]) ?>
+                        <?= $this->Form->hidden('revision', [
+                            'value' => (int)$revision,
+                            'id' => 'open-revision-' . (int)$preset->id,
+                        ]) ?>
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Ouvrir</button>
+                    <?= $this->Form->end() ?>
+                    <?= $this->Form->create(null, [
+                        'url' => ['action' => 'applyColorPreset', $preset->id],
+                        'class' => 'd-inline js-confirm-if-dirty',
+                        'data-confirm' => 'Appliquer « ' . $preset->name . ' » au planning ? C\'est immédiat pour tout le monde. Les offres absentes de cette palette gardent leur couleur.',
+                    ]) ?>
+                        <?= $this->Form->hidden('revision', [
+                            'value' => (int)$revision,
+                            'id' => 'apply-revision-' . (int)$preset->id,
+                        ]) ?>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">Appliquer</button>
+                    <?= $this->Form->end() ?>
                     <?= $this->Form->postLink(
                         'Supprimer',
                         ['action' => 'deleteColorPreset', $preset->id],
                         [
-                            'confirm' => 'Supprimer la palette « ' . h($preset->name) . ' » ? Les couleurs en cours ne changent pas.',
+                            'confirm' => 'Supprimer la palette « ' . $preset->name . ' » ? Le bandeau et le planning ne changent pas.',
                             'class' => 'btn btn-sm btn-outline-danger',
-                            'escape' => false,
                         ]
                     ) ?>
                 </td>
@@ -81,35 +101,3 @@
 </div>
 
 <?= $this->element('Offers/color_families') ?>
-
-<h2 class="h5">Couleurs actuelles</h2>
-<div class="table-responsive">
-    <table class="table table-hover table-sm crud-table">
-        <thead>
-        <tr>
-            <th scope="col">Nom</th>
-            <th scope="col">Couleur</th>
-            <th scope="col">Ordre</th>
-        </tr>
-        </thead>
-        <tbody>
-        <?php if (count($colorOffers) === 0): ?>
-            <tr>
-                <td colspan="3" class="crud-empty">Aucune offre.</td>
-            </tr>
-        <?php endif; ?>
-        <?php foreach ($colorOffers as $offer): ?>
-            <tr>
-                <td><?= h($offer->name) ?></td>
-                <td>
-                    <span class="crud-color">
-                        <span class="crud-swatch" style="background-color: <?= h($offer->color) ?>"></span>
-                        <span class="crud-color-hex"><?= h($offer->color) ?></span>
-                    </span>
-                </td>
-                <td><?= $this->Number->format($offer->display_order) ?></td>
-            </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
-</div>

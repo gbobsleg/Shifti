@@ -1,6 +1,28 @@
 (function () {
     'use strict';
 
+    function contrastWithWhite(red, green, blue) {
+        function linearize(channel) {
+            const value = channel / 255;
+            if (value <= 0.04045) {
+                return value / 12.92;
+            }
+            return Math.pow((value + 0.055) / 1.055, 2.4);
+        }
+        const luminance = 0.2126 * linearize(red) + 0.7152 * linearize(green) + 0.0722 * linearize(blue);
+        return 1.05 / (luminance + 0.05);
+    }
+
+    function labelClassFor(td) {
+        const background = window.getComputedStyle(td).backgroundColor || '';
+        const match = background.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/);
+        if (!match || (match[4] !== undefined && Number(match[4]) === 0)) {
+            return 'bar-label';
+        }
+        const contrast = contrastWithWhite(Number(match[1]), Number(match[2]), Number(match[3]));
+        return contrast < 4.5 ? 'bar-label bar-label-ink' : 'bar-label';
+    }
+
     function kindOf(td) {
         if (td.classList.contains('td_unavailable')) {
             return 'unavailable';
@@ -91,7 +113,7 @@
                 const labelText = (cells[i].getAttribute('data-offer-label') || '').trim();
                 if (labelText && len >= 2) {
                     const span = document.createElement('span');
-                    span.className = 'bar-label';
+                    span.className = labelClassFor(cells[i]);
                     span.textContent = labelText;
                     cells[i].appendChild(span);
                 }

@@ -63,6 +63,9 @@ class OfferColorFamiliesTable extends Table
                 'La teinte d\'une famille est invalide.',
             );
 
+        $validator
+            ->boolean('pastel');
+
         return $validator;
     }
 
@@ -92,22 +95,12 @@ class OfferColorFamiliesTable extends Table
             return $parsed;
         }
 
-        $errorMessage = null;
-        try {
-            $committed = $this->getConnection()->transactional(function () use ($parsed, &$errorMessage) {
-                $errorMessage = $this->insertArrangement($parsed);
-
-                return $errorMessage === null;
-            });
-        } catch (QueryException | PDOException) {
-            return 'Le rangement n\'a pas pu être enregistré.';
-        }
-
-        if ($committed === false) {
-            return $errorMessage ?? 'Le rangement n\'a pas pu être enregistré.';
-        }
-
-        return null;
+        return $this->runWrite(
+            function () use ($parsed) {
+                return $this->insertArrangement($parsed);
+            },
+            'Le rangement n\'a pas pu être enregistré.',
+        );
     }
 
     /**
@@ -118,9 +111,10 @@ class OfferColorFamiliesTable extends Table
      * Retourne un message d'erreur, ou null si l'application a réussi.
      *
      * @param array<mixed> $families Payload `families`
+     * @param array<mixed> $unassigned Offres hors famille, avec leur couleur affichée
      * @return string|null
      */
-    public function publishArrangement(array $families): ?string
+    public function publishArrangement(array $families, array $unassigned = []): ?string
     {
         $parsed = $this->parseArrangement($families);
         if (is_string($parsed)) {
@@ -130,6 +124,16 @@ class OfferColorFamiliesTable extends Table
         $colors = $this->parsePublishedColors($families, $parsed);
         if (is_string($colors)) {
             return $colors;
+        }
+
+        $loose = $this->parseLooseColors($unassigned);
+        if (is_string($loose)) {
+            return $loose;
+        }
+        foreach ($loose as $offerId => $hex) {
+            if (!isset($colors[$offerId])) {
+                $colors[$offerId] = $hex;
+            }
         }
 
         $parsed = $this->resolveAutomaticHues($parsed);
@@ -175,31 +179,64 @@ class OfferColorFamiliesTable extends Table
             $orderedIds[] = (int)$offer->id;
         }
 
+        return $this->runWrite(
+            function () use ($parsed, $offers, $orderedIds, $colors) {
+                $errorMessage = $this->insertArrangement($parsed);
+                if ($errorMessage !== null) {
+                    return $errorMessage;
+                }
+                foreach ($orderedIds as $displayOrder => $offerId) {
+                    $fields = ['display_order' => $displayOrder];
+                    if (isset($colors[$offerId])) {
+                        $fields['color'] = $colors[$offerId];
+                    }
+                    $offers->updateAll($fields, ['id' => $offerId]);
+                }
+
+                return null;
+            },
+            'L\'application au planning n\'a pas pu être enregistrée.',
+        );
+    }
+
+    /**
+     * Même analyse que l'enregistrement, exposée au service du bandeau.
+     *
+     * @param array<mixed> $families
+     * @return list<array{name:string,position:int,hue:int|null,pastel:bool,offer_ids:list<int>}>|string
+     */
+    public function parsedArrangement(array $families): array|string
+    {
+        return $this->parseArrangement($families);
+    }
+
+    /**
+     * @param callable(): (string|null) $write
+     */
+    private function runWrite(callable $write, string $failureMessage): ?string
+    {
+        $connection = $this->getConnection();
+        if ($connection->inTransaction()) {
+            try {
+                return $write();
+            } catch (QueryException | PDOException) {
+                return $failureMessage;
+            }
+        }
+
         $errorMessage = null;
         try {
-            $committed = $this->getConnection()->transactional(
-                function () use ($parsed, $offers, $orderedIds, $colors, &$errorMessage) {
-                    $errorMessage = $this->insertArrangement($parsed);
-                    if ($errorMessage !== null) {
-                        return false;
-                    }
-                    foreach ($orderedIds as $displayOrder => $offerId) {
-                        $fields = ['display_order' => $displayOrder];
-                        if (isset($colors[$offerId])) {
-                            $fields['color'] = $colors[$offerId];
-                        }
-                        $offers->updateAll($fields, ['id' => $offerId]);
-                    }
+            $committed = $connection->transactional(function () use ($write, &$errorMessage) {
+                $errorMessage = $write();
 
-                    return true;
-                },
-            );
+                return $errorMessage === null;
+            });
         } catch (QueryException | PDOException) {
-            return 'L\'application au planning n\'a pas pu être enregistrée.';
+            return $failureMessage;
         }
 
         if ($committed === false) {
-            return $errorMessage ?? 'L\'application au planning n\'a pas pu être enregistrée.';
+            return $errorMessage ?? $failureMessage;
         }
 
         return null;
@@ -207,7 +244,7 @@ class OfferColorFamiliesTable extends Table
 
     /**
      * @param array<mixed> $families
-     * @return list<array{name:string,position:int,hue:int|null,offer_ids:list<int>}>|string
+     * @return list<array{name:string,position:int,hue:int|null,pastel:bool,offer_ids:list<int>}>|string
      */
     private function parseArrangement(array $families): array|string
     {
@@ -268,6 +305,7 @@ class OfferColorFamiliesTable extends Table
                 'name' => $name,
                 'position' => $position,
                 'hue' => $hue,
+                'pastel' => $this->toBool($family['pastel'] ?? null),
                 'offer_ids' => $offerIds,
             ];
         }
@@ -293,7 +331,7 @@ class OfferColorFamiliesTable extends Table
     }
 
     /**
-     * @param list<array{name:string,position:int,hue:int|null,offer_ids:list<int>}> $parsed
+     * @param list<array{name:string,position:int,hue:int|null,pastel:bool,offer_ids:list<int>}> $parsed
      */
     private function insertArrangement(array $parsed): ?string
     {
@@ -311,6 +349,7 @@ class OfferColorFamiliesTable extends Table
                 'name' => $family['name'],
                 'position' => $family['position'],
                 'hue' => $family['hue'],
+                'pastel' => $family['pastel'],
                 'offer_color_family_offers' => $members,
             ], [
                 'associated' => ['OfferColorFamilyOffers'],
@@ -332,7 +371,7 @@ class OfferColorFamiliesTable extends Table
      * Couleurs affichées, dans le même ordre que les offres de chaque famille.
      *
      * @param array<mixed> $families
-     * @param list<array{name:string,position:int,hue:int|null,offer_ids:list<int>}> $parsed
+     * @param list<array{name:string,position:int,hue:int|null,pastel:bool,offer_ids:list<int>}> $parsed
      * @return array<int, string>|string
      */
     private function parsePublishedColors(array $families, array $parsed): array|string
@@ -364,10 +403,35 @@ class OfferColorFamiliesTable extends Table
     }
 
     /**
+     * @param array<mixed> $rows
+     * @return array<int, string>|string
+     */
+    private function parseLooseColors(array $rows): array|string
+    {
+        $colors = [];
+        foreach (array_values($rows) as $row) {
+            if (!is_array($row)) {
+                return 'Une couleur affichée est invalide.';
+            }
+            $offerId = $this->toInt($row['offer_id'] ?? null);
+            if ($offerId === null || $offerId <= 0) {
+                return 'Une offre du rangement est invalide.';
+            }
+            $hex = strtolower(trim((string)($row['color'] ?? '')));
+            if (preg_match('/^#[0-9a-f]{6}$/', $hex) !== 1) {
+                return 'Une couleur affichée est invalide.';
+            }
+            $colors[$offerId] = $hex;
+        }
+
+        return $colors;
+    }
+
+    /**
      * Remplace les teintes nulles par une teinte du catalogue, en mémoire.
      *
-     * @param list<array{name:string,position:int,hue:int|null,offer_ids:list<int>}> $parsed
-     * @return list<array{name:string,position:int,hue:int,offer_ids:list<int>}>
+     * @param list<array{name:string,position:int,hue:int|null,pastel:bool,offer_ids:list<int>}> $parsed
+     * @return list<array{name:string,position:int,hue:int,pastel:bool,offer_ids:list<int>}>
      */
     private function resolveAutomaticHues(array $parsed): array
     {
@@ -404,6 +468,11 @@ class OfferColorFamiliesTable extends Table
         }
 
         return $parsed;
+    }
+
+    private function toBool(mixed $value): bool
+    {
+        return $value === true || $value === 1 || $value === '1';
     }
 
     private function toInt(mixed $value): ?int

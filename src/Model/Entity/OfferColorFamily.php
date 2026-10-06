@@ -12,6 +12,7 @@ use Cake\ORM\Entity;
  * @property string $name
  * @property int $position
  * @property int|null $hue
+ * @property bool $pastel
  * @property \Cake\I18n\DateTime|null $created
  * @property \Cake\I18n\DateTime|null $modified
  *
@@ -26,6 +27,7 @@ class OfferColorFamily extends Entity
         'name' => true,
         'position' => true,
         'hue' => true,
+        'pastel' => true,
         'offer_color_family_offers' => true,
     ];
 }

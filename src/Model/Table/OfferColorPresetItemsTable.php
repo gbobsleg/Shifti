@@ -60,6 +60,27 @@ class OfferColorPresetItemsTable extends Table
             ->requirePresence('display_order', 'create')
             ->notEmptyString('display_order');
 
+        $validator
+            ->scalar('family_name')
+            ->maxLength('family_name', 255)
+            ->allowEmptyString('family_name');
+
+        $validator
+            ->integer('family_position')
+            ->allowEmptyString('family_position');
+
+        $validator
+            ->integer('hue')
+            ->allowEmptyString('hue');
+
+        $validator
+            ->boolean('pastel')
+            ->allowEmptyString('pastel');
+
+        $validator
+            ->integer('position')
+            ->allowEmptyString('position');
+
         return $validator;
     }
 
