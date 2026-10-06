@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Service\PlanningDayHistoryService;
+use App\Service\RangeSource;
 use Cake\Http\Exception\NotFoundException;
 use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
@@ -1837,7 +1838,7 @@ class PlanningGenerationJobsController extends AppController
                 // Supprimer les ranges existants (hors absences/télétravail), et tout ce qui a été généré avant.
                 $deleteConditions = [
                     'OR' => [
-                        ['comment LIKE' => 'Généré par WFM%'],
+                        ['source' => RangeSource::PLANNING],
                         ['offer_id NOT IN' => $protectedOfferIds],
                     ],
                     'DATE(date_start)' => $dateStr,
@@ -1915,13 +1916,15 @@ class PlanningGenerationJobsController extends AppController
                         continue;
                     }
 
-                    $toInsert[] = $Ranges->newEntity([
+                    $published = $Ranges->newEntity([
                         'user_id' => $uid,
                         'offer_id' => (int)$dr->offer_id,
                         'date_start' => $ds,
                         'date_end' => $de,
                         'comment' => 'Publié depuis brouillon (job #' . $id . ')',
                     ]);
+                    $published->set('source', RangeSource::PLANNING);
+                    $toInsert[] = $published;
                 }
 
                 // Garde-fou : plafonner à 500 entrées pour ne pas surcharger report_json

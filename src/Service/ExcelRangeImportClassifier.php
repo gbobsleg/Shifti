@@ -15,29 +15,29 @@ class ExcelRangeImportClassifier
     public const STATUS_NEW = 'new';
     public const STATUS_SKIP_AUTO_TAD = 'skip_auto_tad';
     public const STATUS_SKIP_MANUAL = 'skip_manual';
+    public const STATUS_SKIP_PLANNING = 'skip_planning';
     public const STATUS_SKIP_IDENTICAL = 'skip_identical';
-    public const STATUS_SKIP_GROOMRH_PARTIAL = 'skip_groomrh_partial';
+    public const STATUS_SKIP_IMPORT_PARTIAL = 'skip_import_partial';
     public const STATUS_SKIP_INTRA_EXCEL = 'skip_intra_excel';
-    public const STATUS_REPLACE_GROOMRH = 'replace_groomrh';
+    public const STATUS_REPLACE_IMPORT = 'replace_import';
 
-    public const PROVENANCE_AUTO_TAD = 'auto_tad';
-    public const PROVENANCE_GROOMRH = 'groomrh';
-    public const PROVENANCE_MANUAL = 'manual';
-
-    public const AUTO_TAD_PREFIX = '[AUTO-TAD]';
-    public const GROOMRH_SUFFIX = ' - GroomRH';
+    public const PROVENANCE_AUTO_TAD = RangeSource::AUTO_TAD;
+    public const PROVENANCE_IMPORT = RangeSource::IMPORT;
+    public const PROVENANCE_MANUAL = RangeSource::MANUAL;
+    public const PROVENANCE_PLANNING = RangeSource::PLANNING;
 
     /**
      * @param array<int, array<string, mixed>> $groupedRanges
+     * @param array<int, int> $excludeIds Plages qui seront supprimées par la purge, ignorées ici.
      * @return array<int, array{status: string, conflicts: array, replace_ids: int[]}>
      */
-    public function classify(array $groupedRanges, RangesTable $rangesTable): array
+    public function classify(array $groupedRanges, RangesTable $rangesTable, array $excludeIds = []): array
     {
         if ($groupedRanges === []) {
             return [];
         }
 
-        $existing = $this->loadExisting($groupedRanges, $rangesTable);
+        $existing = $this->loadExisting($groupedRanges, $rangesTable, $excludeIds);
         $planned = [];
         $decisions = [];
 
@@ -45,7 +45,7 @@ class ExcelRangeImportClassifier
             $decision = $this->classifyOne($range, $existing, $planned);
             $decisions[$index] = $decision;
 
-            if (in_array($decision['status'], [self::STATUS_NEW, self::STATUS_REPLACE_GROOMRH], true)) {
+            if (in_array($decision['status'], [self::STATUS_NEW, self::STATUS_REPLACE_IMPORT], true)) {
                 $planned[] = [
                     'user_id' => (int)$range['user_id'],
                     'offer_id' => (int)$range['offer_id'],
@@ -67,11 +67,12 @@ class ExcelRangeImportClassifier
     {
         return match ($status) {
             self::STATUS_NEW => 'Nouveau',
-            self::STATUS_REPLACE_GROOMRH => 'Remplace',
+            self::STATUS_REPLACE_IMPORT => 'Remplace',
             self::STATUS_SKIP_AUTO_TAD => 'Ignoré (TAD fixe)',
             self::STATUS_SKIP_MANUAL => 'Ignoré (saisie existante)',
+            self::STATUS_SKIP_PLANNING => 'Ignoré (planning)',
             self::STATUS_SKIP_IDENTICAL => 'Ignoré (déjà présent)',
-            self::STATUS_SKIP_GROOMRH_PARTIAL => 'Ignoré (import précédent plus large)',
+            self::STATUS_SKIP_IMPORT_PARTIAL => 'Ignoré (import précédent plus large)',
             self::STATUS_SKIP_INTRA_EXCEL => 'Ignoré (doublon fichier)',
             default => 'Ignoré',
         };
@@ -82,7 +83,7 @@ class ExcelRangeImportClassifier
         if ($status === self::STATUS_NEW) {
             return 'new';
         }
-        if ($status === self::STATUS_REPLACE_GROOMRH) {
+        if ($status === self::STATUS_REPLACE_IMPORT) {
             return 'replace';
         }
 
@@ -93,7 +94,8 @@ class ExcelRangeImportClassifier
     {
         return match ($provenance) {
             self::PROVENANCE_AUTO_TAD => 'TAD fixe',
-            self::PROVENANCE_GROOMRH => 'import GroomRH',
+            self::PROVENANCE_IMPORT => 'import',
+            self::PROVENANCE_PLANNING => 'planning',
             default => 'saisie manuelle',
         };
     }
@@ -126,6 +128,10 @@ class ExcelRangeImportClassifier
             if (!$this->overlaps($existingStart, $existingEnd, $excelStart, $excelEnd)) {
                 continue;
             }
+            $source = (string)($row['source'] ?? RangeSource::MANUAL);
+            if (!RangeSource::isValid($source)) {
+                $source = RangeSource::MANUAL;
+            }
             $overlaps[] = [
                 'id' => (int)$row['id'],
                 'user_id' => (int)$row['user_id'],
@@ -133,7 +139,7 @@ class ExcelRangeImportClassifier
                 'date_start' => $existingStart,
                 'date_end' => $existingEnd,
                 'comment' => (string)($row['comment'] ?? ''),
-                'provenance' => $this->provenance((string)($row['comment'] ?? '')),
+                'provenance' => $source,
             ];
         }
 
@@ -148,38 +154,30 @@ class ExcelRangeImportClassifier
         }
 
         $protected = [];
-        $groomrh = [];
+        $imported = [];
         foreach ($overlaps as $overlap) {
-            if ($overlap['provenance'] === self::PROVENANCE_GROOMRH) {
-                $groomrh[] = $overlap;
+            if ($overlap['provenance'] === self::PROVENANCE_IMPORT) {
+                $imported[] = $overlap;
             } else {
                 $protected[] = $overlap;
             }
         }
 
         if ($protected !== []) {
-            $hasAuto = false;
-            foreach ($protected as $row) {
-                if ($row['provenance'] === self::PROVENANCE_AUTO_TAD) {
-                    $hasAuto = true;
-                    break;
-                }
-            }
-
             return [
-                'status' => $hasAuto ? self::STATUS_SKIP_AUTO_TAD : self::STATUS_SKIP_MANUAL,
+                'status' => $this->protectedStatus($protected),
                 'conflicts' => $protected,
                 'replace_ids' => [],
             ];
         }
 
-        if ($groomrh !== []) {
+        if ($imported !== []) {
             $replaceIds = [];
-            foreach ($groomrh as $row) {
+            foreach ($imported as $row) {
                 if (!$this->fullyCovered($row['date_start'], $row['date_end'], $excelStart, $excelEnd)) {
                     return [
-                        'status' => self::STATUS_SKIP_GROOMRH_PARTIAL,
-                        'conflicts' => $groomrh,
+                        'status' => self::STATUS_SKIP_IMPORT_PARTIAL,
+                        'conflicts' => $imported,
                         'replace_ids' => [],
                     ];
                 }
@@ -187,8 +185,8 @@ class ExcelRangeImportClassifier
             }
 
             return [
-                'status' => self::STATUS_REPLACE_GROOMRH,
-                'conflicts' => $groomrh,
+                'status' => self::STATUS_REPLACE_IMPORT,
+                'conflicts' => $imported,
                 'replace_ids' => $replaceIds,
             ];
         }
@@ -207,7 +205,7 @@ class ExcelRangeImportClassifier
                         'date_start' => $plannedRange['date_start'],
                         'date_end' => $plannedRange['date_end'],
                         'comment' => '',
-                        'provenance' => self::PROVENANCE_GROOMRH,
+                        'provenance' => self::PROVENANCE_IMPORT,
                     ]],
                     'replace_ids' => [],
                 ];
@@ -218,10 +216,35 @@ class ExcelRangeImportClassifier
     }
 
     /**
+     * @param array<int, array<string, mixed>> $protected
+     */
+    private function protectedStatus(array $protected): string
+    {
+        $hasAuto = false;
+        $hasManual = false;
+        foreach ($protected as $row) {
+            if ($row['provenance'] === self::PROVENANCE_AUTO_TAD) {
+                $hasAuto = true;
+            } elseif ($row['provenance'] === self::PROVENANCE_MANUAL) {
+                $hasManual = true;
+            }
+        }
+        if ($hasAuto) {
+            return self::STATUS_SKIP_AUTO_TAD;
+        }
+        if ($hasManual) {
+            return self::STATUS_SKIP_MANUAL;
+        }
+
+        return self::STATUS_SKIP_PLANNING;
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $groupedRanges
+     * @param array<int, int> $excludeIds
      * @return array<int, array<string, mixed>>
      */
-    private function loadExisting(array $groupedRanges, RangesTable $rangesTable): array
+    private function loadExisting(array $groupedRanges, RangesTable $rangesTable, array $excludeIds): array
     {
         $userIds = [];
         $minStart = null;
@@ -248,28 +271,33 @@ class ExcelRangeImportClassifier
             return [];
         }
 
-        return $rangesTable->find()
-            ->select(['id', 'user_id', 'offer_id', 'date_start', 'date_end', 'comment'])
-            ->where([
-                'user_id IN' => array_keys($userIds),
-                'date_start <' => $maxEnd->format('Y-m-d H:i:s'),
-                'date_end >' => $minStart->format('Y-m-d H:i:s'),
-            ])
+        $conditions = [
+            'user_id IN' => array_keys($userIds),
+            'date_start <' => $maxEnd,
+            'date_end >' => $minStart,
+        ];
+        $excludeIds = array_values(array_unique(array_map('intval', $excludeIds)));
+        if ($excludeIds !== []) {
+            $conditions['id NOT IN'] = $excludeIds;
+        }
+
+        $rows = $rangesTable->find()
+            ->select(['id', 'user_id', 'offer_id', 'date_start', 'date_end', 'comment', 'source'])
+            ->where($conditions)
             ->disableHydration()
             ->all()
             ->toList();
-    }
 
-    public function provenance(string $comment): string
-    {
-        if (str_starts_with($comment, self::AUTO_TAD_PREFIX)) {
-            return self::PROVENANCE_AUTO_TAD;
-        }
-        if (str_ends_with($comment, self::GROOMRH_SUFFIX)) {
-            return self::PROVENANCE_GROOMRH;
+        if ($excludeIds === []) {
+            return $rows;
         }
 
-        return self::PROVENANCE_MANUAL;
+        $excluded = array_fill_keys($excludeIds, true);
+
+        return array_values(array_filter(
+            $rows,
+            static fn(array $row): bool => !isset($excluded[(int)$row['id']]),
+        ));
     }
 
     public function normalizeTime(mixed $value): FrozenTime

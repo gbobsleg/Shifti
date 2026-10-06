@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\View\Helper;
 
+use App\Service\RangeSource;
 use App\View\Grid\BarRenderer;
 use Cake\I18n\FrozenTime;
 use Cake\View\Helper;
@@ -457,8 +458,7 @@ class GridsHelper extends Helper
                     $offerName = $range->offer->name;
                     
                     $type = 'flexible';
-                    // Si le range a le préfixe AUTO, c'est un range fixe créé automatiquement
-                    if (isset($range->comment) && is_string($range->comment) && strpos($range->comment, '[AUTO-TAD]') === 0) {
+                    if (($range->source ?? '') === RangeSource::AUTO_TAD) {
                         $type = 'fixed';
                     }
                     

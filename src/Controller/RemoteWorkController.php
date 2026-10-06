@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Controller\Traits\RangeQueryFiltersTrait;
+use App\Service\RangeSource;
 use Cake\I18n\FrozenTime;
 
 /**
@@ -343,12 +344,9 @@ class RemoteWorkController extends AppController
         $conditions['Ranges.offer_id'] = $offerId;
         $rangeType = $this->normalizeRangeType($params['range_type'] ?? null);
         if ($rangeType === 'fixed') {
-            $conditions['Ranges.comment LIKE'] = '[AUTO-TAD]%';
+            $conditions['Ranges.source'] = RangeSource::AUTO_TAD;
         } elseif ($rangeType === 'flexible') {
-            $conditions['OR'] = [
-                'Ranges.comment IS' => null,
-                'Ranges.comment NOT LIKE' => '[AUTO-TAD]%',
-            ];
+            $conditions['Ranges.source !='] = RangeSource::AUTO_TAD;
         }
 
         return $conditions;

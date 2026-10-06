@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Service\RangeSource;
 use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
@@ -84,6 +85,11 @@ class RangesTable extends Table
             ->scalar('comment')
             ->maxLength('comment', 255)
             ->allowEmptyString('comment');
+
+        $validator
+            ->scalar('source')
+            ->inList('source', RangeSource::values(), 'Provenance invalide.')
+            ->allowEmptyString('source');
 
         return $validator;
     }

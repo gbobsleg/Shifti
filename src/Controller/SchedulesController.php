@@ -7,6 +7,7 @@ use App\Service\ForecastService;
 use App\Service\AgentsAfterFixedActivitiesService;
 use App\Service\FixedActivitiesBuilderService;
 use App\Service\PlanningDayHistoryService;
+use App\Service\RangeSource;
 use App\Service\ScheduleProblemBuilderService;
 use App\Service\WfmCalculatorService;
 use App\Service\WfmScenarioService;
@@ -2189,7 +2190,7 @@ class SchedulesController extends AppController
         //    - toutes les absences (offer_type = absence) : congés, réunions, formations, mandats, etc.
         //    - le télétravail (offer_type = remote_work)
         //
-        //    Note: on supprime toujours ce qui a été généré précédemment (comment "Généré par WFM"),
+        //    Note: on supprime toujours ce qui a été généré précédemment (source planning),
         //    même si, par erreur de configuration, ces segments ont été mappés sur une offre "absence".
         $dateStr = $date->format('Y-m-d');
 
@@ -2227,9 +2228,7 @@ class SchedulesController extends AppController
 
         $deleteConditions = [
             'OR' => [
-                // Tout ce qui a été généré avant est supprimé pour être remplacé
-                ['comment LIKE' => 'Généré par WFM%'],
-                // Les autres offres (non protégées) de la journée sont remplacées
+                ['source' => RangeSource::PLANNING],
                 ['offer_id NOT IN' => $protectedOfferIds],
             ],
             'DATE(date_start)' => $dateStr,
@@ -2350,13 +2349,15 @@ class SchedulesController extends AppController
                 continue;
             }
 
-            $entities[] = $RangesTable->newEntity([
+            $entity = $RangesTable->newEntity([
                 'user_id' => (int)$seg['agent_id'],
                 'offer_id' => $offerId,
                 'date_start' => $dateStr . ' ' . $seg['start'],
                 'date_end' => $dateStr . ' ' . $seg['end'],
                 'comment' => 'Généré par WFM',
             ]);
+            $entity->set('source', RangeSource::PLANNING);
+            $entities[] = $entity;
         }
 
         $this->log('Entités créées: ' . count($entities), 'debug');

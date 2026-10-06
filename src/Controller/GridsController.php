@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Service\Planning\GridQueryBudget;
 use App\Service\PlanningDayHistoryService;
+use App\Service\RangeSource;
 use Cake\Event\EventInterface;
 use Cake\Log\Log;
 use Cake\I18n\FrozenTime;
@@ -456,7 +457,14 @@ class GridsController extends AppController
             $workingRanges = [];
             foreach ($initialDBRanges as $dbRange) {
                 $finalIdsToDelete[] = $dbRange->id;
-                $workingRanges[] = ['user_id' => $dbRange->user_id, 'offer_id' => $dbRange->offer_id, 'date_start' => $dbRange->date_start, 'date_end' => $dbRange->date_end, 'comment' => $dbRange->comment];
+                $workingRanges[] = [
+                    'user_id' => $dbRange->user_id,
+                    'offer_id' => $dbRange->offer_id,
+                    'date_start' => $dbRange->date_start,
+                    'date_end' => $dbRange->date_end,
+                    'comment' => $dbRange->comment,
+                    'source' => (string)($dbRange->source ?? RangeSource::MANUAL),
+                ];
             }
 
             // 6. Appliquer actions
@@ -475,16 +483,31 @@ class GridsController extends AppController
                         continue;
                     }
                     if ($currentStart < $actionStart) {
-                        $nextWorkingRanges[] = ['user_id' => $currentRange['user_id'], 'offer_id' => $currentRange['offer_id'], 'date_start' => $currentStart, 'date_end' => $actionStart, 'comment' => $currentRange['comment']];
+                        $nextWorkingRanges[] = [
+                            'user_id' => $currentRange['user_id'],
+                            'offer_id' => $currentRange['offer_id'],
+                            'date_start' => $currentStart,
+                            'date_end' => $actionStart,
+                            'comment' => $currentRange['comment'],
+                            'source' => $currentRange['source'] ?? RangeSource::MANUAL,
+                        ];
                     }
                     if ($currentEnd > $actionEnd) {
-                        $nextWorkingRanges[] = ['user_id' => $currentRange['user_id'], 'offer_id' => $currentRange['offer_id'], 'date_start' => $actionEnd, 'date_end' => $currentEnd, 'comment' => $currentRange['comment']];
+                        $nextWorkingRanges[] = [
+                            'user_id' => $currentRange['user_id'],
+                            'offer_id' => $currentRange['offer_id'],
+                            'date_start' => $actionEnd,
+                            'date_end' => $currentEnd,
+                            'comment' => $currentRange['comment'],
+                            'source' => $currentRange['source'] ?? RangeSource::MANUAL,
+                        ];
                     }
                 }
                 if (!$isDeletion) {
                     unset($actionRange['id']);
                     $actionRange['date_start'] = $actionStart;
                     $actionRange['date_end'] = $actionEnd;
+                    $actionRange['source'] = RangeSource::MANUAL;
                     $nextWorkingRanges[] = $actionRange;
                 }
                 $workingRanges = $nextWorkingRanges;
@@ -505,7 +528,8 @@ class GridsController extends AppController
                 foreach ($workingRanges as $nextRange) {
                     $currentEnd = $currentSaveRange['date_end'] instanceof DateTimeInterface ? $currentSaveRange['date_end'] : new FrozenTime($currentSaveRange['date_end']);
                     $nextStart = $nextRange['date_start'] instanceof DateTimeInterface ? $nextRange['date_start'] : new FrozenTime($nextRange['date_start']);
-                    if ($currentSaveRange['user_id'] == $nextRange['user_id'] && $currentSaveRange['offer_id'] == $nextRange['offer_id'] && $currentEnd->getTimestamp() == $nextStart->getTimestamp()) {
+                    $sameSource = ($currentSaveRange['source'] ?? RangeSource::MANUAL) === ($nextRange['source'] ?? RangeSource::MANUAL);
+                    if ($currentSaveRange['user_id'] == $nextRange['user_id'] && $currentSaveRange['offer_id'] == $nextRange['offer_id'] && $sameSource && $currentEnd->getTimestamp() == $nextStart->getTimestamp()) {
                             $currentSaveRange['date_end'] = $nextRange['date_end'];
                     } else {
                                 $finalRangesToSave[] = $currentSaveRange;
@@ -525,6 +549,12 @@ class GridsController extends AppController
             }
 
             $entitiesToSave = $Ranges->newEntities($finalRangesToSave);
+            foreach ($entitiesToSave as $entityIndex => $entityToSave) {
+                $entityToSave->set(
+                    'source',
+                    (string)($finalRangesToSave[$entityIndex]['source'] ?? RangeSource::MANUAL)
+                );
+            }
 
             try {
                 $Ranges->getConnection()->transactional(

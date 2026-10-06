@@ -40,7 +40,7 @@ class PlanningDayHistoryService
     /**
      * Construit les segments du jour pour un agent (heures murales, DATE(date_start)).
      *
-     * @return list<array{offer_id:int,color:?string,date_start:string,date_end:string,comment:?string}>
+     * @return list<array{offer_id:int,color:?string,date_start:string,date_end:string,comment:?string,source:string}>
      */
     public function buildSnapshotForDay(int $userId, string $dayYmd): array
     {
@@ -65,6 +65,11 @@ class PlanningDayHistoryService
                 'comment' => $range->comment !== null && $range->comment !== ''
                     ? (string)$range->comment
                     : null,
+                'source' => RangeSource::isValid((string)$range->source)
+                    ? (string)$range->source
+                    : RangeSource::fromLegacyComment(
+                        $range->comment !== null ? (string)$range->comment : null
+                    ),
             ];
         }
 
@@ -192,15 +197,20 @@ class PlanningDayHistoryService
                     );
                 }
 
+                $comment = isset($segment['comment']) && $segment['comment'] !== ''
+                    ? (string)$segment['comment']
+                    : null;
+                $source = isset($segment['source']) && RangeSource::isValid((string)$segment['source'])
+                    ? (string)$segment['source']
+                    : RangeSource::fromLegacyComment($comment);
                 $entity = $this->Ranges->newEntity([
                     'user_id' => $userId,
                     'offer_id' => (int)$segment['offer_id'],
                     'date_start' => $this->formatDateTime($segment['date_start']),
                     'date_end' => $this->formatDateTime($segment['date_end']),
-                    'comment' => isset($segment['comment']) && $segment['comment'] !== ''
-                        ? (string)$segment['comment']
-                        : null,
+                    'comment' => $comment,
                 ]);
+                $entity->set('source', $source);
                 $this->Ranges->saveOrFail($entity);
             }
 

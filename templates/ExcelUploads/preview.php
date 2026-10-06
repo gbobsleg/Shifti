@@ -11,6 +11,8 @@
  * @var array $unrecognizedAgents Agents du fichier non reconnus en BDD
  * @var int $recognizedAgentsCount Nombre d'agents reconnus
  * @var array $rangeDecisions Décisions d'import indexées comme $groupedRanges
+ * @var array $purgePlan Plages qui seront retirées ou découpées
+ * @var array $purgeOptions Cases de purge (absence, remote, scope)
  */
 use App\Service\ExcelRangeImportClassifier;
 ?>
@@ -632,6 +634,40 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
         </div>
     </div>
             <?php if (!empty($groupedRanges)): ?>
+                <?php
+                $purgeAbsence = !empty($purgeOptions['absence']);
+                $purgeRemote = !empty($purgeOptions['remote']);
+                $purgeScope = ($purgeOptions['scope'] ?? 'file') === 'all' ? 'all' : 'file';
+                $purgeRangeCount = (int)($purgePlan['range_count'] ?? 0);
+                $purgeAgentCount = (int)($purgePlan['agent_count'] ?? 0);
+                ?>
+                <section class="crud-section">
+                    <h2 class="crud-section-title">Avant l'enregistrement</h2>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" form="preview-form" name="purge_absence" id="purge-absence" value="1" data-purge-reload <?= $purgeAbsence ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="purge-absence">Supprimer les absences du mois</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" form="preview-form" name="purge_remote" id="purge-remote" value="1" data-purge-reload <?= $purgeRemote ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="purge-remote">Supprimer le télétravail du mois</label>
+                    </div>
+                    <?php if ($purgeAbsence || $purgeRemote): ?>
+                        <p class="mt-2 mb-2">
+                            <?= $purgeRangeCount ?> plage(s) pour <?= $purgeAgentCount ?> agent(s) seront retirées ou découpées.
+                            Le télétravail fixe et le planning généré restent en place.
+                        </p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" form="preview-form" name="purge_scope" id="purge-scope-file" value="file" data-purge-reload <?= $purgeScope === 'file' ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="purge-scope-file">Agents présents dans le fichier</label>
+                        </div>
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="radio" form="preview-form" name="purge_scope" id="purge-scope-all" value="all" data-purge-reload <?= $purgeScope === 'all' ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="purge-scope-all">Tous les agents, y compris ceux absents du fichier</label>
+                        </div>
+                    <?php else: ?>
+                        <input type="hidden" form="preview-form" name="purge_scope" value="file">
+                    <?php endif; ?>
+                </section>
                 <?php if (!empty($unrecognizedAgents)): ?>
                 <div class="crud-warn">
                     <div class="d-flex justify-content-between align-items-center gap-2" id="toggle-unrecognized" style="cursor: pointer;">
@@ -844,7 +880,7 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                                         $importGroup = ExcelRangeImportClassifier::statusGroup($importStatus);
                                         $importLabel = ExcelRangeImportClassifier::statusLabel($importStatus);
                                         $importTip = '';
-                                        if (ExcelRangeImportClassifier::isSkipStatus($importStatus) || $importStatus === ExcelRangeImportClassifier::STATUS_REPLACE_GROOMRH) {
+                                        if (ExcelRangeImportClassifier::isSkipStatus($importStatus) || $importStatus === ExcelRangeImportClassifier::STATUS_REPLACE_IMPORT) {
                                             $tipParts = [];
                                             foreach ($importDecision['conflicts'] ?? [] as $conflict) {
                                                 $cs = $conflict['date_start'] ?? null;
@@ -1122,6 +1158,27 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                         'class' => 'btn btn-primary',
                     ]) ?>
                     <?= $this->Form->end() ?>
+                    <script>
+                    document.querySelectorAll('[data-purge-reload]').forEach(function (input) {
+                        input.addEventListener('change', function () {
+                            var params = new URLSearchParams();
+                            var absence = document.getElementById('purge-absence');
+                            var remote = document.getElementById('purge-remote');
+                            if (absence && absence.checked) {
+                                params.set('purge_absence', '1');
+                            }
+                            if (remote && remote.checked) {
+                                params.set('purge_remote', '1');
+                            }
+                            var scope = document.querySelector('input[name="purge_scope"]:checked');
+                            if ((params.has('purge_absence') || params.has('purge_remote')) && scope && scope.value === 'all') {
+                                params.set('purge_scope', 'all');
+                            }
+                            var query = params.toString();
+                            window.location = window.location.pathname + (query ? '?' + query : '');
+                        });
+                    });
+                    </script>
                     
                     <?= $this->Html->link(
                         'Annuler',

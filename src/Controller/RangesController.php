@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Controller\Traits\RangeQueryFiltersTrait;
+use App\Service\RangeSource;
+use DateTimeInterface;
 
 /**
  * Ranges Controller
@@ -107,7 +109,21 @@ class RangesController extends AppController
             'contain' => [],
         ]);
         if ($this->request->is(['patch', 'post', 'put'])) {
+            $beforeUserId = (int)$range->user_id;
+            $beforeOfferId = (int)$range->offer_id;
+            $beforeStart = $range->date_start instanceof DateTimeInterface ? $range->date_start->getTimestamp() : null;
+            $beforeEnd = $range->date_end instanceof DateTimeInterface ? $range->date_end->getTimestamp() : null;
             $range = $this->Ranges->patchEntity($range, $this->request->getData());
+            $afterStart = $range->date_start instanceof DateTimeInterface ? $range->date_start->getTimestamp() : null;
+            $afterEnd = $range->date_end instanceof DateTimeInterface ? $range->date_end->getTimestamp() : null;
+            if (
+                (int)$range->user_id !== $beforeUserId
+                || (int)$range->offer_id !== $beforeOfferId
+                || $afterStart !== $beforeStart
+                || $afterEnd !== $beforeEnd
+            ) {
+                $range->set('source', RangeSource::MANUAL);
+            }
             if ($this->Ranges->save($range)) {
                 $this->Flash->success("La plage a été sauvegardée.");
 

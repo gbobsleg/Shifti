@@ -19,8 +19,6 @@ class RemoteWorkRangesSyncService
 {
     use LocatorAwareTrait;
     
-    private const AUTO_COMMENT_PREFIX = '[AUTO-TAD]';
-
     /**
      * Récupère l'ID de l'offre de type remote_work
      */
@@ -117,7 +115,7 @@ class RemoteWorkRangesSyncService
             ->where([
                 'user_id' => $userId,
                 'offer_id' => $remoteWorkOfferId,
-                'comment LIKE' => self::AUTO_COMMENT_PREFIX . '%'
+                'source' => RangeSource::AUTO_TAD
             ])
             ->all();
         
@@ -177,8 +175,8 @@ class RemoteWorkRangesSyncService
                     'offer_id' => $remoteWorkOfferId,
                     'date_start' => $rangeStart,
                     'date_end' => $rangeEnd,
-                    'comment' => self::AUTO_COMMENT_PREFIX . ' ' . date('Y-m-d H:i:s')
                 ]);
+                $range->set('source', RangeSource::AUTO_TAD);
                 
                 if ($rangesTable->save($range)) {
                     $stats['created']++;
@@ -246,7 +244,7 @@ class RemoteWorkRangesSyncService
             ->where([
                 'user_id' => $userId,
                 'offer_id' => $remoteWorkOfferId,
-                'comment LIKE' => self::AUTO_COMMENT_PREFIX . '%'
+                'source' => RangeSource::AUTO_TAD
             ])
             ->all();
         

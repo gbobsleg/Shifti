@@ -14,6 +14,17 @@ class AddQueuedStatusToForecastScenarios extends BaseMigration
             return;
         }
 
+        $table = $this->table('forecast_scenarios');
+        if (!$table->hasColumn('status')) {
+            $this->execute(
+                "ALTER TABLE forecast_scenarios
+                 ADD COLUMN status ENUM('draft','queued','running','completed','failed')
+                 NOT NULL DEFAULT 'draft'"
+            );
+
+            return;
+        }
+
         // Corriger les lignes déjà corrompues par un UPDATE 'queued' sous l'ancien enum
         $this->execute(
             "UPDATE forecast_scenarios SET status = 'draft' WHERE status = '' OR status IS NULL"

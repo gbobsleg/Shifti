@@ -3,8 +3,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Model\Table\RangesTable;
 use App\Service\ExcelPlanningParserService;
 use App\Service\ExcelRangeImportClassifier;
+use App\Service\ExcelRangeMonthPurge;
+use App\Service\RangeSource;
 use App\Resource\ExcelUploadsResource;
 use Cake\Http\Exception\BadRequestException;
 use Cake\I18n\FrozenTime;
@@ -358,7 +361,12 @@ class ExcelUploadsController extends AppController
             $groupedRanges = $this->groupRanges($ranges, $offersById, $usersById);
 
             $Ranges = $this->fetchTable('Ranges');
-            $rangeDecisions = (new ExcelRangeImportClassifier())->classify($groupedRanges, $Ranges);
+            $purgePlan = $this->buildPurgePlan($Ranges, $groupedRanges, (int)$contextYear, (int)$contextMonth);
+            $rangeDecisions = (new ExcelRangeImportClassifier())->classify(
+                $groupedRanges,
+                $Ranges,
+                $purgePlan['delete_ids']
+            );
             
             // Charger les disponibilités des utilisateurs pour la vue grille
             $availabilitiesByUser = [];
@@ -375,7 +383,8 @@ class ExcelUploadsController extends AppController
                 }
             }
             
-            $this->set(compact('groupedRanges', 'offers', 'usersById', 'offersById', 'contextMonth', 'contextYear', 'availabilitiesByUser', 'unrecognizedAgents', 'recognizedAgentsCount', 'rangeDecisions'));
+            $purgeOptions = $this->purgeOptions();
+            $this->set(compact('groupedRanges', 'offers', 'usersById', 'offersById', 'contextMonth', 'contextYear', 'availabilitiesByUser', 'unrecognizedAgents', 'recognizedAgentsCount', 'rangeDecisions', 'purgePlan', 'purgeOptions'));
             
         } catch (\Exception $e) {
             $errorMsg = 'Erreur lors de l\'analyse : ' . $e->getMessage();
@@ -494,7 +503,10 @@ class ExcelUploadsController extends AppController
             
             // Grouper les ranges avant de sauvegarder
             $groupedRanges = $this->groupRanges($ranges, $offersById);
-            
+
+            $Ranges = $this->fetchTable('Ranges');
+            $purgePlan = $this->buildPurgePlan($Ranges, $groupedRanges, (int)$contextYear, (int)$contextMonth);
+
             // Filtrer les lignes supprimées si présentes
             $excludedIndices = $this->request->getData('excluded_indices', []);
             if (!empty($excludedIndices)) {
@@ -512,14 +524,15 @@ class ExcelUploadsController extends AppController
                 return $this->redirect(['action' => 'preview']);
             }
             
-            $Ranges = $this->fetchTable('Ranges');
-            $rangeDecisions = (new ExcelRangeImportClassifier())->classify($groupedRanges, $Ranges);
-            $saved = 0;
-            $replaced = 0;
-            $skipped = 0;
-            $errors = [];
-            
-            foreach ($groupedRanges as $index => $rangeData) {
+            $importResult = $Ranges->getConnection()->transactional(function () use ($Ranges, $purgePlan, $groupedRanges) {
+                (new ExcelRangeMonthPurge())->apply($Ranges, $purgePlan);
+                $rangeDecisions = (new ExcelRangeImportClassifier())->classify($groupedRanges, $Ranges);
+                $saved = 0;
+                $replaced = 0;
+                $skipped = 0;
+                $errors = [];
+
+                foreach ($groupedRanges as $index => $rangeData) {
                 // Vérifier que les données essentielles sont présentes
                 if (empty($rangeData['user_id']) || empty($rangeData['offer_id'])) {
                     $errors[] = 'Plage invalide : user_id ou offer_id manquant';
@@ -562,64 +575,67 @@ class ExcelUploadsController extends AppController
                     continue;
                 }
 
-                $savedOk = false;
-                $validationErrors = [];
-                if ($status === ExcelRangeImportClassifier::STATUS_REPLACE_GROOMRH && !empty($decision['replace_ids'])) {
-                    $savedOk = (bool)$Ranges->getConnection()->transactional(function () use ($Ranges, $decision, $entityData, &$validationErrors) {
-                        $Ranges->deleteAll(['id IN' => $decision['replace_ids']]);
-                        $range = $Ranges->newEntity($entityData);
-                        if (!$Ranges->save($range)) {
-                            $validationErrors = $range->getErrors();
-                            return false;
-                        }
-                        return true;
-                    });
-                } else {
-                    $range = $Ranges->newEntity($entityData);
-                    $savedOk = (bool)$Ranges->save($range);
-                    if (!$savedOk) {
-                        $validationErrors = $range->getErrors();
-                    }
+                if ($status === ExcelRangeImportClassifier::STATUS_REPLACE_IMPORT && !empty($decision['replace_ids'])) {
+                    $Ranges->deleteAll(['id IN' => $decision['replace_ids']]);
                 }
 
-                if ($savedOk) {
-                    if ($status === ExcelRangeImportClassifier::STATUS_REPLACE_GROOMRH) {
-                        $replaced++;
-                    } else {
-                        $saved++;
-                    }
-                } else {
+                $range = $Ranges->newEntity($entityData);
+                $range->set('source', RangeSource::IMPORT);
+                if (!$Ranges->save($range)) {
                     $errorMsg = 'Erreur pour la plage du ' .
                         ($entityData['date_start'] instanceof FrozenTime ? $entityData['date_start']->i18nFormat('dd/MM/yyyy') : 'date inconnue');
-                    if (!empty($validationErrors)) {
+                    $validationErrors = $range->getErrors();
+                    if ($validationErrors !== []) {
                         $errorMsg .= ' : ' . json_encode($validationErrors);
                     }
                     $errors[] = $errorMsg;
+                    continue;
                 }
-            }
+
+                if ($status === ExcelRangeImportClassifier::STATUS_REPLACE_IMPORT) {
+                    $replaced++;
+                } else {
+                    $saved++;
+                }
+                }
+
+                if ($errors !== []) {
+                    throw new \RuntimeException(implode(' | ', array_slice($errors, 0, 5)));
+                }
+
+                return [
+                    'saved' => $saved,
+                    'replaced' => $replaced,
+                    'skipped' => $skipped,
+                ];
+            });
+
+            $saved = $importResult['saved'];
+            $replaced = $importResult['replaced'];
+            $skipped = $importResult['skipped'];
             
             // Nettoyer le fichier temporaire
             if (file_exists($uploadedFile)) {
                 unlink($uploadedFile);
             }
             $this->request->getSession()->delete('excel_uploaded_file');
-            
+
+            if ($purgePlan['range_count'] > 0) {
+                $this->Flash->success(
+                    $purgePlan['range_count'] . ' plage(s) existante(s) retirée(s) ou découpée(s) sur le mois.'
+                );
+            }
             if ($saved > 0) {
                 $this->Flash->success("$saved plage(s) enregistrée(s) avec succès.");
             }
             if ($replaced > 0) {
-                $this->Flash->success("$replaced plage(s) remplacée(s) (import GroomRH précédent).");
+                $this->Flash->success("$replaced plage(s) remplacée(s) (import précédent).");
             }
             if ($skipped > 0) {
                 $this->Flash->info("$skipped plage(s) ignorée(s) (déjà présentes ou en conflit).");
             }
-            if (!empty($errors)) {
-                $errorCount = count($errors);
-                $this->Flash->error("$errorCount plage(s) n'ont pas pu être enregistrée(s). " . 
-                    (count($errors) <= 5 ? implode(' | ', $errors) : 'Voir les logs pour plus de détails.'));
-            }
             
-            if ($saved === 0 && $replaced === 0 && $skipped === 0 && empty($errors)) {
+            if ($saved === 0 && $replaced === 0 && $skipped === 0 && $purgePlan['range_count'] === 0) {
                 $this->Flash->warning('Aucune plage n\'a pu être enregistrée.');
             }
             
@@ -787,14 +803,62 @@ class ExcelUploadsController extends AppController
             $grouped[] = $currentGroup;
         }
         
-        // Générer les commentaires génériques basés sur le nom de l'offre
-        foreach ($grouped as &$range) {
-            // Toujours utiliser le nom de l'offre pour le commentaire
-            $offer = $offersById[$range['offer_id']] ?? null;
-            $offerName = $offer ? $offer->name : 'Événement';
-            $range['comment'] = $offerName . ' - GroomRH';
-        }
-        
         return $grouped;
+    }
+
+    /**
+     * @return array{absence: bool, remote: bool, scope: string}
+     */
+    private function purgeOptions(): array
+    {
+        $absence = (string)$this->request->getData(
+            'purge_absence',
+            $this->request->getQuery('purge_absence')
+        );
+        $remote = (string)$this->request->getData(
+            'purge_remote',
+            $this->request->getQuery('purge_remote')
+        );
+        $scope = (string)$this->request->getData(
+            'purge_scope',
+            $this->request->getQuery('purge_scope')
+        );
+
+        return [
+            'absence' => $absence === '1',
+            'remote' => $remote === '1',
+            'scope' => $scope === ExcelRangeMonthPurge::SCOPE_ALL
+                ? ExcelRangeMonthPurge::SCOPE_ALL
+                : ExcelRangeMonthPurge::SCOPE_FILE,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $groupedRanges
+     * @return array{delete_ids: array<int, int>, remnants: array<int, array<string, mixed>>, range_count: int, agent_count: int}
+     */
+    private function buildPurgePlan(
+        RangesTable $rangesTable,
+        array $groupedRanges,
+        int $year,
+        int $month,
+    ): array {
+        $options = $this->purgeOptions();
+        $fileUserIds = [];
+        foreach ($groupedRanges as $range) {
+            if (!empty($range['user_id'])) {
+                $fileUserIds[] = (int)$range['user_id'];
+            }
+        }
+
+        return (new ExcelRangeMonthPurge())->plan(
+            $rangesTable,
+            $year,
+            $month,
+            $options['absence'],
+            $options['remote'],
+            $options['scope'],
+            $fileUserIds,
+        );
     }
 }

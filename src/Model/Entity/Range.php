@@ -14,6 +14,7 @@ use Cake\ORM\Entity;
  * @property int $user_id
  * @property int $offer_id
  * @property string|null $comment
+ * @property string $source
  * @property \Cake\I18n\FrozenTime|null $created
  * @property \Cake\I18n\FrozenTime|null $modified
  *
@@ -37,6 +38,7 @@ class Range extends Entity
         'user_id' => true,
         'offer_id' => true,
         'comment' => true,
+        'source' => false,
         'created' => true,
         'modified' => true,
         'user' => true,

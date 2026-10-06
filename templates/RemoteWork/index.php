@@ -198,7 +198,7 @@
                 $userLabel = $day->hasValue('user')
                     ? $day->user->last_name . ' ' . $day->user->first_name
                     : '#' . $day->id;
-                $isFixed = $day->comment && strpos($day->comment, '[AUTO-TAD]') === 0;
+                $isFixed = ($day->source ?? '') === \App\Service\RangeSource::AUTO_TAD;
                 ?>
                 <tr>
                     <td>
