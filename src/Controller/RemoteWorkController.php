@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Controller\Traits\RangeQueryFiltersTrait;
 use Cake\I18n\FrozenTime;
 
 /**
@@ -11,6 +12,8 @@ use Cake\I18n\FrozenTime;
  */
 class RemoteWorkController extends AppController
 {
+    use RangeQueryFiltersTrait;
+
     /**
      * @return void
      */
@@ -45,28 +48,7 @@ class RemoteWorkController extends AppController
         }
         
         $params = $this->request->getQueryParams();
-        
-        // Filtre par intervalle [date_start, date_end] : ranges qui chevauchent (comme Ranges)
-        $filterStart = null;
-        $filterEnd = null;
-        if (!empty($params['date_start'])) {
-            $dateStart = $params['date_start'];
-            if (is_array($dateStart) && !empty($dateStart['year']) && !empty($dateStart['month']) && !empty($dateStart['day'])) {
-                $filterStart = sprintf('%04d-%02d-%02d', $dateStart['year'], $dateStart['month'], $dateStart['day']) . ' 00:00:00';
-            } elseif (is_string($dateStart) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStart)) {
-                $filterStart = $dateStart . ' 00:00:00';
-            }
-        }
-        if (!empty($params['date_end'])) {
-            $dateEnd = $params['date_end'];
-            if (is_array($dateEnd) && !empty($dateEnd['year']) && !empty($dateEnd['month']) && !empty($dateEnd['day'])) {
-                $filterEnd = sprintf('%04d-%02d-%02d', $dateEnd['year'], $dateEnd['month'], $dateEnd['day']) . ' 23:59:59';
-            } elseif (is_string($dateEnd) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateEnd)) {
-                $filterEnd = $dateEnd . ' 23:59:59';
-            }
-        }
-        
-        // Liste des utilisateurs ayant au moins un range télétravail (pour le filtre Agent)
+        $rangeType = $this->normalizeRangeType($params['range_type'] ?? null);
         $userIdsWithRemoteWorkRanges = $RangesTable->find()
             ->where(['offer_id' => $remoteWorkOfferId])
             ->all()
@@ -87,47 +69,64 @@ class RemoteWorkController extends AppController
             ->toArray();
         }
         
-        // Requête pour les ranges de télétravail
         $remoteWorkDays = $RangesTable->find()
-            ->where(['offer_id' => $remoteWorkOfferId])
-            ->contain(['Users', 'Offers']);
-        
-        // Filtre par type (fixe/flexible)
-        $rangeType = $params['range_type'] ?? 'all';
-        if ($rangeType === 'fixed') {
-            // Uniquement les ranges auto-créés (jours fixes)
-            $remoteWorkDays->where(['comment LIKE' => '[AUTO-TAD]%']);
-        } elseif ($rangeType === 'flexible') {
-            // Uniquement les ranges manuels (flexibles)
-            $remoteWorkDays->where(function ($exp) {
-                return $exp->or([
-                    'comment IS' => null,
-                    'comment NOT LIKE' => '[AUTO-TAD]%',
-                ]);
-            });
-        }
-        // Si 'all', pas de filtre supplémentaire (affiche tous les ranges)
-        
-        // Chevauchement : range chevauche [filterStart, filterEnd] ssi date_start <= filterEnd ET date_end >= filterStart
-        if ($filterStart !== null && $filterEnd !== null) {
-            $remoteWorkDays->where([
-                'Ranges.date_start <=' => $filterEnd,
-                'Ranges.date_end >=' => $filterStart
-            ]);
-        } elseif ($filterStart !== null) {
-            $remoteWorkDays->where(['Ranges.date_end >=' => $filterStart]);
-        } elseif ($filterEnd !== null) {
-            $remoteWorkDays->where(['Ranges.date_start <=' => $filterEnd]);
-        }
-        if (!empty($params['user_id'])) {
-            $remoteWorkDays->where(['Ranges.user_id' => $params['user_id']]);
-        }
+            ->contain(['Users', 'Offers'])
+            ->where($this->remoteWorkConditions($params, (int)$remoteWorkOfferId));
         
         // Pagination
         $this->paginate = ['limit' => 25, 'order' => ['Ranges.date_start' => 'DESC']];
         $remoteWorkDays = $this->paginate($remoteWorkDays);
 
         $this->set(compact('remoteWorkDays', 'users', 'remoteWorkOfferId', 'rangeType'));
+    }
+
+    /**
+     * Suppression en masse des jours de télétravail affichés.
+     *
+     * @return \Cake\Http\Response|null
+     */
+    public function bulkDelete()
+    {
+        $this->Authorization->authorize(new \App\Resource\RemoteWorkResource(), 'delete');
+        $this->request->allowMethod(['post']);
+
+        $syncService = new \App\Service\RemoteWorkRangesSyncService();
+        $remoteWorkOfferId = $syncService->getRemoteWorkOfferId();
+        if (!$remoteWorkOfferId) {
+            $this->Flash->error("L'offre de télétravail n'a pas été trouvée.");
+
+            return $this->redirect(['action' => 'index']);
+        }
+        $offerId = (int)$remoteWorkOfferId;
+
+        $Ranges = $this->fetchTable('Ranges');
+        if ((string)$this->request->getData('delete_all_matching') === '1') {
+            $conditions = $this->remoteWorkConditions($this->request->getQueryParams(), $offerId);
+            if (!isset($conditions['Ranges.offer_id'])) {
+                $this->Flash->error('Suppression refusée : périmètre télétravail absent.');
+
+                return $this->redirect(['action' => 'index']);
+            }
+            $deleted = $Ranges->deleteAll($conditions);
+            $this->Flash->success($deleted . ' jour(s) de télétravail supprimé(s).');
+
+            return $this->redirect($this->indexUrlWithoutPage());
+        }
+
+        $ids = $this->postedIds();
+        if ($ids === []) {
+            $this->Flash->error('Aucun jour sélectionné.');
+
+            return $this->redirect($this->referer('/', true));
+        }
+
+        $deleted = $Ranges->deleteAll([
+            'Ranges.id IN' => $ids,
+            'Ranges.offer_id' => $offerId,
+        ]);
+        $this->Flash->success($deleted . ' jour(s) de télétravail supprimé(s).');
+
+        return $this->redirect($this->referer('/', true));
     }
 
     /**
@@ -329,6 +328,74 @@ class RemoteWorkController extends AppController
         }
         
         return $this->redirect(['action' => 'index']);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>
+     */
+    private function remoteWorkConditions(array $params, int $offerId): array
+    {
+        $conditions = $this->buildRangeFilters($params);
+        if ($offerId <= 0) {
+            return $conditions;
+        }
+        $conditions['Ranges.offer_id'] = $offerId;
+        $rangeType = $this->normalizeRangeType($params['range_type'] ?? null);
+        if ($rangeType === 'fixed') {
+            $conditions['Ranges.comment LIKE'] = '[AUTO-TAD]%';
+        } elseif ($rangeType === 'flexible') {
+            $conditions['OR'] = [
+                'Ranges.comment IS' => null,
+                'Ranges.comment NOT LIKE' => '[AUTO-TAD]%',
+            ];
+        }
+
+        return $conditions;
+    }
+
+    private function normalizeRangeType(mixed $value): string
+    {
+        if (is_string($value) && in_array($value, ['all', 'fixed', 'flexible'], true)) {
+            return $value;
+        }
+
+        return 'all';
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function postedIds(): array
+    {
+        $raw = $this->request->getData('ids');
+        if (!is_array($raw)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($raw as $id) {
+            $int = $this->rangeFilterPositiveInt($id);
+            if ($int !== null) {
+                $ids[$int] = $int;
+            }
+        }
+
+        return array_values($ids);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function indexUrlWithoutPage(): array
+    {
+        $query = $this->request->getQueryParams();
+        unset($query['page']);
+        $url = ['action' => 'index'];
+        if ($query !== []) {
+            $url['?'] = $query;
+        }
+
+        return $url;
     }
 
     private function parseDateTimeLocal(string $value): ?FrozenTime

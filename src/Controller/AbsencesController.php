@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Controller\Traits\RangeQueryFiltersTrait;
 use Cake\I18n\FrozenTime;
 
 /**
@@ -10,6 +11,8 @@ use Cake\I18n\FrozenTime;
  */
 class AbsencesController extends AppController
 {
+    use RangeQueryFiltersTrait;
+
     /**
      * @return void
      */
@@ -32,26 +35,6 @@ class AbsencesController extends AppController
         $this->Offers = $this->fetchTable('Offers');
 
         $params = $this->request->getQueryParams();
-
-        // Filtre par intervalle [date_start, date_end] : ranges qui chevauchent (comme Ranges)
-        $filterStart = null;
-        $filterEnd = null;
-        if (!empty($params['date_start'])) {
-            $dateStart = $params['date_start'];
-            if (is_array($dateStart) && !empty($dateStart['year']) && !empty($dateStart['month']) && !empty($dateStart['day'])) {
-                $filterStart = sprintf('%04d-%02d-%02d', $dateStart['year'], $dateStart['month'], $dateStart['day']) . ' 00:00:00';
-            } elseif (is_string($dateStart) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStart)) {
-                $filterStart = $dateStart . ' 00:00:00';
-            }
-        }
-        if (!empty($params['date_end'])) {
-            $dateEnd = $params['date_end'];
-            if (is_array($dateEnd) && !empty($dateEnd['year']) && !empty($dateEnd['month']) && !empty($dateEnd['day'])) {
-                $filterEnd = sprintf('%04d-%02d-%02d', $dateEnd['year'], $dateEnd['month'], $dateEnd['day']) . ' 23:59:59';
-            } elseif (is_string($dateEnd) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateEnd)) {
-                $filterEnd = $dateEnd . ' 23:59:59';
-            }
-        }
 
         $offers = $this->Offers->find('list')
             ->where(['offer_type IN' => ['absence', 'meeting']])
@@ -88,23 +71,13 @@ class AbsencesController extends AppController
 
         $absences = $this->Ranges->find('Offers', array_flip($offers))
             ->contain(['Users', 'Offers']);
-
-        // Chevauchement : range chevauche [filterStart, filterEnd] ssi date_start <= filterEnd ET date_end >= filterStart
-        if ($filterStart !== null && $filterEnd !== null) {
-            $absences->where([
-                'Ranges.date_start <=' => $filterEnd,
-                'Ranges.date_end >=' => $filterStart
-            ]);
-        } elseif ($filterStart !== null) {
-            $absences->where(['Ranges.date_end >=' => $filterStart]);
-        } elseif ($filterEnd !== null) {
-            $absences->where(['Ranges.date_start <=' => $filterEnd]);
+        $filters = $this->buildRangeFilters($params);
+        $offerId = $this->rangeFilterPositiveInt($params['offer_id'] ?? null);
+        if ($offerId !== null) {
+            $filters['Ranges.offer_id'] = $offerId;
         }
-        if (!empty($params['user_id'])) {
-            $absences->where(['Ranges.user_id' => $params['user_id']]);
-        }
-        if (!empty($params['offer_id'])) {
-            $absences->where(['Ranges.offer_id' => $params['offer_id']]);
+        if ($filters !== []) {
+            $absences->where($filters);
         }
 
         // Pagination normale
@@ -112,6 +85,74 @@ class AbsencesController extends AppController
         $absences = $this->paginate($absences);
 
         $this->set(compact('absences', 'users', 'offers'));
+    }
+
+    /**
+     * @return \Cake\Http\Response|null
+     */
+    public function bulkDelete()
+    {
+        $this->Authorization->authorize(new \App\Resource\AbsencesResource(), 'delete');
+        $this->request->allowMethod(['post']);
+
+        $scopeIds = $this->absenceOfferIds();
+        if ($scopeIds === []) {
+            $this->Flash->error('Aucune absence à supprimer.');
+
+            return $this->redirect(['action' => 'index']);
+        }
+
+        if ((string)$this->request->getData('delete_all_matching') === '1') {
+            $deleted = $this->Ranges->deleteAll($this->absenceSearchConditions($this->request->getQueryParams(), $scopeIds));
+            $this->Flash->success($deleted . ' absence(s) supprimée(s).');
+
+            return $this->redirect($this->indexUrlWithoutPage());
+        }
+
+        $ids = $this->postedIds();
+        if ($ids === []) {
+            $this->Flash->error('Aucune absence sélectionnée.');
+
+            return $this->redirect($this->referer('/', true));
+        }
+
+        $deleted = $this->Ranges->deleteAll([
+            'Ranges.id IN' => $ids,
+            'Ranges.offer_id IN' => $scopeIds,
+        ]);
+        $this->Flash->success($deleted . ' absence(s) supprimée(s).');
+
+        return $this->redirect($this->referer('/', true));
+    }
+
+    /**
+     * @param string|null $id Range id.
+     * @return \Cake\Http\Response|null
+     */
+    public function delete($id = null)
+    {
+        $this->Authorization->authorize(new \App\Resource\AbsencesResource(), 'delete');
+        $this->request->allowMethod(['post', 'delete']);
+
+        $scopeIds = $this->absenceOfferIds();
+        $rangeId = $this->rangeFilterPositiveInt($id);
+        if ($scopeIds === [] || $rangeId === null) {
+            $this->Flash->error("L'absence n'a pas pu être supprimée.");
+
+            return $this->redirect($this->referer('/', true));
+        }
+
+        $deleted = $this->Ranges->deleteAll([
+            'Ranges.id' => $rangeId,
+            'Ranges.offer_id IN' => $scopeIds,
+        ]);
+        if ($deleted > 0) {
+            $this->Flash->success("L'absence a été supprimée.");
+        } else {
+            $this->Flash->error("L'absence n'a pas pu être supprimée.");
+        }
+
+        return $this->redirect($this->referer('/', true));
     }
 
     /**
@@ -208,5 +249,76 @@ class AbsencesController extends AppController
             ?: FrozenTime::createFromFormat('Y-m-d H:i:s', str_replace('T', ' ', $value));
 
         return $parsed ?: null;
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function absenceOfferIds(): array
+    {
+        $offers = $this->fetchTable('Offers')->find('list')
+            ->where(['offer_type IN' => ['absence', 'meeting']])
+            ->toArray();
+        $ids = [];
+        foreach (array_keys($offers) as $id) {
+            $int = $this->rangeFilterPositiveInt($id);
+            if ($int !== null) {
+                $ids[$int] = $int;
+            }
+        }
+
+        return array_values($ids);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @param array<int> $scopeIds
+     * @return array<string, mixed>
+     */
+    private function absenceSearchConditions(array $params, array $scopeIds): array
+    {
+        $conditions = $this->buildRangeFilters($params);
+        $conditions['Ranges.offer_id IN'] = $scopeIds;
+        $offerId = $this->rangeFilterPositiveInt($params['offer_id'] ?? null);
+        if ($offerId !== null) {
+            $conditions['Ranges.offer_id'] = $offerId;
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function postedIds(): array
+    {
+        $raw = $this->request->getData('ids');
+        if (!is_array($raw)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($raw as $id) {
+            $int = $this->rangeFilterPositiveInt($id);
+            if ($int !== null) {
+                $ids[$int] = $int;
+            }
+        }
+
+        return array_values($ids);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function indexUrlWithoutPage(): array
+    {
+        $query = $this->request->getQueryParams();
+        unset($query['page']);
+        $url = ['action' => 'index'];
+        if ($query !== []) {
+            $url['?'] = $query;
+        }
+
+        return $url;
     }
 }

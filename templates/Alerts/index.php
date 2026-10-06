@@ -109,10 +109,27 @@
         if (!empty($queryParams)) {
             $bulkActionUrl['?'] = $queryParams;
         }
+        $totalCount = (int)$this->Paginator->param('totalCount');
+        $unfiltered = true;
+        foreach (['date_start', 'date_end', 'content', 'priority'] as $filterKey) {
+            $filterValue = $queryParams[$filterKey] ?? null;
+            if (is_array($filterValue) ? $filterValue !== [] : ($filterValue !== null && $filterValue !== '')) {
+                $unfiltered = false;
+                break;
+            }
+        }
         ?>
-        <?= $this->Form->create(null, ['url' => $bulkActionUrl, 'id' => 'bulkActionsForm', 'class' => 'mb-3']) ?>
+        <?= $this->Form->create(null, [
+            'url' => $bulkActionUrl,
+            'id' => 'bulkActionsForm',
+            'class' => 'mb-3',
+            'data-total-count' => $totalCount,
+            'data-unfiltered' => $unfiltered ? '1' : '0',
+        ]) ?>
+        <?= $this->Form->hidden('delete_all_matching', ['id' => 'deleteAllMatching', 'value' => '0']) ?>
+        <?= $this->Form->hidden('confirm_purge_all', ['id' => 'confirmPurgeAll', 'value' => '0']) ?>
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <div class="d-flex align-items-center" style="gap: 0.5rem;">
+            <div class="d-flex align-items-center flex-wrap" style="gap: 0.5rem;">
                 <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllBtn">
                     <i class="bi bi-check-square"></i> Tout sélectionner
                 </button>
@@ -120,6 +137,9 @@
                     <i class="bi bi-square"></i> Tout désélectionner
                 </button>
                 <span class="text-muted small" id="selectedCount">0 alerte(s) sélectionnée(s)</span>
+                <button type="button" class="btn btn-link btn-sm p-0" id="selectAllResultsBtn" hidden>
+                    Sélectionner les <?= $totalCount ?> résultats de cette recherche
+                </button>
             </div>
             <div>
                 <button type="submit" class="btn btn-sm btn-outline-danger" id="bulkDeleteBtn" disabled>

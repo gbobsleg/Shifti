@@ -3,55 +3,91 @@
  */
 
 $(document).ready(function() {
-    // Gestion de la sélection en masse (comme ranges-filters)
-    function updateSelectedCount() {
-        const checked = $('.range-checkbox:checked').length;
-        $('#selectedCount').text(checked + ' jour(s) sélectionné(s)');
-        $('#bulkDeleteBtn').prop('disabled', checked === 0);
+    const $form = $('#bulkActionsForm');
+    const totalCount = parseInt($form.attr('data-total-count'), 10) || 0;
+    let deleteAllMatching = false;
+
+    function checkboxCount() {
+        return $('.range-checkbox').length;
     }
 
-    function updateSelectAllState() {
-        const totalCheckboxes = $('.range-checkbox').length;
-        const checkedCheckboxes = $('.range-checkbox:checked').length;
-        $('#selectAll').prop('checked', totalCheckboxes > 0 && checkedCheckboxes === totalCheckboxes);
+    function checkedCount() {
+        return $('.range-checkbox:checked').length;
+    }
 
-        if (checkedCheckboxes > 0) {
+    function clearMatchingFlag() {
+        deleteAllMatching = false;
+        $('#deleteAllMatching').val('0');
+    }
+
+    function syncSelection() {
+        const totalBoxes = checkboxCount();
+        const checked = checkedCount();
+        const allChecked = totalBoxes > 0 && checked === totalBoxes;
+        $('#selectAll').prop('checked', allChecked);
+
+        if (!allChecked) {
+            clearMatchingFlag();
+        }
+
+        if (checked > 0) {
             $('#selectAllBtn').hide();
             $('#deselectAllBtn').show();
         } else {
             $('#selectAllBtn').show();
             $('#deselectAllBtn').hide();
         }
+
+        const showAllResults = allChecked && !deleteAllMatching && totalCount > totalBoxes;
+        $('#selectAllResultsBtn').prop('hidden', !showAllResults);
+
+        if (deleteAllMatching) {
+            $('#selectedCount').text(totalCount + ' jour(s) sélectionné(s)');
+            $('#bulkDeleteBtn').prop('disabled', false);
+        } else {
+            $('#selectedCount').text(checked + ' jour(s) sélectionné(s)');
+            $('#bulkDeleteBtn').prop('disabled', checked === 0);
+        }
     }
 
     $('#selectAll').on('change', function() {
-        const isChecked = $(this).prop('checked');
-        $('.range-checkbox').prop('checked', isChecked);
-        updateSelectedCount();
-        updateSelectAllState();
+        $('.range-checkbox').prop('checked', $(this).prop('checked'));
+        syncSelection();
     });
 
     $('.range-checkbox').on('change', function() {
-        updateSelectedCount();
-        updateSelectAllState();
+        syncSelection();
     });
 
     $('#selectAllBtn').on('click', function() {
         $('.range-checkbox').prop('checked', true);
-        $('#selectAll').prop('checked', true);
-        updateSelectedCount();
-        updateSelectAllState();
+        syncSelection();
     });
 
     $('#deselectAllBtn').on('click', function() {
         $('.range-checkbox').prop('checked', false);
-        $('#selectAll').prop('checked', false);
-        updateSelectedCount();
-        updateSelectAllState();
+        clearMatchingFlag();
+        syncSelection();
     });
 
-    $('#bulkActionsForm').on('submit', function(e) {
-        const checked = $('.range-checkbox:checked').length;
+    $('#selectAllResultsBtn').on('click', function() {
+        if (!($('.range-checkbox').length > 0 && checkedCount() === checkboxCount() && totalCount > checkboxCount())) {
+            return;
+        }
+        deleteAllMatching = true;
+        $('#deleteAllMatching').val('1');
+        syncSelection();
+    });
+
+    $form.on('submit', function(e) {
+        if ($('#deleteAllMatching').val() === '1') {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer les ' + totalCount + ' résultats de cette recherche ?')) {
+                e.preventDefault();
+                return false;
+            }
+            return true;
+        }
+        const checked = checkedCount();
         if (checked === 0) {
             e.preventDefault();
             alert('Aucun jour sélectionné.');
@@ -63,12 +99,10 @@ $(document).ready(function() {
         }
     });
 
-    if ($('#bulkActionsForm').length) {
-        updateSelectedCount();
-        updateSelectAllState();
+    if ($form.length) {
+        syncSelection();
     }
-    
-    // Activation des tooltips Bootstrap
+
     if (typeof window.initTooltips === 'function') {
         window.initTooltips();
     }

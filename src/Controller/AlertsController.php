@@ -29,45 +29,9 @@ class AlertsController extends AppController
         $this->Authorization->authorize(new \App\Resource\AlertsResource(), 'index');
         
         $alerts = $this->Alerts->find();
-        $params = $this->request->getQueryParams();
-
-        $filterStart = null;
-        $filterEnd = null;
-        if (!empty($params['date_start'])) {
-            $dateStart = $params['date_start'];
-            if (is_array($dateStart) && !empty($dateStart['year']) && !empty($dateStart['month']) && !empty($dateStart['day'])) {
-                $filterStart = sprintf('%04d-%02d-%02d', $dateStart['year'], $dateStart['month'], $dateStart['day']) . ' 00:00:00';
-            } elseif (is_string($dateStart) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStart)) {
-                $filterStart = $dateStart . ' 00:00:00';
-            }
-        }
-        if (!empty($params['date_end'])) {
-            $dateEnd = $params['date_end'];
-            if (is_array($dateEnd) && !empty($dateEnd['year']) && !empty($dateEnd['month']) && !empty($dateEnd['day'])) {
-                $filterEnd = sprintf('%04d-%02d-%02d', $dateEnd['year'], $dateEnd['month'], $dateEnd['day']) . ' 23:59:59';
-            } elseif (is_string($dateEnd) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateEnd)) {
-                $filterEnd = $dateEnd . ' 23:59:59';
-            }
-        }
-        if ($filterStart !== null && $filterEnd !== null) {
-            $alerts->where([
-                'Alerts.date_start <=' => $filterEnd,
-                'Alerts.date_end >=' => $filterStart,
-            ]);
-        } elseif ($filterStart !== null) {
-            $alerts->where(['Alerts.date_end >=' => $filterStart]);
-        } elseif ($filterEnd !== null) {
-            $alerts->where(['Alerts.date_start <=' => $filterEnd]);
-        }
-
-        // Filtre par contenu
-        if (!empty($params['content'])) {
-            $alerts->where(['Alerts.content LIKE' => '%' . $params['content'] . '%']);
-        }
-
-        // Filtre par priorité
-        if (!empty($params['priority'])) {
-            $alerts->where(['Alerts.priority' => $params['priority']]);
+        $conditions = $this->alertSearchConditions($this->request->getQueryParams());
+        if ($conditions !== []) {
+            $alerts->where($conditions);
         }
 
         // Pagination normale
@@ -188,28 +152,125 @@ class AlertsController extends AppController
         $this->Authorization->authorize(new \App\Resource\AlertsResource(), 'delete');
         $this->request->allowMethod(['post']);
 
-        $ids = $this->request->getData('ids', []);
-        if (empty($ids) || !is_array($ids)) {
+        if ((string)$this->request->getData('delete_all_matching') === '1') {
+            $conditions = $this->alertSearchConditions($this->request->getQueryParams());
+            if ($conditions === []) {
+                if ((string)$this->request->getData('confirm_purge_all') !== '1') {
+                    $this->Flash->error('Suppression de toutes les alertes refusée : confirmation de purge absente.');
+
+                    return $this->redirect($this->indexUrlWithoutPage());
+                }
+                $conditions = ['Alerts.id IS NOT' => null];
+            }
+            $deleted = $this->Alerts->deleteAll($conditions);
+            $this->Flash->success($deleted . ' alerte(s) supprimée(s).');
+
+            return $this->redirect($this->indexUrlWithoutPage());
+        }
+
+        $ids = $this->postedIds();
+        if ($ids === []) {
             $this->Flash->error('Aucune alerte sélectionnée.');
+
             return $this->redirect($this->referer('/', true));
         }
 
-        $ids = array_map('intval', $ids);
-        $toDelete = $this->Alerts->find()->where(['id IN' => $ids])->all();
+        $deleted = $this->Alerts->deleteAll(['Alerts.id IN' => $ids]);
+        $this->Flash->success($deleted . ' alerte(s) supprimée(s).');
 
-        $deletedCount = 0;
-        foreach ($toDelete as $alert) {
-            if ($this->Alerts->delete($alert)) {
-                $deletedCount++;
+        return $this->redirect($this->referer('/', true));
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>
+     */
+    private function alertSearchConditions(array $params): array
+    {
+        $conditions = [];
+        $filterStart = $this->alertFilterBound($params['date_start'] ?? null, '00:00:00');
+        $filterEnd = $this->alertFilterBound($params['date_end'] ?? null, '23:59:59');
+        if ($filterStart !== null && $filterEnd !== null) {
+            $conditions['Alerts.date_start <='] = $filterEnd;
+            $conditions['Alerts.date_end >='] = $filterStart;
+        } elseif ($filterStart !== null) {
+            $conditions['Alerts.date_end >='] = $filterStart;
+        } elseif ($filterEnd !== null) {
+            $conditions['Alerts.date_start <='] = $filterEnd;
+        }
+        if (isset($params['content']) && is_string($params['content']) && $params['content'] !== '') {
+            $conditions['Alerts.content LIKE'] = '%' . $params['content'] . '%';
+        }
+        $priority = $this->alertPositiveInt($params['priority'] ?? null);
+        if ($priority !== null) {
+            $conditions['Alerts.priority'] = $priority;
+        }
+
+        return $conditions;
+    }
+
+    private function alertFilterBound(mixed $value, string $time): ?string
+    {
+        if (is_array($value) && !empty($value['year']) && !empty($value['month']) && !empty($value['day'])) {
+            $date = sprintf('%04d-%02d-%02d', $value['year'], $value['month'], $value['day']);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1) {
+                return $date . ' ' . $time;
+            }
+
+            return null;
+        }
+        if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1) {
+            return $value . ' ' . $time;
+        }
+
+        return null;
+    }
+
+    private function alertPositiveInt(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+        if (!is_string($value) || $value === '' || !ctype_digit($value)) {
+            return null;
+        }
+        $int = (int)$value;
+
+        return $int > 0 ? $int : null;
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function postedIds(): array
+    {
+        $raw = $this->request->getData('ids');
+        if (!is_array($raw)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($raw as $id) {
+            $int = $this->alertPositiveInt($id);
+            if ($int !== null) {
+                $ids[$int] = $int;
             }
         }
 
-        if ($deletedCount > 0) {
-            $this->Flash->success($deletedCount . ' alerte(s) supprimée(s).');
-        } else {
-            $this->Flash->error('Aucune alerte n\'a pu être supprimée.');
+        return array_values($ids);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function indexUrlWithoutPage(): array
+    {
+        $query = $this->request->getQueryParams();
+        unset($query['page']);
+        $url = ['action' => 'index'];
+        if ($query !== []) {
+            $url['?'] = $query;
         }
 
-        return $this->redirect($this->referer('/', true));
+        return $url;
     }
 }

@@ -8,7 +8,7 @@
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
 
 <?php $this->Html->script('crud-filters', ['block' => true, 'timestamp' => 'force']); ?>
-<?php $this->Html->script('absences-filters', ['block' => true]); ?>
+<?php $this->Html->script('absences-filters', ['block' => true, 'timestamp' => 'force']); ?>
 
 <div class="crud-app absences index content">
     <div class="crud-header">
@@ -116,15 +116,22 @@
 
     <?php if (count($absences) > 0): ?>
     <?php
-    $bulkActionUrl = ['controller' => 'Ranges', 'action' => 'bulkDelete'];
+    $bulkActionUrl = ['action' => 'bulkDelete'];
     $queryParams = $this->request->getQueryParams();
     if (!empty($queryParams)) {
         $bulkActionUrl['?'] = $queryParams;
     }
+    $totalCount = (int)$this->Paginator->param('totalCount');
     ?>
-    <?= $this->Form->create(null, ['url' => $bulkActionUrl, 'id' => 'bulkActionsForm', 'class' => 'mb-3']) ?>
+    <?= $this->Form->create(null, [
+        'url' => $bulkActionUrl,
+        'id' => 'bulkActionsForm',
+        'class' => 'mb-3',
+        'data-total-count' => $totalCount,
+    ]) ?>
+    <?= $this->Form->hidden('delete_all_matching', ['id' => 'deleteAllMatching', 'value' => '0']) ?>
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="d-flex align-items-center" style="gap: 0.5rem;">
+        <div class="d-flex align-items-center flex-wrap" style="gap: 0.5rem;">
             <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllBtn">
                 <i class="bi bi-check-square"></i> Tout sélectionner
             </button>
@@ -132,6 +139,9 @@
                 <i class="bi bi-square"></i> Tout désélectionner
             </button>
             <span class="text-muted small" id="selectedCount">0 absence(s) sélectionnée(s)</span>
+            <button type="button" class="btn btn-link btn-sm p-0" id="selectAllResultsBtn" hidden>
+                Sélectionner les <?= $totalCount ?> résultats de cette recherche
+            </button>
         </div>
         <div>
             <button type="submit" class="btn btn-sm btn-outline-danger" id="bulkDeleteBtn" disabled>
@@ -214,7 +224,7 @@
                         ) ?>
                         <?= $this->Form->postLink(
                             '<i class="bi bi-trash" aria-hidden="true"></i>',
-                            ['controller' => 'Ranges', 'action' => 'delete', $absence->id],
+                            ['controller' => 'Absences', 'action' => 'delete', $absence->id],
                             [
                                 'confirm' => 'Voulez-vous vraiment supprimer cette absence ?',
                                 'class' => 'crud-action crud-action-danger',

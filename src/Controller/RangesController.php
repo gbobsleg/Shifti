@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Controller\Traits\RangeQueryFiltersTrait;
+
 /**
  * Ranges Controller
  *
@@ -11,6 +13,8 @@ namespace App\Controller;
  */
 class RangesController extends AppController
 {
+    use RangeQueryFiltersTrait;
+
     /**
      * Index method
      *
@@ -20,56 +24,11 @@ class RangesController extends AppController
     {
         $this->Authorization->authorize(new \App\Resource\RangesResource(), 'index');
         
-        $query = $this->Ranges->find()->contain(['Users', 'Offers']);
         $params = $this->request->getQueryParams();
-
-        // Filtre par intervalle [date_start, date_end] : affiche les ranges qui chevauchent cet intervalle
-        $filterStart = null;
-        $filterEnd = null;
-
-        if (!empty($params['date_start'])) {
-            $dateStart = $params['date_start'];
-            if (is_array($dateStart) && !empty($dateStart['year']) && !empty($dateStart['month']) && !empty($dateStart['day'])) {
-                $filterStart = sprintf('%04d-%02d-%02d', $dateStart['year'], $dateStart['month'], $dateStart['day']) . ' 00:00:00';
-            } elseif (is_string($dateStart) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStart)) {
-                $filterStart = $dateStart . ' 00:00:00';
-            }
-        }
-
-        if (!empty($params['date_end'])) {
-            $dateEnd = $params['date_end'];
-            if (is_array($dateEnd) && !empty($dateEnd['year']) && !empty($dateEnd['month']) && !empty($dateEnd['day'])) {
-                $filterEnd = sprintf('%04d-%02d-%02d', $dateEnd['year'], $dateEnd['month'], $dateEnd['day']) . ' 23:59:59';
-            } elseif (is_string($dateEnd) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateEnd)) {
-                $filterEnd = $dateEnd . ' 23:59:59';
-            }
-        }
-
-        // Chevauchement : range chevauche [filterStart, filterEnd] ssi range.date_start <= filterEnd ET range.date_end >= filterStart
-        if ($filterStart !== null && $filterEnd !== null) {
-            $query->where([
-                'Ranges.date_start <=' => $filterEnd,
-                'Ranges.date_end >=' => $filterStart
-            ]);
-        } elseif ($filterStart !== null) {
-            $query->where(['Ranges.date_end >=' => $filterStart]);
-        } elseif ($filterEnd !== null) {
-            $query->where(['Ranges.date_start <=' => $filterEnd]);
-        }
-
-        // Filtre par utilisateur
-        if (!empty($params['user_id'])) {
-            $query->where(['Ranges.user_id' => $params['user_id']]);
-        }
-
-        // Filtre par offre
-        if (!empty($params['offer_id'])) {
-            $query->where(['Ranges.offer_id' => $params['offer_id']]);
-        }
-
-        // Filtre par commentaire
-        if (!empty($params['comment'])) {
-            $query->where(['Ranges.comment LIKE' => '%' . $params['comment'] . '%']);
+        $query = $this->Ranges->find()->contain(['Users', 'Offers']);
+        $conditions = $this->rangeSearchConditions($params);
+        if ($conditions !== []) {
+            $query->where($conditions);
         }
 
         // Pagination normale
@@ -176,27 +135,31 @@ class RangesController extends AppController
         $this->Authorization->authorize(new \App\Resource\RangesResource(), 'delete');
         $this->request->allowMethod(['post']);
 
-        $ids = $this->request->getData('ids', []);
+        if ((string)$this->request->getData('delete_all_matching') === '1') {
+            $conditions = $this->rangeSearchConditions($this->request->getQueryParams());
+            if ($conditions === []) {
+                if ((string)$this->request->getData('confirm_purge_all') !== '1') {
+                    $this->Flash->error('Suppression de toutes les plages refusée : confirmation de purge absente.');
 
-        if (empty($ids) || !is_array($ids)) {
+                    return $this->redirect($this->indexUrlWithoutPage());
+                }
+                $conditions = ['Ranges.id IS NOT' => null];
+            }
+            $deleted = $this->Ranges->deleteAll($conditions);
+            $this->Flash->success($deleted . ' plage(s) supprimée(s).');
+
+            return $this->redirect($this->indexUrlWithoutPage());
+        }
+
+        $ids = $this->postedIds();
+        if ($ids === []) {
             $this->Flash->error('Aucune plage sélectionnée.');
+
             return $this->redirect($this->referer('/', true));
         }
 
-        $ids = array_map('intval', $ids);
-        $ranges = $this->Ranges->find()->where(['id IN' => $ids])->all();
-
-        $deletedCount = 0;
-        foreach ($ranges as $range) {
-            $this->Ranges->delete($range);
-            $deletedCount++;
-        }
-
-        if ($deletedCount > 0) {
-            $this->Flash->success($deletedCount . ' plage(s) supprimée(s).');
-        } else {
-            $this->Flash->error('Aucune plage n\'a pu être supprimée.');
-        }
+        $deleted = $this->Ranges->deleteAll(['Ranges.id IN' => $ids]);
+        $this->Flash->success($deleted . ' plage(s) supprimée(s).');
 
         return $this->redirect($this->referer('/', true));
     }
@@ -221,5 +184,58 @@ class RangesController extends AppController
 
 //        return $this->redirect(['action' => 'index']);
         return $this->redirect($this->referer());
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>
+     */
+    private function rangeSearchConditions(array $params): array
+    {
+        $conditions = $this->buildRangeFilters($params);
+        $offerId = $this->rangeFilterPositiveInt($params['offer_id'] ?? null);
+        if ($offerId !== null) {
+            $conditions['Ranges.offer_id'] = $offerId;
+        }
+        if (isset($params['comment']) && is_string($params['comment']) && $params['comment'] !== '') {
+            $conditions['Ranges.comment LIKE'] = '%' . $params['comment'] . '%';
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function postedIds(): array
+    {
+        $raw = $this->request->getData('ids');
+        if (!is_array($raw)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($raw as $id) {
+            $int = $this->rangeFilterPositiveInt($id);
+            if ($int !== null) {
+                $ids[$int] = $int;
+            }
+        }
+
+        return array_values($ids);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function indexUrlWithoutPage(): array
+    {
+        $query = $this->request->getQueryParams();
+        unset($query['page']);
+        $url = ['action' => 'index'];
+        if ($query !== []) {
+            $url['?'] = $query;
+        }
+
+        return $url;
     }
 }
