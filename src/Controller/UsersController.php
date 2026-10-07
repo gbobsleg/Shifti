@@ -432,7 +432,7 @@ class UsersController extends AppController
                     // Synchroniser les ranges pour le télétravail fixe / none
                     if ($remoteWorkSetting->isFixedDays() || $remoteWorkSetting->remote_work_type === 'none') {
                         $syncService = new \App\Service\RemoteWorkRangesSyncService();
-                        $syncService->syncUserRemoteWorkRanges((int)$user->id, $remoteWorkSetting);
+                        $syncService->syncUserRemoteWorkRanges((int)$user->id, $remoteWorkSetting, $this->currentUserId());
                     }
                 }
 
@@ -780,11 +780,11 @@ class UsersController extends AppController
                     // Synchroniser les ranges pour le télétravail fixe
                     if ($remoteWorkSetting->isFixedDays()) {
                         $syncService = new \App\Service\RemoteWorkRangesSyncService();
-                        $stats = $syncService->syncUserRemoteWorkRanges((int)$user->id, $remoteWorkSetting);
+                        $stats = $syncService->syncUserRemoteWorkRanges((int)$user->id, $remoteWorkSetting, $this->currentUserId());
                     } elseif ($remoteWorkSetting->remote_work_type === 'none') {
                         // Supprimer tous les ranges auto-créés si télétravail désactivé
                         $syncService = new \App\Service\RemoteWorkRangesSyncService();
-                        $stats = $syncService->syncUserRemoteWorkRanges((int)$user->id, $remoteWorkSetting);
+                        $stats = $syncService->syncUserRemoteWorkRanges((int)$user->id, $remoteWorkSetting, $this->currentUserId());
                     }
                 }
             }

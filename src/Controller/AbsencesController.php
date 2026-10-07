@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Controller\Traits\RangeQueryFiltersTrait;
+use App\Service\PlanningDayHistoryService;
 use Cake\I18n\FrozenTime;
 
 /**
@@ -70,7 +71,7 @@ class AbsencesController extends AppController
             ->toArray();
 
         $absences = $this->Ranges->find('Offers', array_flip($offers))
-            ->contain(['Users', 'Offers']);
+            ->contain(['Users', 'Offers', 'CreatedByUsers']);
         $filters = $this->buildRangeFilters($params);
         $offerId = $this->rangeFilterPositiveInt($params['offer_id'] ?? null);
         if ($offerId !== null) {
@@ -103,7 +104,12 @@ class AbsencesController extends AppController
         }
 
         if ((string)$this->request->getData('delete_all_matching') === '1') {
-            $deleted = $this->Ranges->deleteAll($this->absenceSearchConditions($this->request->getQueryParams(), $scopeIds));
+            $conditions = $this->absenceSearchConditions($this->request->getQueryParams(), $scopeIds);
+            $history = new PlanningDayHistoryService();
+            $pairs = $history->pairsForConditions($conditions);
+            $this->captureRangeBaseline($pairs);
+            $deleted = $this->Ranges->deleteAll($conditions);
+            $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
             $this->Flash->success($deleted . ' absence(s) supprimée(s).');
 
             return $this->redirect($this->indexUrlWithoutPage());
@@ -116,10 +122,15 @@ class AbsencesController extends AppController
             return $this->redirect($this->referer('/', true));
         }
 
-        $deleted = $this->Ranges->deleteAll([
+        $conditions = [
             'Ranges.id IN' => $ids,
             'Ranges.offer_id IN' => $scopeIds,
-        ]);
+        ];
+        $history = new PlanningDayHistoryService();
+        $pairs = $history->pairsForConditions($conditions);
+        $this->captureRangeBaseline($pairs);
+        $deleted = $this->Ranges->deleteAll($conditions);
+        $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
         $this->Flash->success($deleted . ' absence(s) supprimée(s).');
 
         return $this->redirect($this->referer('/', true));
@@ -142,10 +153,15 @@ class AbsencesController extends AppController
             return $this->redirect($this->referer('/', true));
         }
 
-        $deleted = $this->Ranges->deleteAll([
+        $conditions = [
             'Ranges.id' => $rangeId,
             'Ranges.offer_id IN' => $scopeIds,
-        ]);
+        ];
+        $history = new PlanningDayHistoryService();
+        $pairs = $history->pairsForConditions($conditions);
+        $this->captureRangeBaseline($pairs);
+        $deleted = $this->Ranges->deleteAll($conditions);
+        $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
         if ($deleted > 0) {
             $this->Flash->success("L'absence a été supprimée.");
         } else {
@@ -204,8 +220,13 @@ class AbsencesController extends AppController
                 unset($datas['days']);
 
                 $entity = $this->Ranges->newEntity($datas);
+                $entity->set('created_by_user_id', $this->currentUserId());
+                $history = new PlanningDayHistoryService();
+                $pair = $history->pairFromDate((int)$entity->user_id, $entity->date_start);
+                $this->captureRangeBaseline($pair !== null ? [$pair] : []);
 
                 if ($this->Ranges->save($entity)) {
+                    $this->recordRangeHistory($pair !== null ? [$pair] : [], PlanningDayHistoryService::SOURCE_FORM);
                     $this->Flash->success("L'absence a été sauvegardée.");
 
                     return $this->redirect($this->referer());
@@ -225,8 +246,22 @@ class AbsencesController extends AppController
             }
 
             $entities_ranges = $this->Ranges->newEntities($ranges);
+            $creatorId = $this->currentUserId();
+            foreach ($entities_ranges as $entity) {
+                $entity->set('created_by_user_id', $creatorId);
+            }
+            $history = new PlanningDayHistoryService();
+            $pairs = [];
+            foreach ($entities_ranges as $entity) {
+                $pair = $history->pairFromDate((int)$entity->user_id, $entity->date_start);
+                if ($pair !== null) {
+                    $pairs[] = $pair;
+                }
+            }
+            $this->captureRangeBaseline($pairs);
 
             if ($this->Ranges->saveMany($entities_ranges)) {
+                $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
                 $this->Flash->success('Les absences ont été sauvegardées.');
 
                 return $this->redirect($this->referer());

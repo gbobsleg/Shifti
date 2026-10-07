@@ -80,6 +80,8 @@
             <div>
                 <dt>Provenance</dt>
                 <dd><?= h(\App\Service\RangeSource::label((string)$range->source)) ?></dd>
+                <dt>Créé par</dt>
+                <dd><?= h($this->element('ranges/creator', ['range' => $range])) ?></dd>
             </div>
         </dl>
     </section>

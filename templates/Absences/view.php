@@ -66,6 +66,8 @@ $userLabel = $absence->hasValue('user')
             <div>
                 <dt>Provenance</dt>
                 <dd><?= h(\App\Service\RangeSource::label((string)$absence->source)) ?></dd>
+                <dt>Créé par</dt>
+                <dd><?= h($this->element('ranges/creator', ['range' => $absence])) ?></dd>
             </div>
         </dl>
     </section>

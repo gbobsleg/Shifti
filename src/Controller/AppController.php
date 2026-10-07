@@ -16,8 +16,11 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Service\PlanningDayHistoryService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
+use Cake\Log\Log;
+use Throwable;
 
 /**
  * Application Controller
@@ -94,5 +97,61 @@ class AppController extends Controller
 
         // Pour les utilisateurs authentifiés, on applique la RequestPolicy
         $this->Authorization->authorize($this->request, 'access');
+    }
+
+    /**
+     * Identifiant de l'utilisateur connecté, ou null s'il est absent.
+     */
+    protected function currentUserId(): ?int
+    {
+        $identity = $this->request->getAttribute('identity');
+        $actorUserId = null;
+        if ($identity) {
+            if (method_exists($identity, 'getIdentifier')) {
+                $actorUserId = (int)$identity->getIdentifier();
+            } elseif (method_exists($identity, 'get')) {
+                $actorUserId = (int)$identity->get('id');
+            } elseif (method_exists($identity, 'getOriginalData')) {
+                $orig = $identity->getOriginalData();
+                if (is_object($orig) && isset($orig->id)) {
+                    $actorUserId = (int)$orig->id;
+                }
+            }
+        }
+        if ($actorUserId === null || $actorUserId <= 0) {
+            return null;
+        }
+
+        return $actorUserId;
+    }
+
+    /**
+     * @param list<array{user_id:int, day:string}> $pairs
+     */
+    protected function captureRangeBaseline(array $pairs): void
+    {
+        if ($pairs === []) {
+            return;
+        }
+        try {
+            (new PlanningDayHistoryService())->captureBaseline($pairs);
+        } catch (Throwable $exception) {
+            Log::error('PlanningDayHistory (baseline) échoué: ' . $exception->getMessage());
+        }
+    }
+
+    /**
+     * @param list<array{user_id:int, day:string}> $pairs
+     */
+    protected function recordRangeHistory(array $pairs, string $source): void
+    {
+        if ($pairs === []) {
+            return;
+        }
+        try {
+            (new PlanningDayHistoryService())->recordPairs($pairs, $source, $this->currentUserId());
+        } catch (Throwable $exception) {
+            Log::error('PlanningDayHistory (' . $source . ') échoué: ' . $exception->getMessage());
+        }
     }
 }

@@ -464,6 +464,9 @@ class GridsController extends AppController
                     'date_end' => $dbRange->date_end,
                     'comment' => $dbRange->comment,
                     'source' => (string)($dbRange->source ?? RangeSource::MANUAL),
+                    'created_by_user_id' => $dbRange->created_by_user_id !== null
+                        ? (int)$dbRange->created_by_user_id
+                        : null,
                 ];
             }
 
@@ -490,6 +493,7 @@ class GridsController extends AppController
                             'date_end' => $actionStart,
                             'comment' => $currentRange['comment'],
                             'source' => $currentRange['source'] ?? RangeSource::MANUAL,
+                            'created_by_user_id' => $currentRange['created_by_user_id'] ?? null,
                         ];
                     }
                     if ($currentEnd > $actionEnd) {
@@ -500,6 +504,7 @@ class GridsController extends AppController
                             'date_end' => $currentEnd,
                             'comment' => $currentRange['comment'],
                             'source' => $currentRange['source'] ?? RangeSource::MANUAL,
+                            'created_by_user_id' => $currentRange['created_by_user_id'] ?? null,
                         ];
                     }
                 }
@@ -508,6 +513,7 @@ class GridsController extends AppController
                     $actionRange['date_start'] = $actionStart;
                     $actionRange['date_end'] = $actionEnd;
                     $actionRange['source'] = RangeSource::MANUAL;
+                    $actionRange['created_by_user_id'] = $this->currentUserId();
                     $nextWorkingRanges[] = $actionRange;
                 }
                 $workingRanges = $nextWorkingRanges;
@@ -529,7 +535,8 @@ class GridsController extends AppController
                     $currentEnd = $currentSaveRange['date_end'] instanceof DateTimeInterface ? $currentSaveRange['date_end'] : new FrozenTime($currentSaveRange['date_end']);
                     $nextStart = $nextRange['date_start'] instanceof DateTimeInterface ? $nextRange['date_start'] : new FrozenTime($nextRange['date_start']);
                     $sameSource = ($currentSaveRange['source'] ?? RangeSource::MANUAL) === ($nextRange['source'] ?? RangeSource::MANUAL);
-                    if ($currentSaveRange['user_id'] == $nextRange['user_id'] && $currentSaveRange['offer_id'] == $nextRange['offer_id'] && $sameSource && $currentEnd->getTimestamp() == $nextStart->getTimestamp()) {
+                    $sameCreator = ($currentSaveRange['created_by_user_id'] ?? null) === ($nextRange['created_by_user_id'] ?? null);
+                    if ($currentSaveRange['user_id'] == $nextRange['user_id'] && $currentSaveRange['offer_id'] == $nextRange['offer_id'] && $sameSource && $sameCreator && $currentEnd->getTimestamp() == $nextStart->getTimestamp()) {
                             $currentSaveRange['date_end'] = $nextRange['date_end'];
                     } else {
                                 $finalRangesToSave[] = $currentSaveRange;
@@ -554,6 +561,28 @@ class GridsController extends AppController
                     'source',
                     (string)($finalRangesToSave[$entityIndex]['source'] ?? RangeSource::MANUAL)
                 );
+                $creatorId = $finalRangesToSave[$entityIndex]['created_by_user_id'] ?? null;
+                $entityToSave->set('created_by_user_id', $creatorId !== null ? (int)$creatorId : null);
+            }
+
+            $history = new PlanningDayHistoryService();
+            $historyPairs = [];
+            foreach ($initialDBRanges as $dbRange) {
+                $pair = $history->pairFromDate((int)$dbRange->user_id, $dbRange->date_start);
+                if ($pair !== null) {
+                    $historyPairs[] = $pair;
+                }
+            }
+            foreach ($finalRangesToSave as $savedRange) {
+                $pair = $history->pairFromDate((int)($savedRange['user_id'] ?? 0), $savedRange['date_start'] ?? null);
+                if ($pair !== null) {
+                    $historyPairs[] = $pair;
+                }
+            }
+            try {
+                $history->captureBaseline($historyPairs);
+            } catch (Throwable $historyError) {
+                Log::error('PlanningDayHistory (manual baseline) échoué: ' . $historyError->getMessage());
             }
 
             try {
@@ -579,32 +608,11 @@ class GridsController extends AppController
                 $messages[] = ['message' => __('Le planning a été sauvegardé. %d nouveaux créneaux créés, %d anciennes plages remplacées.', $savedCount, $deletedCount), 'element' => 'flash/success'];
                 $responseStatus = 'success';
 
-                // Historique agent×jour : uniquement après succès de la sauvegarde ranges
-                $historyDays = [];
-                foreach ($actionRanges as $action) {
-                    if (empty($action['date_start'])) {
-                        continue;
-                    }
-                    $historyDays[] = (new FrozenTime($action['date_start']))->format('Y-m-d');
-                }
-                $identity = $this->request->getAttribute('identity');
-                $actorUserId = null;
-                if ($identity) {
-                    if (method_exists($identity, 'getIdentifier')) {
-                        $actorUserId = (int)$identity->getIdentifier();
-                    } elseif (method_exists($identity, 'get')) {
-                        $actorUserId = (int)$identity->get('id');
-                    }
-                }
-                if ($actorUserId !== null && $actorUserId <= 0) {
-                    $actorUserId = null;
-                }
                 try {
-                    (new PlanningDayHistoryService())->recordAffectedUsers(
-                        array_values(array_map('intval', $affectedUserIds)),
-                        array_values(array_unique($historyDays)),
+                    $history->recordPairs(
+                        $historyPairs,
                         PlanningDayHistoryService::SOURCE_MANUAL,
-                        $actorUserId,
+                        $this->currentUserId(),
                     );
                 } catch (Throwable $historyError) {
                     Log::error('PlanningDayHistory (manual) échoué: ' . $historyError->getMessage());
@@ -793,22 +801,9 @@ class GridsController extends AppController
             return;
         }
 
-        $identity = $this->request->getAttribute('identity');
-        $actorUserId = null;
-        if ($identity) {
-            if (method_exists($identity, 'getIdentifier')) {
-                $actorUserId = (int)$identity->getIdentifier();
-            } elseif (method_exists($identity, 'get')) {
-                $actorUserId = (int)$identity->get('id');
-            } elseif (method_exists($identity, 'getOriginalData')) {
-                $orig = $identity->getOriginalData();
-                if (is_object($orig) && isset($orig->id)) {
-                    $actorUserId = (int)$orig->id;
-                }
-            }
-        }
+        $actorUserId = $this->currentUserId();
 
-        if ($actorUserId === null || $actorUserId <= 0) {
+        if ($actorUserId === null) {
             $this->set([
                 'success' => false,
                 'message' => 'Utilisateur non identifié.',

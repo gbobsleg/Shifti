@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Controller\Traits\RangeQueryFiltersTrait;
+use App\Service\PlanningDayHistoryService;
 use App\Service\RangeSource;
 use Cake\I18n\FrozenTime;
 
@@ -71,7 +72,7 @@ class RemoteWorkController extends AppController
         }
         
         $remoteWorkDays = $RangesTable->find()
-            ->contain(['Users', 'Offers'])
+            ->contain(['Users', 'Offers', 'CreatedByUsers'])
             ->where($this->remoteWorkConditions($params, (int)$remoteWorkOfferId));
         
         // Pagination
@@ -108,7 +109,11 @@ class RemoteWorkController extends AppController
 
                 return $this->redirect(['action' => 'index']);
             }
+            $history = new PlanningDayHistoryService();
+            $pairs = $history->pairsForConditions($conditions);
+            $this->captureRangeBaseline($pairs);
             $deleted = $Ranges->deleteAll($conditions);
+            $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
             $this->Flash->success($deleted . ' jour(s) de télétravail supprimé(s).');
 
             return $this->redirect($this->indexUrlWithoutPage());
@@ -121,10 +126,15 @@ class RemoteWorkController extends AppController
             return $this->redirect($this->referer('/', true));
         }
 
-        $deleted = $Ranges->deleteAll([
+        $conditions = [
             'Ranges.id IN' => $ids,
             'Ranges.offer_id' => $offerId,
-        ]);
+        ];
+        $history = new PlanningDayHistoryService();
+        $pairs = $history->pairsForConditions($conditions);
+        $this->captureRangeBaseline($pairs);
+        $deleted = $Ranges->deleteAll($conditions);
+        $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
         $this->Flash->success($deleted . ' jour(s) de télétravail supprimé(s).');
 
         return $this->redirect($this->referer('/', true));
@@ -276,8 +286,13 @@ class RemoteWorkController extends AppController
                 unset($data['days']);
                 $data['offer_id'] = $remoteWorkOfferId;
                 $entity = $RangesTable->newEntity($data);
-                
+                $entity->set('created_by_user_id', $this->currentUserId());
+                $history = new PlanningDayHistoryService();
+                $pair = $history->pairFromDate((int)$entity->user_id, $entity->date_start);
+                $this->captureRangeBaseline($pair !== null ? [$pair] : []);
+
                 if ($RangesTable->save($entity)) {
+                    $this->recordRangeHistory($pair !== null ? [$pair] : [], PlanningDayHistoryService::SOURCE_FORM);
                     $this->Flash->success("Le jour de télétravail a été sauvegardé.");
                     return $this->redirect(['action' => 'index']);
                 }
@@ -296,8 +311,22 @@ class RemoteWorkController extends AppController
                 }
                 
                 $entities = $RangesTable->newEntities($ranges);
-                
+                $creatorId = $this->currentUserId();
+                foreach ($entities as $entity) {
+                    $entity->set('created_by_user_id', $creatorId);
+                }
+                $history = new PlanningDayHistoryService();
+                $pairs = [];
+                foreach ($entities as $entity) {
+                    $pair = $history->pairFromDate((int)$entity->user_id, $entity->date_start);
+                    if ($pair !== null) {
+                        $pairs[] = $pair;
+                    }
+                }
+                $this->captureRangeBaseline($pairs);
+
                 if ($RangesTable->saveMany($entities)) {
+                    $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
                     $this->Flash->success('Les jours de télétravail ont été sauvegardés.');
                     return $this->redirect(['action' => 'index']);
                 }

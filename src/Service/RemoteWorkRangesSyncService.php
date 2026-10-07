@@ -71,13 +71,16 @@ class RemoteWorkRangesSyncService
      * @param UserRemoteWorkSetting $setting Configuration du télétravail
      * @return array Statistiques de synchronisation ['created' => int, 'deleted' => int, 'errors' => array]
      */
-    public function syncUserRemoteWorkRanges(int $userId, UserRemoteWorkSetting $setting): array
-    {
+    public function syncUserRemoteWorkRanges(
+        int $userId,
+        UserRemoteWorkSetting $setting,
+        ?int $actorUserId = null,
+    ): array {
         $stats = ['created' => 0, 'deleted' => 0, 'errors' => []];
         
         // Si pas de télétravail fixe, supprimer tous les ranges auto-créés
         if (!$setting->isFixedDays()) {
-            return $this->deleteAutoCreatedRanges($userId, $stats);
+            return $this->deleteAutoCreatedRanges($userId, $stats, $actorUserId);
         }
         
         $tableLocator = $this->getTableLocator();
@@ -160,6 +163,22 @@ class RemoteWorkRangesSyncService
             $currentDate = $currentDate->modify('+1 day');
         }
         
+        $historyPairs = [];
+        foreach ($daysToCreate as $day) {
+            $historyPairs[] = ['user_id' => $userId, 'day' => $day->format('Y-m-d')];
+        }
+        foreach ($existingRangesByDate as $dayKey => $range) {
+            if (!in_array($dayKey, $daysToKeep, true)) {
+                $historyPairs[] = ['user_id' => $userId, 'day' => $dayKey];
+            }
+        }
+        $history = new PlanningDayHistoryService();
+        try {
+            $history->captureBaseline($historyPairs);
+        } catch (\Throwable $exception) {
+            Log::error('PlanningDayHistory (sync baseline) échoué: ' . $exception->getMessage());
+        }
+
         // Créer les ranges manquants (sauf si un TAD quelconque chevauche déjà l'intervalle)
         foreach ($daysToCreate as $day) {
             try {
@@ -200,6 +219,12 @@ class RemoteWorkRangesSyncService
                 }
             }
         }
+
+        try {
+            $history->recordPairs($historyPairs, PlanningDayHistoryService::SOURCE_SYNC, $actorUserId);
+        } catch (\Throwable $exception) {
+            Log::error('PlanningDayHistory (sync) échoué: ' . $exception->getMessage());
+        }
         
         return $stats;
     }
@@ -230,7 +255,7 @@ class RemoteWorkRangesSyncService
     /**
      * Supprime tous les ranges auto-créés pour un utilisateur
      */
-    private function deleteAutoCreatedRanges(int $userId, array $stats): array
+    private function deleteAutoCreatedRanges(int $userId, array $stats, ?int $actorUserId = null): array
     {
         $tableLocator = $this->getTableLocator();
         $rangesTable = $tableLocator->get('Ranges');
@@ -247,6 +272,20 @@ class RemoteWorkRangesSyncService
                 'source' => RangeSource::AUTO_TAD
             ])
             ->all();
+
+        $history = new PlanningDayHistoryService();
+        $historyPairs = [];
+        foreach ($rangesToDelete as $range) {
+            $pair = $history->pairFromDate($userId, $range->date_start);
+            if ($pair !== null) {
+                $historyPairs[] = $pair;
+            }
+        }
+        try {
+            $history->captureBaseline($historyPairs);
+        } catch (\Throwable $exception) {
+            Log::error('PlanningDayHistory (sync baseline) échoué: ' . $exception->getMessage());
+        }
         
         foreach ($rangesToDelete as $range) {
             try {
@@ -256,6 +295,12 @@ class RemoteWorkRangesSyncService
             } catch (\Exception $e) {
                 $stats['errors'][] = 'Exception suppression range ID ' . $range->id . ': ' . $e->getMessage();
             }
+        }
+
+        try {
+            $history->recordPairs($historyPairs, PlanningDayHistoryService::SOURCE_SYNC, $actorUserId);
+        } catch (\Throwable $exception) {
+            Log::error('PlanningDayHistory (sync) échoué: ' . $exception->getMessage());
         }
         
         return $stats;

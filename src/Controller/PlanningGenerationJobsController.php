@@ -1808,8 +1808,7 @@ class PlanningGenerationJobsController extends AppController
         $publishedDays = 0;
         $skippedDraftRanges = 0;
         $skippedDetails = [];
-        $historyUserIds = [];
-        $historyDays = [];
+        $historyPairs = [];
 
         $connection->begin();
         try {
@@ -1828,12 +1827,17 @@ class PlanningGenerationJobsController extends AppController
                     ->extract('user_id')
                     ->map(fn($v) => (int)$v)
                     ->toList();
+                $dayPairs = [];
                 foreach ($existingUserIds as $uid) {
                     if ($uid > 0) {
-                        $historyUserIds[$uid] = $uid;
+                        $dayPairs[] = ['user_id' => $uid, 'day' => $dateStr];
                     }
                 }
-                $historyDays[$dateStr] = $dateStr;
+                try {
+                    (new PlanningDayHistoryService())->captureBaseline($dayPairs);
+                } catch (Throwable $historyError) {
+                    Log::error('PlanningDayHistory (publish baseline) échoué: ' . $historyError->getMessage());
+                }
 
                 // Supprimer les ranges existants (hors absences/télétravail), et tout ce qui a été généré avant.
                 $deleteConditions = [
@@ -1882,6 +1886,9 @@ class PlanningGenerationJobsController extends AppController
                     ->toList();
 
                 if (empty($draftRows)) {
+                    foreach ($dayPairs as $pair) {
+                        $historyPairs[] = $pair;
+                    }
                     continue;
                 }
 
@@ -1924,6 +1931,7 @@ class PlanningGenerationJobsController extends AppController
                         'comment' => 'Publié depuis brouillon (job #' . $id . ')',
                     ]);
                     $published->set('source', RangeSource::PLANNING);
+                    $published->set('created_by_user_id', $this->currentUserId());
                     $toInsert[] = $published;
                 }
 
@@ -1933,14 +1941,26 @@ class PlanningGenerationJobsController extends AppController
                 }
 
                 if (!empty($toInsert)) {
-                    $Ranges->saveManyOrFail($toInsert);
-                    $publishedDays++;
+                    $newPairs = [];
                     foreach ($toInsert as $entity) {
                         $uid = (int)$entity->user_id;
                         if ($uid > 0) {
-                            $historyUserIds[$uid] = $uid;
+                            $newPairs[] = ['user_id' => $uid, 'day' => $dateStr];
                         }
                     }
+                    try {
+                        (new PlanningDayHistoryService())->captureBaseline($newPairs);
+                    } catch (Throwable $historyError) {
+                        Log::error('PlanningDayHistory (publish baseline) échoué: ' . $historyError->getMessage());
+                    }
+                    $Ranges->saveManyOrFail($toInsert);
+                    $publishedDays++;
+                    foreach ($newPairs as $pair) {
+                        $dayPairs[] = $pair;
+                    }
+                }
+                foreach ($dayPairs as $pair) {
+                    $historyPairs[] = $pair;
                 }
             }
 
@@ -1964,15 +1984,12 @@ class PlanningGenerationJobsController extends AppController
         }
 
         // Historique : uniquement après commit réussi de la publication
-        if (!empty($historyUserIds) && !empty($historyDays)) {
-            $identity = $this->request->getAttribute('identity');
-            $actorUserId = (int)($identity?->get('id') ?? 0);
+        if ($historyPairs !== []) {
             try {
-                (new PlanningDayHistoryService())->recordAffectedUsers(
-                    array_values($historyUserIds),
-                    array_values($historyDays),
+                (new PlanningDayHistoryService())->recordPairs(
+                    $historyPairs,
                     PlanningDayHistoryService::SOURCE_PUBLISH,
-                    $actorUserId > 0 ? $actorUserId : null,
+                    $this->currentUserId(),
                 );
             } catch (Throwable $historyError) {
                 Log::error('PlanningDayHistory (publish) échoué: ' . $historyError->getMessage());

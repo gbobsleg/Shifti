@@ -6,6 +6,13 @@
  * @var \App\Model\Entity\Offer[]|\Cake\Collection\CollectionInterface $offers
  */
 use Cake\I18n\DateTime;
+
+$dateStart = DateTime::now();
+$dateStart = $dateStart->setTime(
+    (int)$dateStart->format('H'),
+    intdiv((int)$dateStart->format('i'), 15) * 15,
+    0
+);
 ?>
 <?php $this->assign('title', 'Ajouter une Plage Horaire'); ?>
 <?php $this->extend('/layout/TwitterBootstrap/dashtron_fullwidth'); ?>
@@ -33,7 +40,8 @@ use Cake\I18n\DateTime;
                 <?= $this->Form->control('date_start', [
                     'label' => false,
                     'class' => 'form-control',
-                    'value' => new DateTime('now'),
+                    'value' => $dateStart,
+                    'format' => 'Y-m-d\TH:i',
                     'step' => 900,
                 ]) ?>
             </div>
@@ -42,6 +50,7 @@ use Cake\I18n\DateTime;
                 <?= $this->Form->control('date_end', [
                     'label' => false,
                     'class' => 'form-control',
+                    'format' => 'Y-m-d\TH:i',
                     'step' => 900,
                 ]) ?>
             </div>

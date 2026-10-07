@@ -49,6 +49,19 @@ final class RangeSource
     }
 
     /**
+     * Nom affiché du créateur. Vide + télétravail automatique = Automatique.
+     */
+    public static function creatorLabel(?string $name, string $source): string
+    {
+        $name = trim((string)$name);
+        if ($name !== '') {
+            return $name;
+        }
+
+        return $source === self::AUTO_TAD ? 'Automatique' : 'Inconnu';
+    }
+
+    /**
      * Reprise des plages et des snapshots d'historique d'avant la colonne source.
      */
     public static function fromLegacyComment(?string $comment): string

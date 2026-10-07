@@ -69,7 +69,7 @@ class ExcelRangeMonthPurge
         }
 
         $rows = $rangesTable->find()
-            ->select(['id', 'user_id', 'offer_id', 'date_start', 'date_end', 'comment', 'source'])
+            ->select(['id', 'user_id', 'offer_id', 'date_start', 'date_end', 'comment', 'source', 'created_by_user_id'])
             ->where($conditions)
             ->all();
 
@@ -90,6 +90,9 @@ class ExcelRangeMonthPurge
                     'date_end' => $piece['date_end'],
                     'comment' => $range->comment,
                     'source' => (string)$range->source,
+                    'created_by_user_id' => $range->created_by_user_id !== null
+                        ? (int)$range->created_by_user_id
+                        : null,
                 ];
             }
         }
@@ -116,9 +119,11 @@ class ExcelRangeMonthPurge
         $entities = [];
         foreach ($plan['remnants'] as $data) {
             $source = (string)($data['source'] ?? RangeSource::MANUAL);
-            unset($data['source']);
+            $createdBy = $data['created_by_user_id'] ?? null;
+            unset($data['source'], $data['created_by_user_id']);
             $entity = $rangesTable->newEntity($data);
             $entity->set('source', $source);
+            $entity->set('created_by_user_id', $createdBy !== null ? (int)$createdBy : null);
             $entities[] = $entity;
         }
         if ($entities !== []) {

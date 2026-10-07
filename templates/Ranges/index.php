@@ -147,7 +147,7 @@
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <?php
-            $columns = ['Utilisateur', 'Offre', 'Provenance', 'Période', 'Commentaire', 'Maj', 'Actions'];
+            $columns = ['Utilisateur', 'Offre', 'Provenance', 'Créé par', 'Période', 'Commentaire', 'Maj', 'Actions'];
             $colCount = count($columns) + (count($ranges) > 0 ? 1 : 0);
             ?>
             <thead>
@@ -160,10 +160,11 @@
                 <th scope="col"><?= $this->Paginator->sort('user_id', $columns[0]) ?></th>
                 <th scope="col"><?= $this->Paginator->sort('offer_id', $columns[1]) ?></th>
                 <th scope="col"><?= $this->Paginator->sort('source', $columns[2]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('date_start', $columns[3]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('comment', $columns[4]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('modified', $columns[5]) ?></th>
-                <th scope="col" class="actions"><?= h($columns[6]) ?></th>
+                <th scope="col"><?= h($columns[3]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('date_start', $columns[4]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('comment', $columns[5]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('modified', $columns[6]) ?></th>
+                <th scope="col" class="actions"><?= h($columns[7]) ?></th>
             </tr>
             </thead>
             <tbody>
@@ -207,6 +208,7 @@
                         <?php endif; ?>
                     </td>
                     <td><?= h(\App\Service\RangeSource::label((string)$range->source)) ?></td>
+                    <td><?= h($this->element('ranges/creator', ['range' => $range])) ?></td>
                     <td>
                         <?= h($range->date_start ? $range->date_start->i18nFormat('dd/MM/yy HH:mm') : '') ?>
                         <i class="bi bi-arrow-right"></i>

@@ -299,7 +299,8 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="pdh-modal-meta text-muted small mb-3" id="planningDayHistoryMeta"></p>
+                    <p class="pdh-modal-meta text-muted small mb-2" id="planningDayHistoryMeta"></p>
+                    <p class="text-muted small mb-3">Les 30 dernières versions de la journée sont conservées.</p>
                     <div id="planningDayHistoryList" class="pdh-versions"></div>
                 </div>
                 <div class="modal-footer">

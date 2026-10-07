@@ -2239,6 +2239,17 @@ class SchedulesController extends AppController
             $deleteConditions = ['DATE(date_start)' => $dateStr];
         }
 
+        $historyPairs = [];
+        foreach ($historyUserIds as $uid) {
+            $historyPairs[] = ['user_id' => (int)$uid, 'day' => $dateStr];
+        }
+        $history = new PlanningDayHistoryService();
+        try {
+            $history->captureBaseline($historyPairs);
+        } catch (Throwable $historyError) {
+            Log::error('PlanningDayHistory (generation baseline) échoué: ' . $historyError->getMessage());
+        }
+
         $deleted = $RangesTable->deleteAll($deleteConditions);
         $this->log("Ranges supprimés (hors absences/télétravail): {$deleted}", 'debug');
 
@@ -2357,6 +2368,7 @@ class SchedulesController extends AppController
                 'comment' => 'Généré par WFM',
             ]);
             $entity->set('source', RangeSource::PLANNING);
+            $entity->set('created_by_user_id', $this->currentUserId());
             $entities[] = $entity;
         }
 
@@ -2384,14 +2396,11 @@ class SchedulesController extends AppController
 
         // Historique : uniquement si l'écriture ranges a réussi
         if ($saveSucceeded && !empty($historyUserIds)) {
-            $identity = $this->request->getAttribute('identity');
-            $actorUserId = (int)($identity?->get('id') ?? 0);
             try {
-                (new PlanningDayHistoryService())->recordAffectedUsers(
-                    array_values($historyUserIds),
-                    [$dateStr],
+                $history->recordPairs(
+                    $historyPairs,
                     PlanningDayHistoryService::SOURCE_GENERATION,
-                    $actorUserId > 0 ? $actorUserId : null,
+                    $this->currentUserId(),
                 );
             } catch (Throwable $historyError) {
                 Log::error('PlanningDayHistory (generation) échoué: ' . $historyError->getMessage());

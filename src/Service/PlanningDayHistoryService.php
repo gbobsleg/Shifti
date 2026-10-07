@@ -22,8 +22,13 @@ class PlanningDayHistoryService
     public const SOURCE_PUBLISH = 'publish';
     public const SOURCE_GENERATION = 'generation';
     public const SOURCE_RESTORE = 'restore';
+    public const SOURCE_FORM = 'form';
+    public const SOURCE_IMPORT = 'import';
+    public const SOURCE_SYNC = 'sync';
+    public const SOURCE_BASELINE = 'baseline';
 
     private const MAX_VERSIONS_PER_DAY = 30;
+    private const BATCH_SIZE = 500;
 
     private RangesTable $Ranges;
     private PlanningDayHistoriesTable $PlanningDayHistories;
@@ -70,6 +75,9 @@ class PlanningDayHistoryService
                     : RangeSource::fromLegacyComment(
                         $range->comment !== null ? (string)$range->comment : null
                     ),
+                'created_by_user_id' => $range->created_by_user_id !== null
+                    ? (int)$range->created_by_user_id
+                    : null,
             ];
         }
 
@@ -128,39 +136,106 @@ class PlanningDayHistoryService
     }
 
     /**
-     * Enregistre l'historique pour chaque couple (userId × day) touché.
+     * Couples distincts user_id × jour de début correspondant aux conditions d'une suppression.
      *
-     * @param list<int> $userIds
-     * @param list<string> $days
+     * @param array<string, mixed> $conditions
+     * @return list<array{user_id:int, day:string}>
      */
-    public function recordAffectedUsers(
-        array $userIds,
-        array $days,
-        string $source,
-        ?int $actorUserId,
-    ): void {
-        $uniqueUserIds = [];
-        foreach ($userIds as $userId) {
-            $id = (int)$userId;
-            if ($id > 0) {
-                $uniqueUserIds[$id] = $id;
-            }
+    public function pairsForConditions(array $conditions): array
+    {
+        if ($conditions === []) {
+            return [];
         }
 
-        $uniqueDays = [];
-        foreach ($days as $day) {
-            if ($day === null || $day === '') {
+        $rows = $this->Ranges->find()
+            ->select([
+                'user_id' => 'Ranges.user_id',
+                'day' => 'DATE(Ranges.date_start)',
+            ])
+            ->where($conditions)
+            ->groupBy(['Ranges.user_id', 'DATE(Ranges.date_start)'])
+            ->disableHydration()
+            ->all();
+
+        $pairs = [];
+        foreach ($rows as $row) {
+            $day = $row['day'] ?? '';
+            if ($day instanceof DateTimeInterface) {
+                $day = $day->format('Y-m-d');
+            }
+            $pairs[] = [
+                'user_id' => (int)($row['user_id'] ?? 0),
+                'day' => (string)$day,
+            ];
+        }
+
+        return $this->uniquePairs($pairs);
+    }
+
+    /**
+     * Photographie l'état actuel des couples qui n'ont encore aucune version.
+     *
+     * @param list<array{user_id:int, day:string}> $pairs
+     */
+    public function captureBaseline(array $pairs): void
+    {
+        foreach (array_chunk($this->uniquePairs($pairs), self::BATCH_SIZE) as $chunk) {
+            $this->recordChunk($chunk, self::SOURCE_BASELINE, null, true);
+        }
+    }
+
+    /**
+     * Enregistre une version après modification pour les couples réellement touchés.
+     *
+     * @param list<array{user_id:int, day:string}> $pairs
+     */
+    public function recordPairs(array $pairs, string $source, ?int $actorUserId): void
+    {
+        foreach (array_chunk($this->uniquePairs($pairs), self::BATCH_SIZE) as $chunk) {
+            $this->recordChunk($chunk, $source, $actorUserId, false);
+        }
+    }
+
+    /**
+     * @return array{user_id:int, day:string}|null
+     */
+    public function pairFromDate(int $userId, mixed $dateStart): ?array
+    {
+        if ($userId <= 0) {
+            return null;
+        }
+        $formatted = $this->formatDateTime($dateStart);
+        if ($formatted === '') {
+            return null;
+        }
+
+        return [
+            'user_id' => $userId,
+            'day' => substr($formatted, 0, 10),
+        ];
+    }
+
+    /**
+     * @param list<array{user_id:int, day:string}> $pairs
+     * @return list<array{user_id:int, day:string}>
+     */
+    public function uniquePairs(array $pairs): array
+    {
+        $unique = [];
+        foreach ($pairs as $pair) {
+            $userId = (int)($pair['user_id'] ?? 0);
+            $dayRaw = (string)($pair['day'] ?? '');
+            if ($userId <= 0 || $dayRaw === '') {
                 continue;
             }
-            $dayYmd = $this->normalizeDay((string)$day);
-            $uniqueDays[$dayYmd] = $dayYmd;
+            $day = $this->normalizeDay($dayRaw);
+            $unique[$userId . '|' . $day] = [
+                'user_id' => $userId,
+                'day' => $day,
+            ];
         }
 
-        foreach ($uniqueUserIds as $userId) {
-            foreach ($uniqueDays as $dayYmd) {
-                $this->maybeRecord($userId, $dayYmd, $source, $actorUserId);
-            }
-        }
+        return array_values($unique);
     }
 
     /**
@@ -211,6 +286,8 @@ class PlanningDayHistoryService
                     'comment' => $comment,
                 ]);
                 $entity->set('source', $source);
+                $createdBy = $segment['created_by_user_id'] ?? null;
+                $entity->set('created_by_user_id', $createdBy !== null && $createdBy !== '' ? (int)$createdBy : null);
                 $this->Ranges->saveOrFail($entity);
             }
 
@@ -244,6 +321,204 @@ class PlanningDayHistoryService
         });
 
         return hash('sha256', json_encode($normalized, JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * @param list<array{user_id:int, day:string}> $pairs
+     */
+    private function recordChunk(array $pairs, string $source, ?int $actorUserId, bool $baseline): void
+    {
+        if ($pairs === []) {
+            return;
+        }
+
+        $snapshots = $this->snapshotsForPairs($pairs);
+        $latest = $this->latestHashes($pairs);
+        $toInsert = [];
+        $touched = [];
+
+        foreach ($pairs as $pair) {
+            $key = $pair['user_id'] . '|' . $pair['day'];
+            $snapshot = $snapshots[$key] ?? [];
+            $hasHistory = array_key_exists($key, $latest);
+            if ($baseline) {
+                if ($hasHistory) {
+                    continue;
+                }
+            } elseif (!$hasHistory && $snapshot === []) {
+                continue;
+            } elseif ($hasHistory && $latest[$key] === $this->hashSnapshot($snapshot)) {
+                continue;
+            }
+
+            $toInsert[] = [
+                'user_id' => $pair['user_id'],
+                'day' => $pair['day'],
+                'snapshot' => $snapshot,
+                'content_hash' => $this->hashSnapshot($snapshot),
+                'source' => $source,
+                'actor_user_id' => $actorUserId,
+            ];
+            $touched[] = $pair;
+        }
+
+        if ($toInsert === []) {
+            return;
+        }
+
+        $entities = $this->PlanningDayHistories->newEntities($toInsert);
+        if (!$this->PlanningDayHistories->saveMany($entities)) {
+            throw new RuntimeException('Impossible d\'enregistrer un lot d\'historique planning.');
+        }
+
+        $this->trimChunk($touched);
+    }
+
+    /**
+     * @param list<array{user_id:int, day:string}> $pairs
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function snapshotsForPairs(array $pairs): array
+    {
+        $result = [];
+        $wanted = [];
+        $userIds = [];
+        $min = null;
+        $max = null;
+        foreach ($pairs as $pair) {
+            $key = $pair['user_id'] . '|' . $pair['day'];
+            $result[$key] = [];
+            $wanted[$key] = true;
+            $userIds[$pair['user_id']] = $pair['user_id'];
+            if ($min === null || $pair['day'] < $min) {
+                $min = $pair['day'];
+            }
+            if ($max === null || $pair['day'] > $max) {
+                $max = $pair['day'];
+            }
+        }
+        if ($userIds === []) {
+            return $result;
+        }
+
+        $rows = $this->Ranges->find()
+            ->select([
+                'Ranges.user_id',
+                'Ranges.offer_id',
+                'Ranges.date_start',
+                'Ranges.date_end',
+                'Ranges.comment',
+                'Ranges.source',
+                'Ranges.created_by_user_id',
+                'offer_color' => 'Offers.color',
+            ])
+            ->leftJoinWith('Offers')
+            ->where([
+                'Ranges.user_id IN' => array_values($userIds),
+                'Ranges.date_start >=' => $min . ' 00:00:00',
+                'Ranges.date_start <=' => $max . ' 23:59:59',
+            ])
+            ->orderBy(['Ranges.date_start' => 'ASC', 'Ranges.offer_id' => 'ASC'])
+            ->disableHydration()
+            ->all();
+
+        foreach ($rows as $row) {
+            $start = $this->formatDateTime($row['date_start'] ?? null);
+            $day = substr($start, 0, 10);
+            $key = (int)($row['user_id'] ?? 0) . '|' . $day;
+            if (!isset($wanted[$key])) {
+                continue;
+            }
+            $comment = $row['comment'] ?? null;
+            $comment = $comment !== null && $comment !== '' ? (string)$comment : null;
+            $source = RangeSource::isValid((string)($row['source'] ?? ''))
+                ? (string)$row['source']
+                : RangeSource::fromLegacyComment($comment);
+            $result[$key][] = [
+                'offer_id' => (int)($row['offer_id'] ?? 0),
+                'color' => $row['offer_color'] ?? null,
+                'date_start' => $start,
+                'date_end' => $this->formatDateTime($row['date_end'] ?? null),
+                'comment' => $comment,
+                'source' => $source,
+                'created_by_user_id' => isset($row['created_by_user_id']) && $row['created_by_user_id'] !== null
+                    ? (int)$row['created_by_user_id']
+                    : null,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<array{user_id:int, day:string}> $pairs
+     * @return array<string, string>
+     */
+    private function latestHashes(array $pairs): array
+    {
+        $userIds = [];
+        $days = [];
+        $wanted = [];
+        foreach ($pairs as $pair) {
+            $userIds[$pair['user_id']] = $pair['user_id'];
+            $days[$pair['day']] = $pair['day'];
+            $wanted[$pair['user_id'] . '|' . $pair['day']] = true;
+        }
+
+        $rows = $this->PlanningDayHistories->find()
+            ->select([
+                'id',
+                'user_id',
+                'day_key' => 'DATE_FORMAT(PlanningDayHistories.day, "%Y-%m-%d")',
+                'content_hash',
+            ])
+            ->where([
+                'user_id IN' => array_values($userIds),
+                'day IN' => array_values($days),
+            ])
+            ->orderBy(['id' => 'DESC'])
+            ->disableHydration()
+            ->all();
+
+        $latest = [];
+        foreach ($rows as $row) {
+            $day = (string)($row['day_key'] ?? '');
+            $key = (int)($row['user_id'] ?? 0) . '|' . $day;
+            if (!isset($wanted[$key]) || isset($latest[$key])) {
+                continue;
+            }
+            $latest[$key] = (string)($row['content_hash'] ?? '');
+        }
+
+        return $latest;
+    }
+
+    /**
+     * @param list<array{user_id:int, day:string}> $pairs
+     */
+    private function trimChunk(array $pairs): void
+    {
+        if ($pairs === []) {
+            return;
+        }
+
+        $connection = $this->PlanningDayHistories->getConnection();
+        $tuples = [];
+        $params = [];
+        foreach (array_values($pairs) as $index => $pair) {
+            $tuples[] = '(:u' . $index . ', :d' . $index . ')';
+            $params['u' . $index] = $pair['user_id'];
+            $params['d' . $index] = $pair['day'];
+        }
+
+        $sql = 'DELETE FROM planning_day_histories WHERE id IN ('
+            . 'SELECT id FROM ('
+            . 'SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id, day ORDER BY created DESC, id DESC) AS rn '
+            . 'FROM planning_day_histories WHERE (user_id, day) IN (' . implode(', ', $tuples) . ')'
+            . ') ranked WHERE rn > ' . self::MAX_VERSIONS_PER_DAY
+            . ')';
+
+        $connection->execute($sql, $params);
     }
 
     private function trimOldVersions(int $userId, string $dayYmd): void

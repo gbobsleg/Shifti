@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Controller\Traits\RangeQueryFiltersTrait;
+use App\Service\PlanningDayHistoryService;
 use App\Service\RangeSource;
 use DateTimeInterface;
 
@@ -27,7 +28,7 @@ class RangesController extends AppController
         $this->Authorization->authorize(new \App\Resource\RangesResource(), 'index');
         
         $params = $this->request->getQueryParams();
-        $query = $this->Ranges->find()->contain(['Users', 'Offers']);
+        $query = $this->Ranges->find()->contain(['Users', 'Offers', 'CreatedByUsers']);
         $conditions = $this->rangeSearchConditions($params);
         if ($conditions !== []) {
             $query->where($conditions);
@@ -61,7 +62,7 @@ class RangesController extends AppController
     {
         $this->Authorization->authorize(new \App\Resource\RangesResource(), 'view');
         $range = $this->Ranges->get($id, [
-            'contain' => ['Users', 'Offers'],
+            'contain' => ['Users', 'Offers', 'CreatedByUsers'],
         ]);
 
         $this->set(compact('range'));
@@ -78,7 +79,12 @@ class RangesController extends AppController
         $range = $this->Ranges->newEmptyEntity();
         if ($this->request->is('post')) {
             $range = $this->Ranges->patchEntity($range, $this->request->getData());
+            $history = new PlanningDayHistoryService();
+            $pair = $history->pairFromDate((int)$range->user_id, $range->date_start);
+            $range->set('created_by_user_id', $this->currentUserId());
+            $this->captureRangeBaseline($pair !== null ? [$pair] : []);
             if ($this->Ranges->save($range)) {
+                $this->recordRangeHistory($pair !== null ? [$pair] : [], PlanningDayHistoryService::SOURCE_FORM);
                 $this->Flash->success("La plage a été sauvegardée.");
 
                 return $this->redirect(['action' => 'index']);
@@ -113,6 +119,8 @@ class RangesController extends AppController
             $beforeOfferId = (int)$range->offer_id;
             $beforeStart = $range->date_start instanceof DateTimeInterface ? $range->date_start->getTimestamp() : null;
             $beforeEnd = $range->date_end instanceof DateTimeInterface ? $range->date_end->getTimestamp() : null;
+            $history = new PlanningDayHistoryService();
+            $beforePair = $history->pairFromDate($beforeUserId, $range->date_start);
             $range = $this->Ranges->patchEntity($range, $this->request->getData());
             $afterStart = $range->date_start instanceof DateTimeInterface ? $range->date_start->getTimestamp() : null;
             $afterEnd = $range->date_end instanceof DateTimeInterface ? $range->date_end->getTimestamp() : null;
@@ -124,7 +132,11 @@ class RangesController extends AppController
             ) {
                 $range->set('source', RangeSource::MANUAL);
             }
+            $afterPair = $history->pairFromDate((int)$range->user_id, $range->date_start);
+            $pairs = array_values(array_filter([$beforePair, $afterPair]));
+            $this->captureRangeBaseline($pairs);
             if ($this->Ranges->save($range)) {
+                $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
                 $this->Flash->success("La plage a été sauvegardée.");
 
                 return $this->redirect(['action' => 'index']);
@@ -161,7 +173,11 @@ class RangesController extends AppController
                 }
                 $conditions = ['Ranges.id IS NOT' => null];
             }
+            $history = new PlanningDayHistoryService();
+            $pairs = $history->pairsForConditions($conditions);
+            $this->captureRangeBaseline($pairs);
             $deleted = $this->Ranges->deleteAll($conditions);
+            $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
             $this->Flash->success($deleted . ' plage(s) supprimée(s).');
 
             return $this->redirect($this->indexUrlWithoutPage());
@@ -174,7 +190,12 @@ class RangesController extends AppController
             return $this->redirect($this->referer('/', true));
         }
 
-        $deleted = $this->Ranges->deleteAll(['Ranges.id IN' => $ids]);
+        $conditions = ['Ranges.id IN' => $ids];
+        $history = new PlanningDayHistoryService();
+        $pairs = $history->pairsForConditions($conditions);
+        $this->captureRangeBaseline($pairs);
+        $deleted = $this->Ranges->deleteAll($conditions);
+        $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
         $this->Flash->success($deleted . ' plage(s) supprimée(s).');
 
         return $this->redirect($this->referer('/', true));
@@ -192,7 +213,12 @@ class RangesController extends AppController
         $this->Authorization->authorize(new \App\Resource\RangesResource(), 'delete');
         $this->request->allowMethod(['post', 'delete']);
         $range = $this->Ranges->get($id);
+        $history = new PlanningDayHistoryService();
+        $pair = $history->pairFromDate((int)$range->user_id, $range->date_start);
+        $pairs = $pair !== null ? [$pair] : [];
+        $this->captureRangeBaseline($pairs);
         if ($this->Ranges->delete($range)) {
+            $this->recordRangeHistory($pairs, PlanningDayHistoryService::SOURCE_FORM);
             $this->Flash->success("La plage a été supprimée.");
         } else {
             $this->Flash->error("La plage n'a pas pu être supprimée. Merci d'essayer à nouveau.");

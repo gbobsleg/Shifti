@@ -27,4 +27,12 @@ class RangeSourceTest extends TestCase
         $this->assertSame('Télétravail automatique', RangeSource::label(RangeSource::AUTO_TAD));
         $this->assertSame('Planning généré', RangeSource::label(RangeSource::PLANNING));
     }
+
+    public function testCreatorLabel(): void
+    {
+        $this->assertSame('Ada Lovelace', RangeSource::creatorLabel('Ada Lovelace', RangeSource::MANUAL));
+        $this->assertSame('Automatique', RangeSource::creatorLabel('', RangeSource::AUTO_TAD));
+        $this->assertSame('Automatique', RangeSource::creatorLabel(null, RangeSource::AUTO_TAD));
+        $this->assertSame('Inconnu', RangeSource::creatorLabel('', RangeSource::IMPORT));
+    }
 }

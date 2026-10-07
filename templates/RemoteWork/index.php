@@ -159,7 +159,7 @@
     <div class="table-responsive">
         <table class="table table-hover table-sm crud-table">
             <?php
-            $columns = ['Utilisateur', 'Type', 'Provenance', 'Début', 'Fin', 'Commentaire', 'Maj', 'Actions'];
+            $columns = ['Utilisateur', 'Type', 'Provenance', 'Créé par', 'Début', 'Fin', 'Commentaire', 'Maj', 'Actions'];
             $colCount = count($columns) + (count($remoteWorkDays) > 0 ? 1 : 0);
             ?>
             <thead>
@@ -172,11 +172,12 @@
                 <th scope="col"><?= $this->Paginator->sort('user_id', $columns[0]) ?></th>
                 <th scope="col"><?= h($columns[1]) ?></th>
                 <th scope="col"><?= $this->Paginator->sort('source', $columns[2]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('date_start', $columns[3]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('date_end', $columns[4]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('comment', $columns[5]) ?></th>
-                <th scope="col"><?= $this->Paginator->sort('modified', $columns[6]) ?></th>
-                <th scope="col" class="actions"><?= h($columns[7]) ?></th>
+                <th scope="col"><?= h($columns[3]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('date_start', $columns[4]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('date_end', $columns[5]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('comment', $columns[6]) ?></th>
+                <th scope="col"><?= $this->Paginator->sort('modified', $columns[7]) ?></th>
+                <th scope="col" class="actions"><?= h($columns[8]) ?></th>
             </tr>
             </thead>
             <tbody>
@@ -208,6 +209,7 @@
                     <td><?= h($userLabel) ?></td>
                     <td><?= $isFixed ? 'Fixe' : 'Flexible' ?></td>
                     <td><?= h(\App\Service\RangeSource::label((string)$day->source)) ?></td>
+                    <td><?= h($this->element('ranges/creator', ['range' => $day])) ?></td>
                     <td><?= h($day->date_start ? $day->date_start->i18nFormat('dd/MM/yy HH:mm') : '') ?></td>
                     <td><?= h($day->date_end ? $day->date_end->i18nFormat('dd/MM/yy HH:mm') : '') ?></td>
                     <td><?= h($day->comment ?: '—') ?></td>

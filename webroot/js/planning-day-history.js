@@ -10,7 +10,11 @@
         manual: 'Manuel',
         publish: 'Publication',
         generation: 'Génération',
-        restore: 'Restauration'
+        restore: 'Restauration',
+        form: 'Formulaire',
+        import: 'Import',
+        sync: 'Synchro télétravail',
+        baseline: 'État initial'
     };
 
     var $menu;
@@ -170,7 +174,7 @@
         var html = '';
         versions.forEach(function (version) {
             var created = version.created || '—';
-            var actor = version.actor_name || 'Système';
+            var actor = version.source === 'baseline' ? '' : (version.actor_name || 'Système');
             var source = sourceLabel(version.source);
             var emptyNote = (!version.snapshot || !version.snapshot.length)
                 ? '<p class="small text-muted mb-2 mb-md-0">Journée vide</p>'
@@ -179,7 +183,9 @@
             html += '<div class="pdh-version" data-history-id="' + escapeHtml(version.id) + '">';
             html += '<div class="pdh-version__header">';
             html += '<p class="pdh-version__meta"><strong>' + escapeHtml(created) + '</strong>';
-            html += ' — ' + escapeHtml(actor);
+            if (actor) {
+                html += ' — ' + escapeHtml(actor);
+            }
             html += '<span class="pdh-version__source">' + escapeHtml(source) + '</span></p>';
             html += '<button type="button" class="btn btn-sm btn-outline-primary pdh-restore-btn" data-history-id="'
                 + escapeHtml(version.id) + '">Restaurer cette version</button>';

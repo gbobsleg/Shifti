@@ -7,6 +7,7 @@ use App\Model\Table\RangesTable;
 use App\Service\ExcelPlanningParserService;
 use App\Service\ExcelRangeImportClassifier;
 use App\Service\ExcelRangeMonthPurge;
+use App\Service\PlanningDayHistoryService;
 use App\Service\RangeSource;
 use App\Resource\ExcelUploadsResource;
 use Cake\Http\Exception\BadRequestException;
@@ -524,7 +525,31 @@ class ExcelUploadsController extends AppController
                 return $this->redirect(['action' => 'preview']);
             }
             
-            $importResult = $Ranges->getConnection()->transactional(function () use ($Ranges, $purgePlan, $groupedRanges) {
+            $actorUserId = $this->currentUserId();
+            $importResult = $Ranges->getConnection()->transactional(function () use ($Ranges, $purgePlan, $groupedRanges, $actorUserId) {
+                $history = new PlanningDayHistoryService();
+                $historyPairs = [];
+                if ($purgePlan['delete_ids'] !== []) {
+                    $historyPairs = $history->pairsForConditions(['Ranges.id IN' => $purgePlan['delete_ids']]);
+                }
+                foreach ($purgePlan['remnants'] as $remnant) {
+                    $pair = $history->pairFromDate((int)$remnant['user_id'], $remnant['date_start']);
+                    if ($pair !== null) {
+                        $historyPairs[] = $pair;
+                    }
+                }
+                foreach ($groupedRanges as $rangeData) {
+                    $pair = $history->pairFromDate((int)($rangeData['user_id'] ?? 0), $rangeData['date_start'] ?? null);
+                    if ($pair !== null) {
+                        $historyPairs[] = $pair;
+                    }
+                }
+                try {
+                    $history->captureBaseline($historyPairs);
+                } catch (\Throwable $historyError) {
+                    Log::error('PlanningDayHistory (import baseline) échoué: ' . $historyError->getMessage());
+                }
+
                 (new ExcelRangeMonthPurge())->apply($Ranges, $purgePlan);
                 $rangeDecisions = (new ExcelRangeImportClassifier())->classify($groupedRanges, $Ranges);
                 $saved = 0;
@@ -576,11 +601,21 @@ class ExcelUploadsController extends AppController
                 }
 
                 if ($status === ExcelRangeImportClassifier::STATUS_REPLACE_IMPORT && !empty($decision['replace_ids'])) {
+                    $replacePairs = $history->pairsForConditions(['Ranges.id IN' => $decision['replace_ids']]);
+                    try {
+                        $history->captureBaseline($replacePairs);
+                    } catch (\Throwable $historyError) {
+                        Log::error('PlanningDayHistory (import baseline) échoué: ' . $historyError->getMessage());
+                    }
+                    foreach ($replacePairs as $pair) {
+                        $historyPairs[] = $pair;
+                    }
                     $Ranges->deleteAll(['id IN' => $decision['replace_ids']]);
                 }
 
                 $range = $Ranges->newEntity($entityData);
                 $range->set('source', RangeSource::IMPORT);
+                $range->set('created_by_user_id', $actorUserId);
                 if (!$Ranges->save($range)) {
                     $errorMsg = 'Erreur pour la plage du ' .
                         ($entityData['date_start'] instanceof FrozenTime ? $entityData['date_start']->i18nFormat('dd/MM/yyyy') : 'date inconnue');
@@ -601,6 +636,12 @@ class ExcelUploadsController extends AppController
 
                 if ($errors !== []) {
                     throw new \RuntimeException(implode(' | ', array_slice($errors, 0, 5)));
+                }
+
+                try {
+                    $history->recordPairs($historyPairs, PlanningDayHistoryService::SOURCE_IMPORT, $actorUserId);
+                } catch (\Throwable $historyError) {
+                    Log::error('PlanningDayHistory (import) échoué: ' . $historyError->getMessage());
                 }
 
                 return [

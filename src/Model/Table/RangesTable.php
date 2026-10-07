@@ -57,6 +57,12 @@ class RangesTable extends Table
             'foreignKey' => 'offer_id',
             'joinType' => 'INNER',
         ]);
+        $this->belongsTo('CreatedByUsers', [
+            'className' => 'Users',
+            'foreignKey' => 'created_by_user_id',
+            'propertyName' => 'created_by_user',
+            'joinType' => 'LEFT',
+        ]);
     }
 
     /**
@@ -91,6 +97,10 @@ class RangesTable extends Table
             ->inList('source', RangeSource::values(), 'Provenance invalide.')
             ->allowEmptyString('source');
 
+        $validator
+            ->integer('created_by_user_id')
+            ->allowEmptyString('created_by_user_id');
+
         return $validator;
     }
 
@@ -105,6 +115,10 @@ class RangesTable extends Table
     {
         $rules->add($rules->existsIn(['user_id'], 'Users'), ['errorField' => 'user_id']);
         $rules->add($rules->existsIn(['offer_id'], 'Offers'), ['errorField' => 'offer_id']);
+        $rules->add($rules->existsIn(['created_by_user_id'], 'CreatedByUsers'), [
+            'errorField' => 'created_by_user_id',
+            'allowNullableNulls' => true,
+        ]);
 
         return $rules;
     }
