@@ -63,6 +63,10 @@ $userLabel = $absence->hasValue('user')
                 <dd><?= h($absence->comment) ?></dd>
             </div>
             <?php endif; ?>
+            <div>
+                <dt>Provenance</dt>
+                <dd><?= h(\App\Service\RangeSource::label((string)$absence->source)) ?></dd>
+            </div>
         </dl>
     </section>
 </div>

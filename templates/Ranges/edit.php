@@ -23,6 +23,10 @@
             ) ?>
         </div>
     </div>
+    <p class="text-muted mb-3">
+        Provenance : <?= h(\App\Service\RangeSource::label((string)$range->source)) ?>.
+        Un changement d'agent, d'offre ou d'horaires la passe à « Saisie manuelle ».
+    </p>
     <?= $this->Form->create($range) ?>
     <section class="crud-section">
         <h2 class="crud-section-title">Informations de la plage</h2>

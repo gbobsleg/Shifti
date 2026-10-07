@@ -19,4 +19,12 @@ class RangeSourceTest extends TestCase
         $this->assertSame(RangeSource::PLANNING, RangeSource::fromLegacyComment('Publié depuis brouillon (job #4)'));
         $this->assertSame(RangeSource::MANUAL, RangeSource::fromLegacyComment('GroomRH en début de note'));
     }
+
+    public function testLabel(): void
+    {
+        $this->assertSame('Saisie manuelle', RangeSource::label(RangeSource::MANUAL));
+        $this->assertSame('Import', RangeSource::label(RangeSource::IMPORT));
+        $this->assertSame('Télétravail automatique', RangeSource::label(RangeSource::AUTO_TAD));
+        $this->assertSame('Planning généré', RangeSource::label(RangeSource::PLANNING));
+    }
 }

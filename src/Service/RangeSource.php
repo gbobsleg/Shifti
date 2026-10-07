@@ -35,6 +35,20 @@ final class RangeSource
     }
 
     /**
+     * Libellé affiché sur les listes et les fiches.
+     */
+    public static function label(string $source): string
+    {
+        return match ($source) {
+            self::MANUAL => 'Saisie manuelle',
+            self::IMPORT => 'Import',
+            self::AUTO_TAD => 'Télétravail automatique',
+            self::PLANNING => 'Planning généré',
+            default => $source,
+        };
+    }
+
+    /**
      * Reprise des plages et des snapshots d'historique d'avant la colonne source.
      */
     public static function fromLegacyComment(?string $comment): string

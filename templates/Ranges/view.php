@@ -77,6 +77,10 @@
                 <dt>Commentaire</dt>
                 <dd><?= $range->comment ? h($range->comment) : '—' ?></dd>
             </div>
+            <div>
+                <dt>Provenance</dt>
+                <dd><?= h(\App\Service\RangeSource::label((string)$range->source)) ?></dd>
+            </div>
         </dl>
     </section>
 
