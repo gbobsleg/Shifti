@@ -40,6 +40,31 @@
     min-width: 140px;
 }
 
+/* Barre d'enregistrement : reste sous la navbar pendant le défilement */
+.preview-decision-bar {
+    position: sticky;
+    top: 56px;
+    z-index: 20;
+    background: #fff;
+    border: 1px solid #e2e8ea;
+    border-radius: 6px;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 2px rgba(31, 42, 48, 0.06);
+}
+
+.preview-decision-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem 1.1rem;
+}
+
+.preview-decision-count {
+    font-size: 0.8125rem;
+    color: #6b7a82;
+}
+
 /* Filtres */
 .filter-select {
     width: auto;

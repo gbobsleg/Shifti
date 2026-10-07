@@ -641,33 +641,154 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                 $purgeRangeCount = (int)($purgePlan['range_count'] ?? 0);
                 $purgeAgentCount = (int)($purgePlan['agent_count'] ?? 0);
                 ?>
-                <section class="crud-section">
-                    <h2 class="crud-section-title">Avant l'enregistrement</h2>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" form="preview-form" name="purge_absence" id="purge-absence" value="1" data-purge-reload <?= $purgeAbsence ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="purge-absence">Supprimer les absences du mois</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" form="preview-form" name="purge_remote" id="purge-remote" value="1" data-purge-reload <?= $purgeRemote ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="purge-remote">Supprimer le télétravail du mois</label>
-                    </div>
-                    <?php if ($purgeAbsence || $purgeRemote): ?>
-                        <p class="mt-2 mb-2">
-                            <?= $purgeRangeCount ?> plage(s) pour <?= $purgeAgentCount ?> agent(s) seront retirées ou découpées.
-                            Le télétravail fixe et le planning généré restent en place.
-                        </p>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" form="preview-form" name="purge_scope" id="purge-scope-file" value="file" data-purge-reload <?= $purgeScope === 'file' ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="purge-scope-file">Agents présents dans le fichier</label>
+                <div class="preview-decision-bar">
+                    <?= $this->Form->create(null, [
+                        'url' => ['action' => 'process'],
+                        'method' => 'post',
+                        'id' => 'preview-form',
+                        'data-month-label' => $monthNames[$contextMonth] . ' ' . $contextYear,
+                        'data-purge-ranges' => (string)$purgeRangeCount,
+                        'data-purge-agents' => (string)$purgeAgentCount,
+                    ]) ?>
+                    <?= $this->Form->hidden('excluded_indices', ['id' => 'excluded-indices', 'value' => '']) ?>
+                    <div class="preview-decision-row" style="align-items: flex-start;">
+                        <div>
+                            <div class="d-flex flex-wrap align-items-center" style="gap: 0.55rem 1.1rem;">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" name="purge_absence" id="purge-absence" value="1" data-purge-reload <?= $purgeAbsence ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="purge-absence">Supprimer les absences du mois</label>
+                                </div>
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" name="purge_remote" id="purge-remote" value="1" data-purge-reload <?= $purgeRemote ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="purge-remote">Supprimer le télétravail du mois</label>
+                                </div>
+                            </div>
+                            <?php if ($purgeAbsence || $purgeRemote): ?>
+                                <div class="d-flex flex-wrap align-items-center mt-2" style="gap: 0.55rem 1.1rem;">
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="radio" name="purge_scope" id="purge-scope-file" value="file" data-purge-reload <?= $purgeScope === 'file' ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="purge-scope-file">Agents du fichier</label>
+                                    </div>
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="radio" name="purge_scope" id="purge-scope-all" value="all" data-purge-reload <?= $purgeScope === 'all' ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="purge-scope-all">Tous les agents</label>
+                                    </div>
+                                </div>
+                                <span class="preview-decision-count d-block mt-1">
+                                    <?= $purgeRangeCount ?> plage(s), <?= $purgeAgentCount ?> agent(s).
+                                    Le télétravail fixe et le planning généré restent.
+                                </span>
+                            <?php else: ?>
+                                <input type="hidden" name="purge_scope" value="file">
+                            <?php endif; ?>
                         </div>
-                        <div class="form-check mb-0">
-                            <input class="form-check-input" type="radio" form="preview-form" name="purge_scope" id="purge-scope-all" value="all" data-purge-reload <?= $purgeScope === 'all' ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="purge-scope-all">Tous les agents, y compris ceux absents du fichier</label>
+                        <?= $this->Form->button('Enregistrer les données', [
+                            'type' => 'submit',
+                            'class' => 'btn btn-primary ms-auto',
+                        ]) ?>
+                    </div>
+                    <?= $this->Form->end() ?>
+                </div>
+                <div class="modal fade" id="purge-confirm-modal" tabindex="-1" aria-labelledby="purge-confirm-title" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h2 class="modal-title h5" id="purge-confirm-title">Confirmer la suppression</h2>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                            </div>
+                            <div class="modal-body" id="purge-confirm-body"></div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                                <button type="button" class="btn btn-danger" id="purge-confirm-submit">Supprimer et enregistrer</button>
+                            </div>
                         </div>
-                    <?php else: ?>
-                        <input type="hidden" form="preview-form" name="purge_scope" value="file">
-                    <?php endif; ?>
-                </section>
+                    </div>
+                </div>
+                <script>
+                document.querySelectorAll('[data-purge-reload]').forEach(function (input) {
+                    input.addEventListener('change', function () {
+                        var params = new URLSearchParams();
+                        var absence = document.getElementById('purge-absence');
+                        var remote = document.getElementById('purge-remote');
+                        if (absence && absence.checked) {
+                            params.set('purge_absence', '1');
+                        }
+                        if (remote && remote.checked) {
+                            params.set('purge_remote', '1');
+                        }
+                        var scope = document.querySelector('input[name="purge_scope"]:checked');
+                        if ((params.has('purge_absence') || params.has('purge_remote')) && scope && scope.value === 'all') {
+                            params.set('purge_scope', 'all');
+                        }
+                        var query = params.toString();
+                        window.location = window.location.pathname + (query ? '?' + query : '');
+                    });
+                });
+
+                (function () {
+                    var form = document.getElementById('preview-form');
+                    var confirmButton = document.getElementById('purge-confirm-submit');
+                    if (!form || !confirmButton) {
+                        return;
+                    }
+
+                    function paragraph(text, className) {
+                        var node = document.createElement('p');
+                        if (className) {
+                            node.className = className;
+                        }
+                        node.textContent = text;
+                        return node;
+                    }
+
+                    function purgeSentence(monthLabel, purgeAbsence, purgeRemote) {
+                        if (purgeAbsence && purgeRemote) {
+                            return 'Pour ' + monthLabel + ', les absences et le télétravail du mois saisis manuellement et importés seront retirés ou découpés.';
+                        }
+                        if (purgeAbsence) {
+                            return 'Pour ' + monthLabel + ', les absences du mois saisies manuellement et importées seront retirées ou découpées.';
+                        }
+                        return 'Pour ' + monthLabel + ', le télétravail du mois saisi manuellement et importé sera retiré ou découpé.';
+                    }
+
+                    form.addEventListener('submit', function (event) {
+                        var absence = document.getElementById('purge-absence');
+                        var remote = document.getElementById('purge-remote');
+                        var purgeAbsence = !!(absence && absence.checked);
+                        var purgeRemote = !!(remote && remote.checked);
+                        if (!purgeAbsence && !purgeRemote) {
+                            return;
+                        }
+
+                        event.preventDefault();
+                        var body = document.getElementById('purge-confirm-body');
+                        var monthLabel = form.dataset.monthLabel || '';
+                        var nodes = [
+                            paragraph(purgeSentence(monthLabel, purgeAbsence, purgeRemote)),
+                            paragraph(
+                                form.dataset.purgeRanges + ' plage(s), ' + form.dataset.purgeAgents
+                                + ' agent(s). Le télétravail fixe et le planning généré restent.'
+                            ),
+                            paragraph('Les plages du fichier sont ensuite enregistrées.', 'mb-0'),
+                        ];
+                        var scope = document.querySelector('input[name="purge_scope"]:checked');
+                        if (scope && scope.value === 'all') {
+                            nodes[nodes.length - 1].classList.remove('mb-0');
+                            nodes.push(paragraph(
+                                'Portée « Tous les agents ». Les agents absents du fichier sont inclus, y compris d’autres équipes. Leurs plages ne figurent pas dans le tableau.',
+                                'alert alert-warning mb-0'
+                            ));
+                        }
+                        body.replaceChildren.apply(body, nodes);
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('purge-confirm-modal')).show();
+                    });
+
+                    confirmButton.addEventListener('click', function () {
+                        confirmButton.disabled = true;
+                        form.submit();
+                    });
+                })();
+                </script>
                 <?php if (!empty($unrecognizedAgents)): ?>
                 <div class="crud-warn">
                     <div class="d-flex justify-content-between align-items-center gap-2" id="toggle-unrecognized" style="cursor: pointer;">
@@ -1147,39 +1268,7 @@ uasort($presentOffers, fn($a, $b) => strcasecmp($a['name'], $b['name']));
                 </div>
 
                 <div class="mt-4 d-flex gap-2">
-                    <?= $this->Form->create(null, [
-                        'url' => ['action' => 'process'],
-                        'method' => 'post',
-                        'id' => 'preview-form'
-                    ]) ?>
-                    <?= $this->Form->hidden('excluded_indices', ['id' => 'excluded-indices', 'value' => '']) ?>
-                    <?= $this->Form->button('Enregistrer les données', [
-                        'type' => 'submit',
-                        'class' => 'btn btn-primary',
-                    ]) ?>
-                    <?= $this->Form->end() ?>
-                    <script>
-                    document.querySelectorAll('[data-purge-reload]').forEach(function (input) {
-                        input.addEventListener('change', function () {
-                            var params = new URLSearchParams();
-                            var absence = document.getElementById('purge-absence');
-                            var remote = document.getElementById('purge-remote');
-                            if (absence && absence.checked) {
-                                params.set('purge_absence', '1');
-                            }
-                            if (remote && remote.checked) {
-                                params.set('purge_remote', '1');
-                            }
-                            var scope = document.querySelector('input[name="purge_scope"]:checked');
-                            if ((params.has('purge_absence') || params.has('purge_remote')) && scope && scope.value === 'all') {
-                                params.set('purge_scope', 'all');
-                            }
-                            var query = params.toString();
-                            window.location = window.location.pathname + (query ? '?' + query : '');
-                        });
-                    });
-                    </script>
-                    
+                    <button type="submit" form="preview-form" class="btn btn-primary">Enregistrer les données</button>
                     <?= $this->Html->link(
                         'Annuler',
                         ['action' => 'upload'],
