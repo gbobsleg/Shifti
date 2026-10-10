@@ -140,6 +140,7 @@ class GridsController extends AppController
      */
     public function getUsersBySite()
     {
+        $this->Authorization->authorize(new \App\Resource\GridsResource(), 'getUsersBySite');
         $this->request->allowMethod(['get']);
         
         $siteId = $this->request->getQuery('site_id');
@@ -198,6 +199,7 @@ class GridsController extends AppController
      */
     public function index()
     {
+        $this->Authorization->authorize(new \App\Resource\GridsResource(), 'index');
         $Users = $this->fetchTable('Users');
         $Offers = $this->fetchTable('Offers');
         $Alerts = $this->fetchTable('Alerts');

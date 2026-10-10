@@ -3,51 +3,34 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Authorization\Capability;
 use App\Resource\PlanningEventMappingsResource;
 use Authorization\IdentityInterface;
 
-class PlanningEventMappingsPolicy
+class PlanningEventMappingsPolicy extends AbstractCapabilityPolicy
 {
-    private function roleId(IdentityInterface $identity): int
+    public function canIndex(IdentityInterface $identity, PlanningEventMappingsResource $resource): bool
     {
-        $rid = (int)($identity->get('role_id') ?? 0);
-        if (!$rid && method_exists($identity, 'getOriginalData')) {
-            $orig = $identity->getOriginalData();
-            if (is_object($orig) && isset($orig->role_id)) {
-                $rid = (int)$orig->role_id;
-            }
-        }
-        return $rid;
+        return $this->has($identity, Capability::REF_CORRESPONDANCES);
     }
 
-    public function canIndex(IdentityInterface $user, PlanningEventMappingsResource $resource): bool
+    public function canView(IdentityInterface $identity, PlanningEventMappingsResource $resource): bool
     {
-        $rid = $this->roleId($user);
-        return $rid === 1 || $rid === 2; // Admin, Manager
+        return $this->has($identity, Capability::REF_CORRESPONDANCES);
     }
 
-    public function canView(IdentityInterface $user, PlanningEventMappingsResource $resource): bool
+    public function canAdd(IdentityInterface $identity, PlanningEventMappingsResource $resource): bool
     {
-        $rid = $this->roleId($user);
-        return $rid === 1 || $rid === 2; // Admin, Manager
+        return $this->has($identity, Capability::REF_CORRESPONDANCES);
     }
 
-    public function canAdd(IdentityInterface $user, PlanningEventMappingsResource $resource): bool
+    public function canEdit(IdentityInterface $identity, PlanningEventMappingsResource $resource): bool
     {
-        $rid = $this->roleId($user);
-        return $rid === 1 || $rid === 2; // Admin, Manager
+        return $this->has($identity, Capability::REF_CORRESPONDANCES);
     }
 
-    public function canEdit(IdentityInterface $user, PlanningEventMappingsResource $resource): bool
+    public function canDelete(IdentityInterface $identity, PlanningEventMappingsResource $resource): bool
     {
-        $rid = $this->roleId($user);
-        return $rid === 1 || $rid === 2; // Admin, Manager
-    }
-
-    public function canDelete(IdentityInterface $user, PlanningEventMappingsResource $resource): bool
-    {
-        $rid = $this->roleId($user);
-        return $rid === 1 || $rid === 2; // Admin, Manager
+        return $this->has($identity, Capability::REF_CORRESPONDANCES);
     }
 }
-

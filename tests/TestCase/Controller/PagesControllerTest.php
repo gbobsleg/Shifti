@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Test\TestCase\Controller;
 
+use App\Test\TestCase\Authorization\LoginAsTrait;
 use Cake\Core\Configure;
 use Cake\TestSuite\Constraint\Response\StatusCode;
 use Cake\TestSuite\IntegrationTestTrait;
@@ -27,6 +28,14 @@ use Cake\TestSuite\TestCase;
 class PagesControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+    use LoginAsTrait;
+
+    protected array $fixtures = [
+        'app.Regions',
+        'app.Sites',
+        'app.Roles',
+        'app.Users',
+    ];
 
     /**
      * testDisplay method
@@ -35,11 +44,27 @@ class PagesControllerTest extends TestCase
      */
     public function testDisplay()
     {
+        $this->loginAs(1);
         Configure::write('debug', true);
         $this->get('/pages/home');
-        $this->assertResponseOk();
-        $this->assertResponseContains('CakePHP');
-        $this->assertResponseContains('<html>');
+        $this->assertResponseCode(404);
+    }
+
+    public function testAdminRedirectsGuestsToLogin(): void
+    {
+        $this->get('/pages/admin');
+        $this->assertResponseCode(302);
+        $this->assertStringContainsString(
+            '/users/login',
+            (string)$this->_response->getHeaderLine('Location'),
+        );
+    }
+
+    public function testAdminIsForbiddenForAgent(): void
+    {
+        $this->loginAs(3);
+        $this->get('/pages/admin');
+        $this->assertResponseCode(403);
     }
 
     /**

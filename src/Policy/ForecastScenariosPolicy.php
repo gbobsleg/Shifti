@@ -3,68 +3,53 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Authorization\Capability;
 use Authorization\IdentityInterface;
 
-class ForecastScenariosPolicy
+class ForecastScenariosPolicy extends AbstractCapabilityPolicy
 {
-    private function roleId(IdentityInterface $identity): int
-    {
-        $rid = (int)($identity->get('role_id') ?? 0);
-        if (!$rid && method_exists($identity, 'getOriginalData')) {
-            $orig = $identity->getOriginalData();
-            if (is_object($orig) && isset($orig->role_id)) {
-                $rid = (int)$orig->role_id;
-            }
-        }
-        return $rid;
-    }
-
     public function canIndex(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2;
+        return $this->has($identity, Capability::PREVISION_GERER);
     }
-    public function canView(IdentityInterface $identity, mixed $resource): bool
-    {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2;
-    }
+
     public function canAdd(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2;
+        return $this->has($identity, Capability::PREVISION_GERER);
     }
-    public function canEdit(IdentityInterface $identity, mixed $resource): bool
-    {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2;
-    }
-    public function canDelete(IdentityInterface $identity, mixed $resource): bool
-    {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2;
-    }
+
     public function canRun(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2;
+        return $this->has($identity, Capability::PREVISION_GERER);
     }
 
     public function canStatus(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2;
+        return $this->has($identity, Capability::PREVISION_GERER);
     }
+
+    public function canView(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->has($identity, Capability::PREVISION_GERER);
+    }
+
+    public function canDelete(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->has($identity, Capability::PREVISION_GERER);
+    }
+
+    public function canEdit(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->has($identity, Capability::PREVISION_GERER);
+    }
+
     public function canPublish(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2;
+        return $this->has($identity, Capability::PREVISION_PUBLIER);
     }
+
     public function canUnpublish(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2;
+        return $this->has($identity, Capability::PREVISION_PUBLIER);
     }
 }
-
-

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Resource\WfmSettingsResource;
 use App\Service\ProphetOptunaConfig;
 
 /**
@@ -19,6 +20,7 @@ class WfmSettingsController extends AppController
      */
     public function index()
     {
+        $this->Authorization->authorize(new WfmSettingsResource(), 'index');
         $query = $this->WfmSettings->find();
         
         $this->paginate = ['limit' => 25, 'order' => ['WfmSettings.name' => 'ASC']];
@@ -36,6 +38,7 @@ class WfmSettingsController extends AppController
      */
     public function view($id = null)
     {
+        $this->Authorization->authorize(new WfmSettingsResource(), 'view');
         // Charger également les offres liées pour l'affichage (pauses / repas)
         $wfmSetting = $this->WfmSettings->get($id, contain: ['PauseOffers', 'LunchOffers']);
         $prophetDefaults = $this->getProphetDefaultsForSystem($wfmSetting);
@@ -52,6 +55,7 @@ class WfmSettingsController extends AppController
      */
     public function add()
     {
+        $this->Authorization->authorize(new WfmSettingsResource(), 'add');
         $wfmSetting = $this->WfmSettings->newEmptyEntity();
         if ($this->request->is('post')) {
             $data = $this->request->getData();
@@ -138,6 +142,7 @@ class WfmSettingsController extends AppController
      */
     public function edit($id = null)
     {
+        $this->Authorization->authorize(new WfmSettingsResource(), 'edit');
         $wfmSetting = $this->WfmSettings->get($id, contain: []);
         if ($this->request->is(['patch', 'post', 'put'])) {
             $data = $this->request->getData();
@@ -224,6 +229,7 @@ class WfmSettingsController extends AppController
      */
     public function delete($id = null)
     {
+        $this->Authorization->authorize(new WfmSettingsResource(), 'delete');
         $this->request->allowMethod(['post', 'delete']);
         $wfmSetting = $this->WfmSettings->get($id);
         if ($this->WfmSettings->delete($wfmSetting)) {

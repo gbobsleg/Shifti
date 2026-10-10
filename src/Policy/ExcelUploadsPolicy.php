@@ -3,39 +3,24 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Authorization\Capability;
 use App\Resource\ExcelUploadsResource;
 use Authorization\IdentityInterface;
 
-class ExcelUploadsPolicy
+class ExcelUploadsPolicy extends AbstractCapabilityPolicy
 {
-    private function roleId(IdentityInterface $identity): int
+    public function canUpload(IdentityInterface $identity, ExcelUploadsResource $resource): bool
     {
-        $rid = (int)($identity->get('role_id') ?? 0);
-        if (!$rid && method_exists($identity, 'getOriginalData')) {
-            $orig = $identity->getOriginalData();
-            if (is_object($orig) && isset($orig->role_id)) {
-                $rid = (int)$orig->role_id;
-            }
-        }
-        return $rid;
+        return $this->has($identity, Capability::IMPORT_PLANNING);
     }
 
-    public function canUpload(IdentityInterface $user, ExcelUploadsResource $resource): bool
+    public function canPreview(IdentityInterface $identity, ExcelUploadsResource $resource): bool
     {
-        $rid = $this->roleId($user);
-        return $rid === 1 || $rid === 2; // Admin, Manager
+        return $this->has($identity, Capability::IMPORT_PLANNING);
     }
 
-    public function canPreview(IdentityInterface $user, ExcelUploadsResource $resource): bool
+    public function canProcess(IdentityInterface $identity, ExcelUploadsResource $resource): bool
     {
-        $rid = $this->roleId($user);
-        return $rid === 1 || $rid === 2; // Admin, Manager
-    }
-
-    public function canProcess(IdentityInterface $user, ExcelUploadsResource $resource): bool
-    {
-        $rid = $this->roleId($user);
-        return $rid === 1 || $rid === 2; // Admin, Manager
+        return $this->has($identity, Capability::IMPORT_PLANNING);
     }
 }
-

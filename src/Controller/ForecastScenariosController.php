@@ -307,6 +307,7 @@ class ForecastScenariosController extends AppController
 
     public function edit($id)
     {
+        $this->Authorization->authorize(new \App\Resource\ForecastScenariosResource(), 'edit');
         $Scenarios = $this->fetchTable('ForecastScenarios');
         $Pubs = $this->fetchTable('ForecastScenarioPublications');
         $Offers = $this->fetchTable('Offers');

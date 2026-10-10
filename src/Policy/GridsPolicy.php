@@ -3,45 +3,43 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Authorization\Capability;
 use Authorization\IdentityInterface;
 
-class GridsPolicy
+class GridsPolicy extends AbstractCapabilityPolicy
 {
-    private function roleId(IdentityInterface $identity): int
+    public function canIndex(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = (int)($identity->get('role_id') ?? 0);
-        if (!$rid && method_exists($identity, 'getOriginalData')) {
-            $orig = $identity->getOriginalData();
-            if (is_object($orig) && isset($orig->role_id)) {
-                $rid = (int)$orig->role_id;
-            }
-        }
-        return $rid;
+        return $this->has($identity, Capability::PLANNING_CONSULTER);
+    }
+
+    public function canGetUsersBySite(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->has($identity, Capability::PLANNING_CONSULTER);
     }
 
     public function canPlannedSeries(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2; // Admin/Manager
+        return $this->has($identity, Capability::PLANNING_INDICATEURS);
+    }
+
+    public function canNeedSeries(IdentityInterface $identity, mixed $resource): bool
+    {
+        return $this->has($identity, Capability::PLANNING_INDICATEURS);
     }
 
     public function canAdd(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2; // Admin/Manager
+        return $this->has($identity, Capability::PLANNING_MODIFIER);
     }
 
     public function canDayHistory(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2; // Admin/Manager
+        return $this->has($identity, Capability::PLANNING_MODIFIER);
     }
 
     public function canRestoreDayHistory(IdentityInterface $identity, mixed $resource): bool
     {
-        $rid = $this->roleId($identity);
-        return $rid === 1 || $rid === 2; // Admin/Manager
+        return $this->has($identity, Capability::PLANNING_MODIFIER);
     }
 }
-
-

@@ -171,7 +171,7 @@ class PlanningGenerationJobsController extends AppController
 
     public function retry(int $id)
     {
-        $this->Authorization->authorize(new \App\Resource\PlanningGenerationJobsResource(), 'delete');
+        $this->Authorization->authorize(new \App\Resource\PlanningGenerationJobsResource(), 'retry');
         $this->request->allowMethod(['post']);
 
         $Jobs = $this->fetchTable('PlanningGenerationJobs');
@@ -2013,7 +2013,7 @@ class PlanningGenerationJobsController extends AppController
      */
     public function clearDraft(int $id)
     {
-        $this->Authorization->authorize(new \App\Resource\PlanningGenerationJobsResource(), 'publish');
+        $this->Authorization->authorize(new \App\Resource\PlanningGenerationJobsResource(), 'clearDraft');
         $this->request->allowMethod(['post']);
 
         $DraftRanges = $this->fetchTable('DraftRanges');

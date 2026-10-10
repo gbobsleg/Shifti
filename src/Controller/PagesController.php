@@ -47,24 +47,26 @@ class PagesController extends AppController
     public function display(string ...$path): ?Response
     {
         if (!$path) {
+            $this->Authorization->skipAuthorization();
+
             return $this->redirect('/');
         }
         if (in_array('..', $path, true) || in_array('.', $path, true)) {
+            $this->Authorization->skipAuthorization();
             throw new ForbiddenException();
         }
-        $page = $subpage = null;
 
-        if (!empty($path[0])) {
-            $page = $path[0];
-        }
-        if (!empty($path[1])) {
-            $subpage = $path[1];
-        }
+        $page = $path[0];
+        $subpage = $path[1] ?? null;
         $this->set(compact('page', 'subpage'));
 
-        if ($page === 'admin') {
-            $this->loadAdminServicesHealth();
+        if ($page !== 'admin') {
+            $this->Authorization->skipAuthorization();
+            throw new NotFoundException();
         }
+
+        $this->Authorization->authorize(new \App\Resource\PagesResource(), 'admin');
+        $this->loadAdminServicesHealth();
 
         try {
             return $this->render(implode('/', $path));
