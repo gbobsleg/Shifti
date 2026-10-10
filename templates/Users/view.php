@@ -17,11 +17,13 @@
             <?= $this->element('users/header_dates', ['user' => $user]) ?>
         </div>
         <div class="crud-header-actions">
+            <?php if (in_array((int)$user->role_id, $manageableRoleIds ?? [], true)) : ?>
             <?= $this->Html->link(
                 '<i class="bi bi-pencil me-1"></i> Modifier',
                 ['action' => 'edit', $user->id],
                 ['class' => 'btn btn-primary', 'escape' => false]
             ) ?>
+            <?php endif; ?>
             <?= $this->Html->link(
                 '<i class="bi bi-list me-1"></i> Liste',
                 ['action' => 'index'],

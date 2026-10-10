@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use Cake\Event\EventInterface;
+use App\Service\Authorization\PermissionService;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
+use Cake\Event\EventInterface;
+use Cake\Http\Exception\ForbiddenException;
 
 /**
  * Users Controller
@@ -228,8 +230,9 @@ class UsersController extends AppController
         // Données pour le formulaire de recherche
         $roles = $this->Users->Roles->find('list', ['limit' => 200])->toArray();
         $sites = $this->Users->Sites->find('list', ['limit' => 200])->toArray();
+        $manageableRoleIds = $this->manageableRoleIds();
 
-        $this->set(compact('users', 'roles', 'sites', 'filters'));
+        $this->set(compact('users', 'roles', 'sites', 'filters', 'manageableRoleIds'));
     }
 
     /**
@@ -257,7 +260,8 @@ class UsersController extends AppController
             $user->users_rotation_rule = $userRotationRuleEntity;
         }
 
-        $this->set(compact('user'));
+        $manageableRoleIds = $this->manageableRoleIds();
+        $this->set(compact('user', 'manageableRoleIds'));
     }
 
     /**
@@ -321,6 +325,7 @@ class UsersController extends AppController
             $rotationRuleData = $data['rotation_rule'] ?? null;
             $contractsData = $data['contracts'] ?? null;
             unset($data['skills'], $data['remote_work'], $data['rotation_rule'], $data['contracts']);
+            $this->guardAssignableRole($data['role_id'] ?? null);
 
             $user = $this->Users->patchEntity($user, $data, [
                 'associated' => ['UserAvailabilities']
@@ -509,7 +514,7 @@ class UsersController extends AppController
         } else {
             $buildAvailabilitiesForForm();
         }
-        $roles = $this->Users->Roles->find('list', ['limit' => 200]);
+        $roles = $this->assignableRolesList();
         $sites = $this->Users->Sites->find('list', ['limit' => 200]);
         
         // Charger les règles de rotation disponibles
@@ -553,6 +558,7 @@ class UsersController extends AppController
         $user = $this->Users->get($id, [
             'contain' => ['UserAvailabilities', 'Skills', 'UserRemoteWorkSetting', 'UserContracts'],
         ]);
+        $this->guardManagedUser((int)$user->role_id);
         
         // Charger la règle de rotation avec ses relations si elle existe
         $UsersRotationRules = $this->fetchTable('UsersRotationRules');
@@ -606,6 +612,7 @@ class UsersController extends AppController
 
         if ($this->request->is(['patch', 'post', 'put'])) {
             $data = $this->request->getData();
+            $this->guardAssignableRole($data['role_id'] ?? null);
             if (isset($data['password']) && trim((string)$data['password']) === '') {
                 unset($data['password']);
             }
@@ -769,6 +776,7 @@ class UsersController extends AppController
             
             // Ne pas patcher ces champs "hors user" sur l'entité User
             unset($data['skills'], $data['remote_work'], $data['rotation_rule'], $data['contracts'], $data['_active_tab']);
+            $this->guardAssignableRole($data['role_id'] ?? null);
 
             $user = $this->Users->patchEntity($user, $data, [
                 'associated' => ['UserAvailabilities']
@@ -813,7 +821,7 @@ class UsersController extends AppController
             }
         }
         
-        $roles = $this->Users->Roles->find('list', ['limit' => 200]);
+        $roles = $this->assignableRolesList();
         $sites = $this->Users->Sites->find('list', ['limit' => 200]);
         $offers = $this->Users->Offers->find('list', [
             'order' => ['name' => 'ASC']
@@ -893,6 +901,8 @@ class UsersController extends AppController
 
         $UserContracts = $this->fetchTable('UserContracts');
         $contract = $UserContracts->get($contractId);
+        $owner = $this->Users->get((int)$contract->user_id);
+        $this->guardManagedUser((int)$owner->role_id);
         $userId = (int)$contract->user_id;
 
         if ($UserContracts->delete($contract)) {
@@ -920,6 +930,7 @@ class UsersController extends AppController
         $this->Authorization->authorize(new \App\Resource\UsersResource(), 'delete');
         $this->request->allowMethod(['post', 'delete']);
         $user = $this->Users->get($id);
+        $this->guardManagedUser((int)$user->role_id);
         if ($this->Users->delete($user)) {
             $this->Flash->success("L'utilisateur a été supprimé.", ['params' => ['auto-dismiss' => 5000]]);
         } else {
@@ -1035,5 +1046,50 @@ class UsersController extends AppController
         }
 
         return null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function manageableRoleIds(): array
+    {
+        return (new PermissionService())->assignableRoleIds($this->request->getAttribute('identity'));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function assignableRolesList(): array
+    {
+        $ids = $this->manageableRoleIds();
+        $query = $this->Users->Roles->find('list', ['limit' => 200]);
+        if ($ids === []) {
+            $query->where(['Roles.id' => 0]);
+        } else {
+            $query->where(['Roles.id IN' => $ids]);
+        }
+
+        return $query->toArray();
+    }
+
+    private function guardManagedUser(int $targetRoleId): void
+    {
+        $allowed = (new PermissionService())->canManageUser(
+            $this->request->getAttribute('identity'),
+            $targetRoleId,
+        );
+        if (!$allowed) {
+            throw new ForbiddenException();
+        }
+    }
+
+    private function guardAssignableRole(mixed $roleId): void
+    {
+        if ($roleId === null || $roleId === '') {
+            return;
+        }
+        if (!in_array((int)$roleId, $this->manageableRoleIds(), true)) {
+            throw new ForbiddenException('Rôle non attribuable');
+        }
     }
 }

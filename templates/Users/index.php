@@ -190,6 +190,7 @@ function getRoleBadgeClass($roleId) {
                     <td><?= h($user->email) ?></td>
                     <td><?= $this->element('crud/maj_cell', ['entity' => $user]) ?></td>
                     <td class="actions">
+                        <?php if (in_array((int)$user->role_id, $manageableRoleIds ?? [], true)) : ?>
                         <?= $this->Html->link(
                             '<i class="bi bi-pencil" aria-hidden="true"></i>',
                             ['action' => 'edit', $user->id],
@@ -201,6 +202,7 @@ function getRoleBadgeClass($roleId) {
                                 'data-bs-toggle' => 'tooltip',
                             ]
                         ) ?>
+                        <?php endif; ?>
                         <?= $this->Form->postLink(
                             '<i class="bi bi-trash" aria-hidden="true"></i>',
                             ['action' => 'delete', $user->id],
