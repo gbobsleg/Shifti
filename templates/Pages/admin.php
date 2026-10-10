@@ -133,11 +133,17 @@ $this->append('css', '<style>
 </style>');
 
 $identity = $this->request->getAttribute('identity') ?? (isset($this->Identity) ? $this->Identity->get() : null);
-$roleId = $identity ? (int)(is_object($identity) && method_exists($identity, 'get') ? $identity->get('role_id') : ($identity['role_id'] ?? 0)) : null;
 $servicesHealth = $servicesHealth ?? [];
-$isAdmin = ($roleId === 1);
-$isManager = ($roleId === 2);
-$roleLabel = $roleId === 1 ? 'Administrateur' : ($roleId === 2 ? 'Manager' : 'Utilisateur');
+$roleLabel = 'Utilisateur';
+if (is_object($identity) && method_exists($identity, 'getOriginalData')) {
+    $original = $identity->getOriginalData();
+    if (is_object($original) && isset($original->role->name)) {
+        $roleLabel = (string)$original->role->name;
+    }
+}
+$can = function (string $action, object $resource) use ($identity): bool {
+    return $identity && method_exists($identity, 'can') && $identity->can($action, $resource);
+};
 
 $tile = function (string $icon, string $title, string $help, array $url) {
     return $this->Html->link(
@@ -156,6 +162,44 @@ $dirItem = function (string $icon, string $title, string $help, array $url, stri
         ['class' => 'admin-dir-item' . ($extra !== '' ? ' ' . $extra : ''), 'escape' => false]
     );
 };
+
+$workflowSteps = [
+    ['bi-file-earmark-excel', 'Upload Excel', 'Importer plannings absences/télétravail', ['controller' => 'ExcelUploads', 'action' => 'upload'], 'upload', new \App\Resource\ExcelUploadsResource()],
+    ['bi-graph-up-arrow', 'Scénarios WFM', 'Prévisions besoin', ['controller' => 'ForecastScenarios', 'action' => 'index'], 'index', new \App\Resource\ForecastScenariosResource()],
+    ['bi-calendar-check', 'Activités fixes', 'Règles rigides', ['controller' => 'FixedActivityRules', 'action' => 'index'], 'index', new \App\Resource\FixedActivityRulesResource()],
+    ['bi-arrow-repeat', 'Règles de rotation', 'Rotation et équité', ['controller' => 'RotationRules', 'action' => 'index'], 'index', new \App\Resource\RotationRulesResource()],
+    ['bi-cpu', 'Générations de planning', 'Jobs multi-jours', ['controller' => 'PlanningGenerationJobs', 'action' => 'index'], 'index', new \App\Resource\PlanningGenerationJobsResource()],
+];
+$operations = [
+    ['bi-list-task', 'Jobs', 'File Optuna / prévisions / plannings', ['controller' => 'BackgroundJobs', 'action' => 'index'], 'index', new \App\Resource\BackgroundJobsResource()],
+    ['bi-people', 'Utilisateurs', 'Gestion des agents et managers', ['controller' => 'Users', 'action' => 'index'], 'index', new \App\Resource\UsersResource()],
+    ['bi-bell', 'Alertes', 'Messages et notifications', ['controller' => 'Alerts', 'action' => 'index'], 'index', new \App\Resource\AlertsResource()],
+    ['bi-calendar-x', 'Absences', 'Congés et indisponibilités', ['controller' => 'Absences', 'action' => 'index'], 'index', new \App\Resource\AbsencesResource()],
+    ['bi-house-door', 'Télétravail', 'Configuration par agent', ['controller' => 'RemoteWork', 'action' => 'index'], 'index', new \App\Resource\RemoteWorkResource()],
+];
+$referentials = [
+    ['bi-shield-lock', 'Rôles', 'Droits d\'accès', ['controller' => 'Roles', 'action' => 'index'], 'index', new \App\Resource\RolesResource()],
+    ['bi-diagram-3', 'Régions', 'Zones géographiques', ['controller' => 'Regions', 'action' => 'index'], 'index', new \App\Resource\RegionsResource()],
+    ['bi-geo-alt', 'Sites', 'Lieux de travail', ['controller' => 'Sites', 'action' => 'index'], 'index', new \App\Resource\SitesResource()],
+    ['bi-basket', 'Offres', 'Types d\'activités', ['controller' => 'Offers', 'action' => 'index'], 'index', new \App\Resource\OffersResource()],
+    ['bi-collection', 'Groupes d\'offres', 'Profils mixtes (passe 2)', ['controller' => 'OfferGroups', 'action' => 'index'], 'index', new \App\Resource\OfferGroupsResource()],
+    ['bi-clock-history', 'Plages', 'Horaires personnalisés', ['controller' => 'Ranges', 'action' => 'index'], 'index', new \App\Resource\RangesResource()],
+    ['bi-award', 'Compétences', 'Habilitations agents', ['controller' => 'Skills', 'action' => 'index'], 'index', new \App\Resource\SkillsResource()],
+    ['bi-clock', 'Disponibilités', 'Horaires contractuels', ['controller' => 'UserAvailabilities', 'action' => 'index'], 'index', new \App\Resource\UserAvailabilitiesResource()],
+    ['bi-sliders', 'Affichage', 'Paramètres visuels', ['controller' => 'DisplaySettings', 'action' => 'index'], 'index', new \App\Resource\DisplaySettingsResource()],
+    ['bi-link-45deg', 'Mappings absences', 'Pour GroomRH', ['controller' => 'PlanningEventMappings', 'action' => 'index'], 'index', new \App\Resource\PlanningEventMappingsResource()],
+    ['bi-sliders', 'Paramètres WFM', 'Config solveur', ['controller' => 'WfmSettings', 'action' => 'index'], 'index', new \App\Resource\WfmSettingsResource()],
+];
+$allowed = static function (array $item) use ($can): bool {
+    return $can($item[4], $item[5]);
+};
+$workflowSteps = array_values(array_filter($workflowSteps, $allowed));
+$operations = array_values(array_filter($operations, $allowed));
+$referentials = array_values(array_filter($referentials, $allowed));
+$canImportHistory = $can('import', new \App\Resource\HistoricalDataResource());
+$canVisualizeHistory = $can('visualize', new \App\Resource\HistoricalDataResource());
+$canLegacySchedule = $can('generate', new \App\Resource\SchedulesResource());
+$hasContent = $workflowSteps !== [] || $operations !== [] || $referentials !== [] || $canLegacySchedule || $canImportHistory || $canVisualizeHistory;
 ?>
 
 <div class="crud-app content">
@@ -179,24 +223,7 @@ $dirItem = function (string $icon, string $title, string $help, array $url, stri
         </div>
     </div>
 
-    <?php if ($isAdmin || $isManager): ?>
-        <?php
-        $workflowSteps = [
-            ['bi-file-earmark-excel', 'Upload Excel', 'Importer plannings absences/télétravail', ['controller' => 'ExcelUploads', 'action' => 'upload']],
-            ['bi-graph-up-arrow', 'Scénarios WFM', 'Prévisions besoin', ['controller' => 'ForecastScenarios', 'action' => 'index']],
-            ['bi-calendar-check', 'Activités fixes', 'Règles rigides', ['controller' => 'FixedActivityRules', 'action' => 'index']],
-            ['bi-arrow-repeat', 'Règles de rotation', 'Rotation et équité', ['controller' => 'RotationRules', 'action' => 'index']],
-            ['bi-cpu', 'Générations de planning', 'Jobs multi-jours', ['controller' => 'PlanningGenerationJobs', 'action' => 'index']],
-        ];
-        $operations = [
-            ['bi-list-task', 'Jobs', 'File Optuna / prévisions / plannings', ['controller' => 'BackgroundJobs', 'action' => 'index']],
-            ['bi-people', 'Utilisateurs', 'Gestion des agents et managers', ['controller' => 'Users', 'action' => 'index']],
-            ['bi-bell', 'Alertes', 'Messages et notifications', ['controller' => 'Alerts', 'action' => 'index']],
-            ['bi-calendar-x', 'Absences', 'Congés et indisponibilités', ['controller' => 'Absences', 'action' => 'index']],
-            ['bi-house-door', 'Télétravail', 'Configuration par agent', ['controller' => 'RemoteWork', 'action' => 'index']],
-        ];
-        ?>
-
+    <?php if ($workflowSteps !== []): ?>
         <section class="crud-section">
             <h2 class="crud-section-title">Workflow de planification</h2>
             <div class="admin-workflow">
@@ -208,7 +235,9 @@ $dirItem = function (string $icon, string $title, string $help, array $url, stri
                 <?php endforeach; ?>
             </div>
         </section>
+    <?php endif; ?>
 
+    <?php if ($operations !== []): ?>
         <section class="crud-section">
             <h2 class="crud-section-title">Opérations</h2>
             <div class="admin-tiles">
@@ -219,52 +248,41 @@ $dirItem = function (string $icon, string $title, string $help, array $url, stri
         </section>
     <?php endif; ?>
 
-    <?php if ($isAdmin): ?>
-        <?php
-        $referentials = [
-            ['bi-shield-lock', 'Rôles', 'Droits d\'accès', ['controller' => 'Roles', 'action' => 'index']],
-            ['bi-diagram-3', 'Régions', 'Zones géographiques', ['controller' => 'Regions', 'action' => 'index']],
-            ['bi-geo-alt', 'Sites', 'Lieux de travail', ['controller' => 'Sites', 'action' => 'index']],
-            ['bi-basket', 'Offres', 'Types d\'activités', ['controller' => 'Offers', 'action' => 'index']],
-            ['bi-collection', 'Groupes d\'offres', 'Profils mixtes (passe 2)', ['controller' => 'OfferGroups', 'action' => 'index']],
-            ['bi-clock-history', 'Plages', 'Horaires personnalisés', ['controller' => 'Ranges', 'action' => 'index']],
-            ['bi-award', 'Compétences', 'Habilitations agents', ['controller' => 'Skills', 'action' => 'index']],
-            ['bi-clock', 'Disponibilités', 'Horaires contractuels', ['controller' => 'UserAvailabilities', 'action' => 'index']],
-            ['bi-sliders', 'Affichage', 'Paramètres visuels', ['controller' => 'DisplaySettings', 'action' => 'index']],
-            ['bi-link-45deg', 'Mappings absences', 'Pour GroomRH', ['controller' => 'PlanningEventMappings', 'action' => 'index']],
-            ['bi-sliders', 'Paramètres WFM', 'Config solveur', ['controller' => 'WfmSettings', 'action' => 'index']],
-        ];
-        ?>
+    <?php if ($referentials !== [] || $canLegacySchedule): ?>
         <section class="crud-section">
             <h2 class="crud-section-title">Référentiels</h2>
             <div class="admin-dir">
                 <?php foreach ($referentials as $item): ?>
                     <?= $dirItem($item[0], $item[1], $item[2], $item[3]) ?>
                 <?php endforeach; ?>
-                <?= $dirItem(
-                    'bi-play-circle',
-                    'Test 1 jour (legacy)',
-                    'Ancien générateur synchrone — préférer Générations de planning',
-                    ['controller' => 'Schedules', 'action' => 'generate'],
-                    'is-legacy'
-                ) ?>
+                <?php if ($canLegacySchedule): ?>
+                    <?= $dirItem(
+                        'bi-play-circle',
+                        'Test 1 jour (legacy)',
+                        'Ancien générateur synchrone — préférer Générations de planning',
+                        ['controller' => 'Schedules', 'action' => 'generate'],
+                        'is-legacy'
+                    ) ?>
+                <?php endif; ?>
             </div>
         </section>
     <?php endif; ?>
 
-    <?php if ($isAdmin || $isManager): ?>
+    <?php if ($canImportHistory || $canVisualizeHistory): ?>
         <section class="crud-section">
             <h2 class="crud-section-title">Données historiques</h2>
             <div class="admin-tiles">
-                <?php if ($isAdmin): ?>
+                <?php if ($canImportHistory): ?>
                     <?= $tile('bi-upload', 'Import CSV', 'Charger les données historiques depuis un fichier CSV', ['controller' => 'HistoricalData', 'action' => 'import']) ?>
                 <?php endif; ?>
-                <?= $tile('bi-graph-up', 'Réel et prévision', 'Comparer le volume réel à la prévision publiée', ['controller' => 'HistoricalData', 'action' => 'visualize']) ?>
+                <?php if ($canVisualizeHistory): ?>
+                    <?= $tile('bi-graph-up', 'Réel et prévision', 'Comparer le volume réel à la prévision publiée', ['controller' => 'HistoricalData', 'action' => 'visualize']) ?>
+                <?php endif; ?>
             </div>
         </section>
     <?php endif; ?>
 
-    <?php if (!$isAdmin && !$isManager): ?>
+    <?php if (!$hasContent): ?>
         <div class="alert alert-info" role="alert">Aucun contenu d'administration n'est disponible pour votre rôle.</div>
     <?php endif; ?>
 </div>

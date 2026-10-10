@@ -24,20 +24,11 @@
         <?php
         $identityObj = $this->request->getAttribute('identity');
         $loggedIn = (bool)$identityObj;
-        $canAdmin = $loggedIn && method_exists($identityObj, 'can')
-            && $identityObj->can('admin', new \App\Resource\PagesResource());
-        $roleId = 0;
-        if ($identityObj) {
-            if (method_exists($identityObj, 'get')) {
-                $roleId = (int)($identityObj->get('role_id') ?? 0);
-            }
-            if (!$roleId && method_exists($identityObj, 'getOriginalData')) {
-                $orig = $identityObj->getOriginalData();
-                if (is_object($orig) && isset($orig->role_id)) {
-                    $roleId = (int)$orig->role_id;
-                }
-            }
-        }
+        $can = function (string $action, object $resource) use ($identityObj): bool {
+            return $loggedIn && method_exists($identityObj, 'can') && $identityObj->can($action, $resource);
+        };
+        $canAdmin = $can('admin', new \App\Resource\PagesResource());
+        $canJobs = $can('status', new \App\Resource\BackgroundJobsResource());
         $navController = (string)$this->request->getParam('controller');
         $navAction = (string)$this->request->getParam('action');
         $isHome = $navController === 'Grids';
@@ -58,7 +49,7 @@
                     ]
                 ) ?>
             </li>
-            <?php if ($loggedIn && ($roleId === 2 || $canAdmin)): ?>
+            <?php if ($canAdmin): ?>
                 <li class="nav-item">
                     <?= $this->Html->link(
                         $isAdminNav
@@ -77,7 +68,7 @@
     </div>
 
     <ul class="navbar-nav ms-auto">
-        <?php if ($loggedIn && ($roleId === 1 || $roleId === 2 || $canAdmin)): ?>
+        <?php if ($canJobs): ?>
             <?php
             $bjStatusUrl = $this->Url->build(['controller' => 'BackgroundJobs', 'action' => 'status', '_ext' => 'json']);
             $bjIndexUrl = $this->Url->build(['controller' => 'BackgroundJobs', 'action' => 'index']);

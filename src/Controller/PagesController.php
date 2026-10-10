@@ -85,13 +85,7 @@ class PagesController extends AppController
     {
         $servicesHealth = [];
         $identity = $this->request->getAttribute('identity');
-        $roleId = 0;
-        if ($identity !== null) {
-            $roleId = (int)(is_object($identity) && method_exists($identity, 'get')
-                ? $identity->get('role_id')
-                : ($identity['role_id'] ?? 0));
-        }
-        if (in_array($roleId, [1, 2], true)) {
+        if ((new \App\Service\Authorization\PermissionService())->has($identity, \App\Authorization\Capability::JOBS_SUPERVISER)) {
             try {
                 $servicesHealth = (new ServicesHealthService())->check();
             } catch (\Throwable $e) {
