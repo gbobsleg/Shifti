@@ -30,14 +30,10 @@ $this->Html->css('grids/rail', ['block' => true, 'timestamp' => 'force']);
 $this->Html->css('grids/gantt', ['block' => true, 'timestamp' => 'force']);
 $this->Html->css('grids/month', ['block' => true, 'timestamp' => 'force']);
 $this->Html->css('daterangepicker', ['block' => true]);
-$identityObj = $this->request->getAttribute('identity');
-$can = function (string $action, object $resource) use ($identityObj): bool {
-    return $identityObj && method_exists($identityObj, 'can') && $identityObj->can($action, $resource);
-};
-$canSavePlanning = $can('add', new \App\Resource\GridsResource());
-$canLoadSeries = $can('plannedSeries', new \App\Resource\GridsResource());
-$canAlertsAdd = $can('add', new \App\Resource\AlertsResource());
-$canAlertsDelete = $can('delete', new \App\Resource\AlertsResource());
+$canEditGrid = $canEditGrid ?? false;
+$canLoadSeries = $canLoadSeries ?? false;
+$canAlertsAdd = $canAlertsAdd ?? false;
+$canAlertsDelete = $canAlertsDelete ?? false;
 $this->Html->scriptBlock('window.gridsBudget = ' . json_encode($budgetThresholds) . ';', ['block' => true]);
 echo $this->Html->script('moment.min', ['block' => true]);
 echo $this->Html->script('daterangepicker', ['block' => true]);
@@ -47,7 +43,7 @@ echo $this->Html->script('grids-filters', ['block' => true]);
 echo $this->Html->script('grids-nav', ['block' => true, 'timestamp' => 'force']);
 echo $this->Html->script('grids-layout', ['block' => true, 'timestamp' => 'force']);
 echo $this->Html->script('grids-bars', ['block' => true, 'timestamp' => 'force']);
-if ($canSavePlanning) {
+if ($canEditGrid) {
     echo $this->Html->script('dragselect', ['block' => true]);
     $this->Html->css('planning-day-history', ['block' => true]);
     echo $this->Html->script('planning-day-history', ['block' => true, 'timestamp' => true]);
@@ -60,6 +56,7 @@ if (!empty($showCharts)) {
 
 $saveUrl = $saveUrl ?? ['controller' => 'Grids', 'action' => 'add'];
 $searchUrl = $searchUrl ?? ['controller' => 'Grids', 'action' => 'index'];
+$needSeriesBaseUrl = $needSeriesBaseUrl ?? $this->Url->build(['controller' => 'Grids', 'action' => 'needSeries']);
 $plannedSeriesBaseUrl = $plannedSeriesBaseUrl ?? $this->Url->build(['controller' => 'Grids', 'action' => 'plannedSeries', '_ext' => 'json']);
 $plannedSeriesExtraQuery = $plannedSeriesExtraQuery ?? '';
 
@@ -240,7 +237,7 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
 
 <div class="grids-body">
     <?php if (!empty($budgetResult['allowed']) && $gridView !== GridQueryBudget::VIEW_MONTH): ?>
-        <?= $this->element('grids/_paint_rail', ['offers_list' => $offers_list]) ?>
+        <?= $this->element('grids/_paint_rail', ['offers_list' => $offers_list, 'interactive' => $canEditGrid]) ?>
     <?php endif; ?>
     <div class="grids-main">
         <?php echo $this->Form->create(null, ['url' => $saveUrl, 'id' => 'rangesForm']); ?>
@@ -275,7 +272,7 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
     </div>
 </div>
 
-<?php if ($canSavePlanning && !empty($budgetResult['allowed']) && $gridView !== GridQueryBudget::VIEW_MONTH): ?>
+<?php if ($canEditGrid && !empty($budgetResult['allowed']) && $gridView !== GridQueryBudget::VIEW_MONTH): ?>
     <button type="submit" form="rangesForm" class="btn grids-save-btn-floating" id="submitRanges" title="Enregistrer le planning">
         <span class="grids-save-btn-text">
             <i class="bi bi-floppy-fill me-2"></i><span>Enregistrer le planning</span>
@@ -331,7 +328,7 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
 <div id="grids-charts-root" class="d-none"
      data-planned-base="<?= h($plannedSeriesBaseUrl) ?>"
      data-planned-extra="<?= h($plannedSeriesExtraQuery) ?>"
-     data-need-base="<?= h($this->Url->build(['controller' => 'ForecastScenarios', 'action' => 'series'])) ?>">
+     data-need-base="<?= h($needSeriesBaseUrl) ?>">
 </div>
 <?php endif; ?>
 </div>

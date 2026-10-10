@@ -3,11 +3,16 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Authorization\Capability;
+use App\Resource\GridsResource;
+use App\Service\Authorization\PerimeterService;
+use App\Service\Authorization\PermissionService;
 use App\Service\Planning\GridQueryBudget;
 use App\Service\PlanningDayHistoryService;
 use App\Service\RangeSource;
 use Cake\Event\EventInterface;
 use Cake\Log\Log;
+use Cake\Http\Exception\NotFoundException;
 use Cake\I18n\FrozenTime;
 use DateTime;
 use DateTimeInterface;
@@ -144,6 +149,8 @@ class GridsController extends AppController
         $this->request->allowMethod(['get']);
         
         $siteId = $this->request->getQuery('site_id');
+        $identity = $this->request->getAttribute('identity');
+        $siteIds = (new PerimeterService())->visibleSiteIds($identity);
         $Users = $this->fetchTable('Users');
         
         $query = $Users->find('list', [
@@ -152,9 +159,18 @@ class GridsController extends AppController
                 return $row['last_name'] . ' ' . $row['first_name'];
             },
         ]);
-        
-        // Filtrer par site si un site est spécifié
-        if (!empty($siteId)) {
+
+        if ($siteIds !== null) {
+            if ($siteIds === []) {
+                $query->where(['Users.id' => 0]);
+            } elseif ($siteId !== null && $siteId !== '' && !in_array((int)$siteId, $siteIds, true)) {
+                $query->where(['Users.site_id' => $siteIds[0]]);
+            } elseif (!empty($siteId)) {
+                $query->where(['Users.site_id' => (int)$siteId]);
+            } else {
+                $query->where(['Users.site_id IN' => $siteIds]);
+            }
+        } elseif (!empty($siteId)) {
             $query->where(['Users.site_id' => $siteId]);
         }
         
@@ -169,6 +185,36 @@ class GridsController extends AppController
         $this->viewBuilder()->setClassName('Json');
         $this->set(['success' => true, 'users' => $result]);
         $this->viewBuilder()->setOption('serialize', ['success', 'users']);
+    }
+
+    /**
+     * Série de besoin d'un scénario publié, pour les indicateurs de la grille.
+     */
+    public function needSeries($scenarioId = null)
+    {
+        $this->Authorization->authorize(new GridsResource(), 'needSeries');
+        $this->request->allowMethod(['get']);
+
+        $offerId = (int)$this->request->getQuery('offer_id');
+        $date = new DateTime((string)$this->request->getQuery('date'));
+        $type = (string)$this->request->getQuery('type');
+
+        $published = $this->fetchTable('ForecastScenarioPublications')->exists([
+            'scenario_id' => (int)$scenarioId,
+            'date' => $date->format('Y-m-d'),
+        ]);
+        if (!$published) {
+            throw new NotFoundException();
+        }
+
+        $forecastService = new \App\Service\ForecastService();
+        $calculatorService = new \App\Service\WfmCalculatorService($forecastService);
+        $scenarios = new \App\Service\WfmScenarioService($forecastService, $calculatorService);
+        $res = $scenarios->getSeries((int)$scenarioId, $offerId, $date, $type);
+
+        $this->viewBuilder()->setClassName('Json');
+        $this->set(['success' => (bool)$res, 'series' => $res]);
+        $this->viewBuilder()->setOption('serialize', ['success', 'series']);
     }
 
     /**
@@ -272,6 +318,20 @@ class GridsController extends AppController
         $siteId = (int)($this->request->getQuery('site_id') ?? 0);
         $userId = (int)($this->request->getQuery('user_id') ?? 0);
         $offerIds = GridQueryBudget::normalizeOfferIds($this->request->getQuery('offer_id'));
+        $identity = $this->request->getAttribute('identity');
+        $permissions = new PermissionService();
+        $perimeter = new PerimeterService($permissions);
+        $siteIds = $perimeter->visibleSiteIds($identity);
+        if ($siteIds !== null) {
+            $params['allowed_site_ids'] = $siteIds;
+            if ($siteIds === []) {
+                $siteId = 0;
+                $params['site_id'] = 0;
+            } elseif (!in_array($siteId, $siteIds, true)) {
+                $siteId = $siteIds[0];
+                $params['site_id'] = $siteId;
+            }
+        }
         $budgetResult = $budget->evaluate($day_ranges['begin'], $day_ranges['end'], $siteId, $userId, $offerIds);
         $budgetThresholds = $budget->thresholds();
         $zoom = (string)$this->request->getQuery('zoom', '15');
@@ -287,22 +347,19 @@ class GridsController extends AppController
         $offers_list = $Offers->find('DisplayedInGrid');
         $users_list = $Users->find();
         $sites_list = $Sites->find();
-        $alerts_list = $Alerts->find('ThisDay', $day_ranges);
-        // Filtrer les alertes pour les utilisateurs simples (priority = 3)
-        $identity = $this->request->getAttribute('identity');
-        $roleId = null;
-        if ($identity && method_exists($identity, 'get')) {
-            $roleId = $identity->get('role_id');
-        }
-        if (!$roleId && $identity && method_exists($identity, 'getOriginalData')) {
-            $orig = $identity->getOriginalData();
-            if (is_object($orig) && isset($orig->role_id)) {
-                $roleId = $orig->role_id;
+        if ($siteIds !== null) {
+            if ($siteIds === []) {
+                $users_list->where(['Users.id' => 0]);
+                $sites_list->where(['Sites.id' => 0]);
+            } else {
+                $users_list->where(['Users.site_id IN' => $siteIds]);
+                $sites_list->where(['Sites.id IN' => $siteIds]);
             }
         }
-        $roleId = (int)($roleId ?? 0);
-        if ($roleId === 3) {
-            $alerts_list->where(['priority' => 3]);
+        $alerts_list = $Alerts->find('ThisDay', $day_ranges);
+        $alertPriorities = $perimeter->visibleAlertPriorities($identity);
+        if ($alertPriorities !== null) {
+            $alerts_list->where(['priority IN' => $alertPriorities]);
         }
 
         $users_ranges = [];
@@ -327,6 +384,11 @@ class GridsController extends AppController
             }
         }
 
+        $canEditGrid = $permissions->has($identity, Capability::PLANNING_MODIFIER);
+        $canLoadSeries = $permissions->has($identity, Capability::PLANNING_INDICATEURS);
+        $canAlertsAdd = $permissions->has($identity, Capability::ALERTES_GERER);
+        $canAlertsDelete = $canAlertsAdd;
+
         $this->set(compact(
             'users_ranges',
             'offers_list',
@@ -344,6 +406,10 @@ class GridsController extends AppController
             'zoom',
             'gridView',
             'showCharts',
+            'canEditGrid',
+            'canLoadSeries',
+            'canAlertsAdd',
+            'canAlertsDelete',
         ));
     }
 

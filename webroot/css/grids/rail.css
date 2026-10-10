@@ -74,6 +74,10 @@
     flex-shrink: 0;
 }
 
+.grids-rail.is-legend .grids-rail-swatch {
+    cursor: default;
+}
+
 .grids-app .grids-rail-swatch.selected-offer {
     border: none;
     box-shadow: none;

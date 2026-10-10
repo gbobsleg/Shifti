@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Authorization\Capability;
+use App\Service\Authorization\PermissionService;
 use App\Service\PlanningDayHistoryService;
 use App\Service\RangeSource;
 use Cake\Http\Exception\NotFoundException;
@@ -2194,6 +2196,11 @@ class PlanningGenerationJobsController extends AppController
         $plannedSeriesBaseUrl = Router::url(['controller' => 'PlanningGenerationJobs', 'action' => 'draftPlannedSeries', '_ext' => 'json']);
         $plannedSeriesExtraQuery = '&job_id=' . $id;
         $searchUrl = ['controller' => 'PlanningGenerationJobs', 'action' => 'draft', $id, '?' => ['embed' => '1']];
+        $needSeriesBaseUrl = Router::url(['controller' => 'ForecastScenarios', 'action' => 'series']);
+
+        $permissions = new PermissionService();
+        $canEditGrid = $permissions->has($this->request->getAttribute('identity'), Capability::PLANNING_GENERER);
+        $canLoadSeries = true;
 
         $rangesProperty = 'draft_ranges';
 
@@ -2213,6 +2220,7 @@ class PlanningGenerationJobsController extends AppController
             'saveUrl',
             'plannedSeriesBaseUrl',
             'plannedSeriesExtraQuery',
+            'needSeriesBaseUrl',
             'searchUrl',
             'rangesProperty',
             'job',
@@ -2222,6 +2230,8 @@ class PlanningGenerationJobsController extends AppController
             'zoom',
             'gridView',
             'showCharts',
+            'canEditGrid',
+            'canLoadSeries',
         ));
     }
 

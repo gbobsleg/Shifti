@@ -220,6 +220,13 @@ class UsersTable extends Table
             // Filtrer sur la table principale Users pour éviter d'injecter une condition Users.* dans une requête Sites
             $query->where(['Users.site_id' => $params['site_id']]);
         }
+        if (isset($params['allowed_site_ids']) && is_array($params['allowed_site_ids'])) {
+            if ($params['allowed_site_ids'] === []) {
+                $query->where(['Users.id' => 0]);
+            } else {
+                $query->where(['Users.site_id IN' => $params['allowed_site_ids']]);
+            }
+        }
         return $query;
     }
 
