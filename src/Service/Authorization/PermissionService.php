@@ -31,6 +31,13 @@ class PermissionService
         $this->roles = $roles ?? self::rolesFromDatabase();
     }
 
+    /**
+     * Indique si l'identité possède la capacité.
+     *
+     * @param mixed $identity Identité connectée.
+     * @param string $capability Code de capacité.
+     * @return bool
+     */
     public function has(mixed $identity, string $capability): bool
     {
         $roleId = $this->roleId($identity);
@@ -39,6 +46,12 @@ class PermissionService
         return in_array($capability, RoleCapabilities::forCode($code), true);
     }
 
+    /**
+     * Priorité du rôle de l'identité. null si le rôle est inconnu.
+     *
+     * @param mixed $identity Identité connectée.
+     * @return int|null
+     */
     public function rolePriority(mixed $identity): ?int
     {
         $roleId = $this->roleId($identity);
@@ -71,6 +84,13 @@ class PermissionService
         return $ids;
     }
 
+    /**
+     * Indique si l'acteur peut modifier le compte qui porte ce rôle.
+     *
+     * @param mixed $identity Identité connectée.
+     * @param int $targetRoleId Rôle du compte cible.
+     * @return bool
+     */
     public function canManageUser(mixed $identity, int $targetRoleId): bool
     {
         $actorPriority = $this->rolePriority($identity);
@@ -105,6 +125,12 @@ class PermissionService
         return self::$cachedRoles;
     }
 
+    /**
+     * Identifiant de rôle porté par l'identité, 0 si absent.
+     *
+     * @param mixed $identity Identité connectée.
+     * @return int
+     */
     private function roleId(mixed $identity): int
     {
         if (is_object($identity) && method_exists($identity, 'get')) {

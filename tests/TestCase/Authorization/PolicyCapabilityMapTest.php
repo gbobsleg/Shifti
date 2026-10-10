@@ -5,12 +5,39 @@ namespace App\Test\TestCase\Authorization;
 
 use App\Authorization\Capability;
 use App\Authorization\RoleCapabilities;
+use App\Policy\AbsencesPolicy;
 use App\Policy\AbstractCapabilityPolicy;
+use App\Policy\AlertsPolicy;
+use App\Policy\BackgroundJobsPolicy;
+use App\Policy\DisplaySettingsPolicy;
+use App\Policy\ExcelUploadsPolicy;
+use App\Policy\FixedActivityRulesPolicy;
+use App\Policy\ForecastScenariosPolicy;
+use App\Policy\GridsPolicy;
+use App\Policy\HistoricalDataPolicy;
+use App\Policy\OfferGroupsPolicy;
+use App\Policy\OffersPolicy;
+use App\Policy\PagesPolicy;
+use App\Policy\PlanningEventMappingsPolicy;
+use App\Policy\PlanningGenerationJobsPolicy;
+use App\Policy\RangesPolicy;
+use App\Policy\RegionsPolicy;
+use App\Policy\RemoteWorkPolicy;
+use App\Policy\RolesPolicy;
+use App\Policy\RotationRulesPolicy;
+use App\Policy\SchedulesPolicy;
+use App\Policy\SitesPolicy;
+use App\Policy\SkillsPolicy;
+use App\Policy\UserAvailabilitiesPolicy;
+use App\Policy\UsersPolicy;
+use App\Policy\WfmSettingsPolicy;
 use App\Service\Authorization\PermissionService;
 use Cake\TestSuite\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
+use stdClass;
 
 class PolicyCapabilityMapTest extends TestCase
 {
@@ -21,7 +48,7 @@ class PolicyCapabilityMapTest extends TestCase
      */
     private static function map(): array
     {
-        $crud = static fn (string $capability): array => [
+        $crud = static fn(string $capability): array => [
             'canIndex' => $capability,
             'canView' => $capability,
             'canAdd' => $capability,
@@ -30,21 +57,21 @@ class PolicyCapabilityMapTest extends TestCase
         ];
 
         return [
-            \App\Policy\AbsencesPolicy::class => $crud(Capability::ABSENCES_GERER),
-            \App\Policy\AlertsPolicy::class => $crud(Capability::ALERTES_GERER),
-            \App\Policy\BackgroundJobsPolicy::class => [
+            AbsencesPolicy::class => $crud(Capability::ABSENCES_GERER),
+            AlertsPolicy::class => $crud(Capability::ALERTES_GERER),
+            BackgroundJobsPolicy::class => [
                 'canIndex' => Capability::JOBS_SUPERVISER,
                 'canStatus' => Capability::JOBS_SUPERVISER,
                 'canCancelOptuna' => Capability::JOBS_SUPERVISER,
             ],
-            \App\Policy\DisplaySettingsPolicy::class => $crud(Capability::REF_AFFICHAGE),
-            \App\Policy\ExcelUploadsPolicy::class => [
+            DisplaySettingsPolicy::class => $crud(Capability::REF_AFFICHAGE),
+            ExcelUploadsPolicy::class => [
                 'canUpload' => Capability::IMPORT_PLANNING,
                 'canPreview' => Capability::IMPORT_PLANNING,
                 'canProcess' => Capability::IMPORT_PLANNING,
             ],
-            \App\Policy\FixedActivityRulesPolicy::class => $crud(Capability::REF_ACTIVITES_FIXES),
-            \App\Policy\ForecastScenariosPolicy::class => [
+            FixedActivityRulesPolicy::class => $crud(Capability::REF_ACTIVITES_FIXES),
+            ForecastScenariosPolicy::class => [
                 'canIndex' => Capability::PREVISION_GERER,
                 'canAdd' => Capability::PREVISION_GERER,
                 'canRun' => Capability::PREVISION_GERER,
@@ -55,7 +82,7 @@ class PolicyCapabilityMapTest extends TestCase
                 'canPublish' => Capability::PREVISION_PUBLIER,
                 'canUnpublish' => Capability::PREVISION_PUBLIER,
             ],
-            \App\Policy\GridsPolicy::class => [
+            GridsPolicy::class => [
                 'canIndex' => Capability::PLANNING_CONSULTER,
                 'canGetUsersBySite' => Capability::PLANNING_CONSULTER,
                 'canPlannedSeries' => Capability::PLANNING_INDICATEURS,
@@ -64,13 +91,13 @@ class PolicyCapabilityMapTest extends TestCase
                 'canDayHistory' => Capability::PLANNING_MODIFIER,
                 'canRestoreDayHistory' => Capability::PLANNING_MODIFIER,
             ],
-            \App\Policy\HistoricalDataPolicy::class => [
+            HistoricalDataPolicy::class => [
                 'canImport' => Capability::HISTORIQUE_IMPORTER,
                 'canVisualize' => Capability::HISTORIQUE_CONSULTER,
                 'canGetData' => Capability::HISTORIQUE_CONSULTER,
             ],
-            \App\Policy\OfferGroupsPolicy::class => $crud(Capability::OFFRES_GERER),
-            \App\Policy\OffersPolicy::class => [
+            OfferGroupsPolicy::class => $crud(Capability::OFFRES_GERER),
+            OffersPolicy::class => [
                 'canIndex' => Capability::OFFRES_GERER,
                 'canView' => Capability::OFFRES_GERER,
                 'canAdd' => Capability::OFFRES_GERER,
@@ -83,11 +110,11 @@ class PolicyCapabilityMapTest extends TestCase
                 'canTuneRollback' => Capability::OFFRES_OPTIMISER,
                 'canTuneCancel' => Capability::OFFRES_OPTIMISER,
             ],
-            \App\Policy\PagesPolicy::class => [
+            PagesPolicy::class => [
                 'canAdmin' => Capability::ADMINISTRATION_ACCEDER,
             ],
-            \App\Policy\PlanningEventMappingsPolicy::class => $crud(Capability::REF_CORRESPONDANCES),
-            \App\Policy\PlanningGenerationJobsPolicy::class => [
+            PlanningEventMappingsPolicy::class => $crud(Capability::REF_CORRESPONDANCES),
+            PlanningGenerationJobsPolicy::class => [
                 'canIndex' => Capability::PLANNING_GENERER,
                 'canAdd' => Capability::PLANNING_GENERER,
                 'canEdit' => Capability::PLANNING_GENERER,
@@ -102,25 +129,25 @@ class PolicyCapabilityMapTest extends TestCase
                 'canPublish' => Capability::PLANNING_PUBLIER,
                 'canClearDraft' => Capability::PLANNING_PUBLIER,
             ],
-            \App\Policy\RangesPolicy::class => $crud(Capability::PLAGES_GERER),
-            \App\Policy\RegionsPolicy::class => $crud(Capability::REF_REGIONS),
-            \App\Policy\RemoteWorkPolicy::class => [
+            RangesPolicy::class => $crud(Capability::PLAGES_GERER),
+            RegionsPolicy::class => $crud(Capability::REF_REGIONS),
+            RemoteWorkPolicy::class => [
                 'canIndex' => Capability::TELETRAVAIL_GERER,
                 'canConfigure' => Capability::TELETRAVAIL_GERER,
                 'canAjaxGetUserSettings' => Capability::TELETRAVAIL_GERER,
                 'canAddDay' => Capability::TELETRAVAIL_GERER,
                 'canDelete' => Capability::TELETRAVAIL_GERER,
             ],
-            \App\Policy\RolesPolicy::class => $crud(Capability::REF_ROLES),
-            \App\Policy\RotationRulesPolicy::class => $crud(Capability::REF_ROTATIONS),
-            \App\Policy\SchedulesPolicy::class => [
+            RolesPolicy::class => $crud(Capability::REF_ROLES),
+            RotationRulesPolicy::class => $crud(Capability::REF_ROTATIONS),
+            SchedulesPolicy::class => [
                 'canGenerate' => Capability::PLANNING_GENERER,
             ],
-            \App\Policy\SitesPolicy::class => $crud(Capability::REF_SITES),
-            \App\Policy\SkillsPolicy::class => $crud(Capability::REF_COMPETENCES),
-            \App\Policy\UserAvailabilitiesPolicy::class => $crud(Capability::REF_DISPONIBILITES),
-            \App\Policy\UsersPolicy::class => $crud(Capability::UTILISATEURS_GERER),
-            \App\Policy\WfmSettingsPolicy::class => $crud(Capability::REF_WFM),
+            SitesPolicy::class => $crud(Capability::REF_SITES),
+            SkillsPolicy::class => $crud(Capability::REF_COMPETENCES),
+            UserAvailabilitiesPolicy::class => $crud(Capability::REF_DISPONIBILITES),
+            UsersPolicy::class => $crud(Capability::UTILISATEURS_GERER),
+            WfmSettingsPolicy::class => $crud(Capability::REF_WFM),
         ];
     }
 
@@ -153,7 +180,7 @@ class PolicyCapabilityMapTest extends TestCase
         return $cases;
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('policyDecisions')]
+    #[DataProvider('policyDecisions')]
     public function testPolicyFollowsCapability(
         string $class,
         string $method,
@@ -203,6 +230,6 @@ class PolicyCapabilityMapTest extends TestCase
             return new $name();
         }
 
-        return new \stdClass();
+        return new stdClass();
     }
 }

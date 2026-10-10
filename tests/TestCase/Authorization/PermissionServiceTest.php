@@ -7,6 +7,7 @@ use App\Authorization\Capability;
 use App\Authorization\RoleCapabilities;
 use App\Service\Authorization\PermissionService;
 use Cake\TestSuite\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class PermissionServiceTest extends TestCase
 {
@@ -49,7 +50,7 @@ class PermissionServiceTest extends TestCase
         return $cases;
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('capabilityMatrix')]
+    #[DataProvider('capabilityMatrix')]
     public function testHasMatchesRoleMatrix(int $roleId, string $capability, bool $expected): void
     {
         $identity = new TestIdentity(['role_id' => $roleId]);

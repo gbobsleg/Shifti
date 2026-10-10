@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Authorization;
 
-use ArrayAccess;
 use Authorization\IdentityInterface;
 use Authorization\Policy\Result;
 use Authorization\Policy\ResultInterface;

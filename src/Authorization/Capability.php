@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Authorization;
 
+use ReflectionClass;
+
 /**
  * Capacités métier vérifiées par les policies.
  */
@@ -52,6 +54,6 @@ final class Capability
      */
     public static function all(): array
     {
-        return array_values((new \ReflectionClass(self::class))->getConstants());
+        return array_values((new ReflectionClass(self::class))->getConstants());
     }
 }

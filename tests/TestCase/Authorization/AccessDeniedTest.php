@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Authorization;
 
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class AccessDeniedTest extends TestCase
 {
@@ -44,7 +45,7 @@ class AccessDeniedTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('deniedRequests')]
+    #[DataProvider('deniedRequests')]
     public function testDenied(int $userId, string $url): void
     {
         $this->loginAs($userId);

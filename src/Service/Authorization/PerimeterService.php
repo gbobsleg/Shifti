@@ -11,6 +11,9 @@ use App\Authorization\Capability;
  */
 class PerimeterService
 {
+    /**
+     * @param \App\Service\Authorization\PermissionService|null $permissions Service injecté, ou null pour le charger.
+     */
     public function __construct(private ?PermissionService $permissions = null)
     {
         $this->permissions ??= new PermissionService();
@@ -45,6 +48,12 @@ class PerimeterService
         return [3];
     }
 
+    /**
+     * Site porté par l'identité, 0 si absent.
+     *
+     * @param mixed $identity Identité connectée.
+     * @return int
+     */
     private function siteId(mixed $identity): int
     {
         if (is_object($identity) && method_exists($identity, 'get')) {
