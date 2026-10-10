@@ -78,6 +78,7 @@ class UsersController extends AppController
      */
     public function changePassword()
     {
+        $this->Authorization->skipAuthorization();
         $this->request->allowMethod(['get', 'post', 'patch', 'put']);
 
         $identity = $this->Authentication->getIdentity();
@@ -122,6 +123,7 @@ class UsersController extends AppController
      */
     public function account()
     {
+        $this->Authorization->skipAuthorization();
         $this->request->allowMethod(['get']);
 
         $identity = $this->Authentication->getIdentity();

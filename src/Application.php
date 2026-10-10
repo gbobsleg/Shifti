@@ -16,7 +16,6 @@ declare(strict_types=1);
  */
 namespace App;
 
-use App\Policy\RequestPolicy;
 use Authentication\AuthenticationService;
 use Authentication\AuthenticationServiceInterface;
 use Authentication\AuthenticationServiceProviderInterface;
@@ -32,7 +31,6 @@ use Cake\Core\ContainerInterface;
 use Cake\Datasource\FactoryLocator;
 use Cake\Error\Middleware\ErrorHandlerMiddleware;
 use Cake\Http\BaseApplication;
-use Cake\Http\ServerRequest;
 use Cake\Http\Middleware\BodyParserMiddleware;
 use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\Http\MiddlewareQueue;
@@ -147,7 +145,6 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
     {
         $resolver = new ResolverCollection([
             new MapResolver([
-                ServerRequest::class => RequestPolicy::class,
                 \App\Resource\PagesResource::class => \App\Policy\PagesPolicy::class,
                 \App\Resource\OffersResource::class => \App\Policy\OffersPolicy::class,
                 \App\Resource\OfferGroupsResource::class => \App\Policy\OfferGroupsPolicy::class,

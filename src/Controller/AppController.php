@@ -65,7 +65,7 @@ class AppController extends Controller
     }
 
     /**
-     * Enforce request authorization via RequestPolicy, except for public auth actions.
+     * Laisse chaque action vérifier sa ressource, sauf les actions publiques.
      *
      * @return void
      */
@@ -94,9 +94,6 @@ class AppController extends Controller
             $this->Authorization->skipAuthorization();
             return;
         }
-
-        // Pour les utilisateurs authentifiés, on applique la RequestPolicy
-        $this->Authorization->authorize($this->request, 'access');
     }
 
     /**
