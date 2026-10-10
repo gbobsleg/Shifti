@@ -11,6 +11,7 @@ use Cake\ORM\Entity;
  * @property int $id
  * @property int $priority
  * @property string $name
+ * @property string|null $code
  * @property \Cake\I18n\FrozenTime|null $created
  * @property \Cake\I18n\FrozenTime|null $modified
  *
@@ -30,6 +31,7 @@ class Role extends Entity
     protected array $_accessible = [
         'priority' => true,
         'name' => true,
+        'code' => false,
         'created' => true,
         'modified' => true,
         'users' => true,
