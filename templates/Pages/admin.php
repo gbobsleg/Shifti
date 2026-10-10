@@ -134,13 +134,7 @@ $this->append('css', '<style>
 
 $identity = $this->request->getAttribute('identity') ?? (isset($this->Identity) ? $this->Identity->get() : null);
 $servicesHealth = $servicesHealth ?? [];
-$roleLabel = 'Utilisateur';
-if (is_object($identity) && method_exists($identity, 'getOriginalData')) {
-    $original = $identity->getOriginalData();
-    if (is_object($original) && isset($original->role->name)) {
-        $roleLabel = (string)$original->role->name;
-    }
-}
+$roleLabel = $roleLabel ?? 'Utilisateur';
 $can = function (string $action, object $resource) use ($identity): bool {
     return $identity && method_exists($identity, 'can') && $identity->can($action, $resource);
 };

@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Service\Authorization\PermissionService;
 use App\Service\ServicesHealthService;
 use Cake\Core\Configure;
 use Cake\Http\Exception\ForbiddenException;
@@ -66,6 +67,9 @@ class PagesController extends AppController
         }
 
         $this->Authorization->authorize(new \App\Resource\PagesResource(), 'admin');
+        $roleLabel = (new PermissionService())
+            ->roleName($this->request->getAttribute('identity')) ?? 'Utilisateur';
+        $this->set(compact('roleLabel'));
         $this->loadAdminServicesHealth();
 
         try {

@@ -9,6 +9,13 @@
     max-height: 70vh;
     overflow-y: auto;
 }
+.navbar-user-name {
+    max-width: 14rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 </style>
 <nav class="navbar navbar-expand-md navbar-dark bg-primary fixed-top">
     <div class="shell-inner">
@@ -23,9 +30,8 @@
     <div class="collapse navbar-collapse" id="navbarsExampleDefault">
         <?php
         $identityObj = $this->request->getAttribute('identity');
-        $loggedIn = (bool)$identityObj;
         $can = function (string $action, object $resource) use ($identityObj): bool {
-            return $loggedIn && method_exists($identityObj, 'can') && $identityObj->can($action, $resource);
+            return $identityObj && method_exists($identityObj, 'can') && $identityObj->can($action, $resource);
         };
         $canAdmin = $can('admin', new \App\Resource\PagesResource());
         $canJobs = $can('status', new \App\Resource\BackgroundJobsResource());
@@ -34,6 +40,12 @@
         $isHome = $navController === 'Grids';
         $isAccount = $navController === 'Users' && in_array($navAction, ['account', 'changePassword'], true);
         $isAdminNav = !$isHome && !$isAccount && $navController !== 'Error';
+        $displayName = '';
+        if ($identityObj) {
+            $displayName = trim((string)$identityObj->get('last_name') . ' ' . (string)$identityObj->get('first_name'));
+        }
+        $accountLabel = $displayName !== '' ? $displayName : 'Mon profil';
+        $accountTitle = $displayName !== '' ? $displayName . ' — Mon compte' : 'Mon compte';
         ?>
         <ul class="navbar-nav me-auto">
             <li class="nav-item">
@@ -105,12 +117,13 @@
         <?php endif; ?>
         <li class="nav-item text-nowrap">
             <?= $this->Html->link(
-                '<i class="bi bi-person-square me-1"></i> Mon profil',
+                '<i class="bi bi-person-square me-1"></i><span class="navbar-user-name">' . h($accountLabel) . '</span>'
+                . ($isAccount ? ' <span class="visually-hidden">(page courante)</span>' : ''),
                 ['controller' => 'Users', 'action' => 'account'],
                 [
                     'class' => 'nav-link' . ($isAccount ? ' active' : ''),
                     'escape' => false,
-                    'title' => 'Mon compte',
+                    'title' => $accountTitle,
                     'aria-current' => $isAccount ? 'page' : false,
                 ]
             ) ?>

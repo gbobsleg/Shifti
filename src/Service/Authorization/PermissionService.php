@@ -14,17 +14,17 @@ class PermissionService
     /**
      * Rôles chargés depuis la base, partagés pour la durée de la requête.
      *
-     * @var array<int, array{code: string|null, priority: int}>|null
+     * @var array<int, array{code: string|null, priority: int, name: string|null}>|null
      */
     private static ?array $cachedRoles = null;
 
     /**
-     * @var array<int, array{code: string|null, priority: int}>
+     * @var array<int, array{code: string|null, priority: int, name: string|null}>
      */
     private array $roles;
 
     /**
-     * @param array<int, array{code: string|null, priority: int}>|null $roles
+     * @param array<int, array{code: string|null, priority: int, name?: string|null}>|null $roles
      */
     public function __construct(?array $roles = null)
     {
@@ -103,7 +103,23 @@ class PermissionService
     }
 
     /**
-     * @return array<int, array{code: string|null, priority: int}>
+     * Nom du rôle de l'identité. null si le rôle est inconnu.
+     *
+     * @param mixed $identity Identité connectée.
+     * @return string|null
+     */
+    public function roleName(mixed $identity): ?string
+    {
+        $name = $this->roles[$this->roleId($identity)]['name'] ?? null;
+        if (!is_string($name) || $name === '') {
+            return null;
+        }
+
+        return $name;
+    }
+
+    /**
+     * @return array<int, array{code: string|null, priority: int, name: string|null}>
      */
     private static function rolesFromDatabase(): array
     {
@@ -113,12 +129,13 @@ class PermissionService
 
         self::$cachedRoles = [];
         $rows = TableRegistry::getTableLocator()->get('Roles')->find()
-            ->select(['id', 'code', 'priority'])
+            ->select(['id', 'code', 'priority', 'name'])
             ->all();
         foreach ($rows as $row) {
             self::$cachedRoles[(int)$row->id] = [
                 'code' => $row->code !== null ? (string)$row->code : null,
                 'priority' => (int)$row->priority,
+                'name' => $row->name !== null && (string)$row->name !== '' ? (string)$row->name : null,
             ];
         }
 

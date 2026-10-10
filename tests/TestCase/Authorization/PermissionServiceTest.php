@@ -17,10 +17,10 @@ class PermissionServiceTest extends TestCase
     {
         parent::setUp();
         $this->service = new PermissionService([
-            1 => ['code' => 'admin', 'priority' => 10],
-            2 => ['code' => 'manager', 'priority' => 30],
-            3 => ['code' => 'agent', 'priority' => 40],
-            4 => ['code' => 'planificateur', 'priority' => 20],
+            1 => ['code' => 'admin', 'priority' => 10, 'name' => 'Administrateur'],
+            2 => ['code' => 'manager', 'priority' => 30, 'name' => 'Manager'],
+            3 => ['code' => 'agent', 'priority' => 40, 'name' => 'Utilisateur'],
+            4 => ['code' => 'planificateur', 'priority' => 20, 'name' => 'Planificateur'],
         ]);
     }
 
@@ -81,5 +81,11 @@ class PermissionServiceTest extends TestCase
         $this->assertTrue($this->service->canManageUser($manager, 2));
         $this->assertTrue($this->service->canManageUser($planner, 4));
         $this->assertFalse($this->service->canManageUser($manager, 4));
+    }
+
+    public function testRoleNameReturnsTheStoredLabel(): void
+    {
+        $this->assertSame('Planificateur', $this->service->roleName(new TestIdentity(['role_id' => 4])));
+        $this->assertNull($this->service->roleName(new TestIdentity(['role_id' => 99])));
     }
 }
