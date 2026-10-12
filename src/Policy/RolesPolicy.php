@@ -18,17 +18,7 @@ class RolesPolicy extends AbstractCapabilityPolicy
         return $this->has($identity, Capability::REF_ROLES);
     }
 
-    public function canAdd(IdentityInterface $identity, mixed $resource): bool
-    {
-        return $this->has($identity, Capability::REF_ROLES);
-    }
-
     public function canEdit(IdentityInterface $identity, mixed $resource): bool
-    {
-        return $this->has($identity, Capability::REF_ROLES);
-    }
-
-    public function canDelete(IdentityInterface $identity, mixed $resource): bool
     {
         return $this->has($identity, Capability::REF_ROLES);
     }

@@ -68,6 +68,24 @@ class RolesMatrixTest extends TestCase
     }
 
     /**
+     * Les rôles sont définis par le code : ni création ni suppression par l'interface.
+     *
+     * @return void
+     */
+    public function testRolesCannotBeAddedOrDeleted(): void
+    {
+        $this->loginAs(1);
+        $this->get('/roles/add');
+        $this->assertResponseCode(404);
+
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/roles/delete/4');
+        $this->assertResponseCode(404);
+        $this->assertNotNull($this->getTableLocator()->get('Roles')->find()->where(['id' => 4])->first());
+    }
+
+    /**
      * Le manager n'a pas le droit de consulter les rôles.
      *
      * @return void

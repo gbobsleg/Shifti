@@ -17,11 +17,6 @@
             <p class="crud-header-meta"><?= $this->Paginator->counter('{{count}} rôles') ?></p>
         </div>
         <div class="crud-header-actions">
-            <?= $this->Html->link(
-                '<i class="bi bi-plus-circle me-1"></i> Nouveau Rôle',
-                ['action' => 'add'],
-                ['class' => 'btn btn-primary', 'escape' => false]
-            ) ?>
             <div class="btn-group">
                 <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
                     <i class="bi bi-list-ul"></i> Raccourcis
@@ -57,11 +52,6 @@
                 <tr>
                     <td colspan="<?= (int)$colCount ?>" class="crud-empty">
                         <p>Aucun rôle.</p>
-                        <?= $this->Html->link(
-                            '<i class="bi bi-plus-circle me-1"></i> Créer un rôle',
-                            ['action' => 'add'],
-                            ['class' => 'btn btn-sm btn-primary', 'escape' => false]
-                        ) ?>
                     </td>
                 </tr>
             <?php endif; ?>
@@ -86,18 +76,6 @@
                                 'escape' => false,
                                 'title' => 'Modifier',
                                 'aria-label' => 'Modifier',
-                                'data-bs-toggle' => 'tooltip',
-                            ]
-                        ) ?>
-                        <?= $this->Form->postLink(
-                            '<i class="bi bi-trash" aria-hidden="true"></i>',
-                            ['action' => 'delete', $role->id],
-                            [
-                                'confirm' => 'Voulez-vous vraiment supprimer le rôle "' . h($role->name) . '" ?',
-                                'class' => 'crud-action crud-action-danger',
-                                'escape' => false,
-                                'title' => 'Supprimer',
-                                'aria-label' => 'Supprimer',
                                 'data-bs-toggle' => 'tooltip',
                             ]
                         ) ?>

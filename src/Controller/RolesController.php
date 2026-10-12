@@ -60,27 +60,6 @@ class RolesController extends AppController
     }
 
     /**
-     * Add method
-     *
-     * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
-     */
-    public function add()
-    {
-        $this->Authorization->authorize(new \App\Resource\RolesResource(), 'add');
-        $role = $this->Roles->newEmptyEntity();
-        if ($this->request->is('post')) {
-            $role = $this->Roles->patchEntity($role, $this->request->getData());
-            if ($this->Roles->save($role)) {
-                $this->Flash->success("Le rôle a été sauvegardé.");
-
-                return $this->redirect(['action' => 'index']);
-            }
-            $this->Flash->error("Le rôle n'a pas pu être sauvegardé. Merci d'essayer à nouveau.");
-        }
-        $this->set(compact('role'));
-    }
-
-    /**
      * Edit method
      *
      * @param string|null $id Role id.
@@ -108,26 +87,5 @@ class RolesController extends AppController
             $this->Flash->error("Le rôle n'a pas pu être sauvegardé. Merci d'essayer à nouveau.");
         }
         $this->set(compact('role'));
-    }
-
-    /**
-     * Delete method
-     *
-     * @param string|null $id Role id.
-     * @return \Cake\Http\Response|null|void Redirects to index.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
-    public function delete($id = null)
-    {
-        $this->request->allowMethod(['post', 'delete']);
-        $this->Authorization->authorize(new \App\Resource\RolesResource(), 'delete');
-        $role = $this->Roles->get($id);
-        if ($this->Roles->delete($role)) {
-            $this->Flash->success("Le rôle a été supprimé.");
-        } else {
-            $this->Flash->error("Le rôle n'a pas pu être supprimé. Merci d'essayer à nouveau.");
-        }
-
-        return $this->redirect(['action' => 'index']);
     }
 }

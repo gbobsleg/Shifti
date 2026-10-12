@@ -138,7 +138,11 @@ class PolicyCapabilityMapTest extends TestCase
                 'canAddDay' => Capability::TELETRAVAIL_GERER,
                 'canDelete' => Capability::TELETRAVAIL_GERER,
             ],
-            RolesPolicy::class => $crud(Capability::REF_ROLES),
+            RolesPolicy::class => [
+                'canIndex' => Capability::REF_ROLES,
+                'canView' => Capability::REF_ROLES,
+                'canEdit' => Capability::REF_ROLES,
+            ],
             RotationRulesPolicy::class => $crud(Capability::REF_ROTATIONS),
             SchedulesPolicy::class => [
                 'canGenerate' => Capability::PLANNING_GENERER,

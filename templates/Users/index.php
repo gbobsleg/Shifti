@@ -56,11 +56,6 @@ function getRoleBadgeClass($roleId) {
                         ['controller' => 'Roles', 'action' => 'index'],
                         ['class' => 'dropdown-item', 'escape' => false]
                     ) ?>
-                    <?= $this->Html->link(
-                        '<i class="bi bi-shield-plus me-2"></i> Nouveau Rôle',
-                        ['controller' => 'Roles', 'action' => 'add'],
-                        ['class' => 'dropdown-item', 'escape' => false]
-                    ) ?>
                     <div class="dropdown-divider"></div>
                     <?= $this->Html->link(
                         '<i class="bi bi-geo-alt-fill me-2"></i> Liste des Sites',

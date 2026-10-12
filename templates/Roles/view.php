@@ -26,15 +26,6 @@
                 ['action' => 'index'],
                 ['class' => 'btn btn-outline-secondary', 'escape' => false]
             ) ?>
-            <?= $this->Form->postLink(
-                '<i class="bi bi-trash me-1"></i> Supprimer',
-                ['action' => 'delete', $role->id],
-                [
-                    'confirm' => 'Voulez-vous vraiment supprimer "' . h($role->name) . '" ?',
-                    'class' => 'btn btn-outline-danger',
-                    'escape' => false,
-                ]
-            ) ?>
         </div>
     </div>
 
