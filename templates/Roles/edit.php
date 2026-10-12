@@ -34,13 +34,21 @@
         </div>
         <div class="mb-3">
             <label class="form-label">Priorité</label>
-            <?= $this->Form->control('priority', [
-                'label' => false,
-                'class' => 'form-control',
-                'type' => 'number',
-                'required' => true,
-            ]) ?>
-            <small class="text-muted">Plus le nombre est bas, plus la priorité est élevée</small>
+            <?php if ($role->code !== null) : ?>
+                <input type="number" class="form-control" value="<?= h((string)$role->priority) ?>" disabled>
+                <small class="text-muted">
+                    Priorité fixe pour un rôle système : elle détermine quels rôles peuvent être attribués
+                    et quels comptes peuvent être modifiés.
+                </small>
+            <?php else : ?>
+                <?= $this->Form->control('priority', [
+                    'label' => false,
+                    'class' => 'form-control',
+                    'type' => 'number',
+                    'required' => true,
+                ]) ?>
+                <small class="text-muted">Plus le nombre est bas, plus la priorité est élevée</small>
+            <?php endif; ?>
         </div>
     </section>
     <div class="crud-actions-bar">

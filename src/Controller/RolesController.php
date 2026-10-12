@@ -94,7 +94,12 @@ class RolesController extends AppController
             'contain' => [],
         ]);
         if ($this->request->is(['patch', 'post', 'put'])) {
-            $role = $this->Roles->patchEntity($role, $this->request->getData());
+            $data = $this->request->getData();
+            // La priorité d'un rôle codé fixe la hiérarchie d'attribution (PermissionService).
+            if ($role->code !== null) {
+                unset($data['priority']);
+            }
+            $role = $this->Roles->patchEntity($role, $data);
             if ($this->Roles->save($role)) {
                 $this->Flash->success("Le rôle a été sauvegardé.");
 

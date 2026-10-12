@@ -50,6 +50,24 @@ class RolesMatrixTest extends TestCase
     }
 
     /**
+     * La priorité d'un rôle codé n'est pas modifiable par le formulaire.
+     *
+     * @return void
+     */
+    public function testEditIgnoresPriorityOfCodedRole(): void
+    {
+        $this->loginAs(1);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/roles/edit/2', ['name' => 'Manager renommé', 'priority' => 5]);
+        $this->assertRedirect(['controller' => 'Roles', 'action' => 'index']);
+
+        $role = $this->getTableLocator()->get('Roles')->get(2);
+        $this->assertSame('Manager renommé', $role->name);
+        $this->assertSame(30, (int)$role->priority);
+    }
+
+    /**
      * Le manager n'a pas le droit de consulter les rôles.
      *
      * @return void
