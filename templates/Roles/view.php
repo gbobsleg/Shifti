@@ -2,6 +2,8 @@
 /**
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\Role $role
+ * @var array<string, array<string, string>> $capabilityGroups
+ * @var list<string> $granted
  */
 ?>
 <?php $this->assign('title', 'Détails du Rôle : ' . h($role->name)); ?>
@@ -56,6 +58,34 @@
                 <dd><?= h($role->modified ? $role->modified->i18nFormat('dd/MM/yyyy HH:mm') : '—') ?></dd>
             </div>
         </dl>
+    </section>
+
+    <section class="crud-section">
+        <h2 class="crud-section-title">Droits du rôle</h2>
+        <?php if (empty($role->code)): ?>
+            <p class="text-danger mb-0">Ce rôle n'a pas de code : il n'a aucun droit dans l'application.</p>
+        <?php elseif ($granted === []): ?>
+            <p class="text-danger mb-0">Le code « <?= h($role->code) ?> » n'est pas reconnu : ce rôle n'a aucun droit dans l'application.</p>
+        <?php else: ?>
+            <?php foreach ($capabilityGroups as $groupName => $capabilities): ?>
+                <?php
+                $grantedLabels = [];
+                foreach ($capabilities as $capability => $label) {
+                    if (in_array($capability, $granted, true)) {
+                        $grantedLabels[] = $label;
+                    }
+                }
+                ?>
+                <?php if ($grantedLabels !== []): ?>
+                    <h3 class="h6 mt-3"><?= h($groupName) ?></h3>
+                    <ul class="mb-0">
+                        <?php foreach ($grantedLabels as $grantedLabel): ?>
+                            <li><?= h($grantedLabel) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </section>
 
     <section class="crud-section">

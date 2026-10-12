@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Authorization\CapabilityCatalog;
+use App\Authorization\RoleCapabilities;
+
 /**
  * Roles Controller
  *
@@ -22,7 +25,18 @@ class RolesController extends AppController
         $query = $this->Roles->find()->contain(['Users']);
         $roles = $this->paginate($query);
 
-        $this->set(compact('roles'));
+        $matrixRoles = $this->Roles->find()
+            ->select(['id', 'name', 'code', 'priority'])
+            ->orderBy(['Roles.priority' => 'ASC', 'Roles.id' => 'ASC'])
+            ->all()
+            ->toList();
+        $capabilityGroups = CapabilityCatalog::groups();
+        $grantedByRole = [];
+        foreach ($matrixRoles as $matrixRole) {
+            $grantedByRole[(int)$matrixRole->id] = RoleCapabilities::forCode($matrixRole->code);
+        }
+
+        $this->set(compact('roles', 'matrixRoles', 'capabilityGroups', 'grantedByRole'));
     }
 
     /**
@@ -39,7 +53,10 @@ class RolesController extends AppController
             'contain' => ['Users'],
         ]);
 
-        $this->set(compact('role'));
+        $capabilityGroups = CapabilityCatalog::groups();
+        $granted = RoleCapabilities::forCode($role->code);
+
+        $this->set(compact('role', 'capabilityGroups', 'granted'));
     }
 
     /**

@@ -1,0 +1,63 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Test\TestCase\Controller;
+
+use App\Test\TestCase\Authorization\LoginAsTrait;
+use Cake\TestSuite\IntegrationTestTrait;
+use Cake\TestSuite\TestCase;
+
+class RolesMatrixTest extends TestCase
+{
+    use IntegrationTestTrait;
+    use LoginAsTrait;
+
+    protected array $fixtures = [
+        'app.Regions',
+        'app.Sites',
+        'app.Roles',
+        'app.Users',
+    ];
+
+    /**
+     * L'admin voit la matrice et les droits du planificateur.
+     *
+     * @return void
+     */
+    public function testAdminSeesMatrix(): void
+    {
+        $this->loginAs(1);
+        $this->get('/roles');
+        $this->assertResponseOk();
+        $this->assertResponseContains('Droits par rôle');
+        $this->assertResponseContains('Planificateur');
+        $this->assertResponseContains('Lancer et retravailler les générations de planning');
+    }
+
+    /**
+     * La fiche agent n'affiche que ses droits, pas les groupes vides.
+     *
+     * @return void
+     */
+    public function testRoleViewListsGrantedCapabilities(): void
+    {
+        $this->loginAs(1);
+        $this->get('/roles/view/3');
+        $this->assertResponseOk();
+        $this->assertResponseContains('Consulter la grille de planning');
+        $this->assertResponseNotContains('Publier une prévision');
+        $this->assertResponseNotContains('Prévisions et historique');
+    }
+
+    /**
+     * Le manager n'a pas le droit de consulter les rôles.
+     *
+     * @return void
+     */
+    public function testManagerCannotSeeRoles(): void
+    {
+        $this->loginAs(2);
+        $this->get('/roles');
+        $this->assertResponseCode(403);
+    }
+}

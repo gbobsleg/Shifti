@@ -118,4 +118,6 @@
         </ul>
         <p><?= $this->Paginator->counter('Page {{page}} sur {{pages}}, affichant {{current}} sur {{count}}') ?></p>
     </div>
+
+    <?= $this->element('roles/capability_matrix', compact('matrixRoles', 'capabilityGroups', 'grantedByRole')) ?>
 </div>
