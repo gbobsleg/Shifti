@@ -220,6 +220,16 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
     pm_indices = get_valid_starts(problem.pm_break_window, problem.break_duration_minutes) if problem.enable_am_pm_breaks else []
     lunch_indices = get_valid_starts(problem.lunch_window, problem.lunch_duration_minutes)
 
+    lunch_win_s = parse_t(problem.lunch_window.start)
+    lunch_win_e = parse_t(problem.lunch_window.end)
+
+    # Même règle que la Passe 2 : repas dû seulement si présent avant ET après la fenêtre repas
+    def lunch_required(av_s: int, av_e: int) -> bool:
+        return av_s < lunch_win_s and av_e > lunch_win_e
+
+    def covers_range(av_s: int, av_e: int, start: int, end: int) -> bool:
+        return av_s <= start and end <= av_e
+
     PIVOT_NOON = 13 * 60 
 
     # --- 2. VARIABLES ---
@@ -251,7 +261,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
         av_e = parse_t(agent.availability_end_time)
 
         # Init Lunch Vars
-        for t in lunch_indices:
+        for t in (lunch_indices if lunch_required(av_s, av_e) else []):
             t_time = grid[t]
             if t_time >= av_s and (t_time + lunch_dur_slots * slot_min) <= av_e:
                 start_lunch[a_idx, t] = model.NewBoolVar(f'start_lunch_a{a_idx}_t{t}')
@@ -286,6 +296,10 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 agent_act_vars = []
 
                 grp_key = activity_to_group[act.offer_name]
+
+                # Activité non scindable : l'agent doit être présent sur toute la plage
+                if not all(covers_range(av_s, av_e, bs, be) for bs, be in b_list):
+                    b_list = []
 
                 for bs, be in b_list:
                     b_vars = []
@@ -325,7 +339,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
 
                 # Attach Lunch
                 mode = getattr(act, 'lunch_attach_mode', 'none')
-                if mode in ['before', 'after']:
+                if mode in ['before', 'after'] and lunch_required(av_s, av_e):
                     t_target = -1
                     try:
                         if mode == 'before':
@@ -357,6 +371,8 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                     block_masters = []
                     for b in act.blocks:
                         bs, be = parse_t(b.start), parse_t(b.end)
+                        if not covers_range(av_s, av_e, bs, be):
+                            continue
                         block_vars = []
                         for t_idx, tm in enumerate(grid):
                             if (parse_t(agent.availability_start_time) <= tm < parse_t(agent.availability_end_time)) and (bs <= tm < be):
@@ -405,7 +421,8 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                     start_min = parse_t(act.start_time)
                     end_min = parse_t(act.end_time)
                     block_vars = []
-                    for t_idx, tm in enumerate(grid):
+                    eligible_grid = enumerate(grid) if covers_range(av_s, av_e, start_min, end_min) else []
+                    for t_idx, tm in eligible_grid:
                         if (start_min <= tm < end_min) and (parse_t(agent.availability_start_time) <= tm < parse_t(agent.availability_end_time)):
                             v = model.NewBoolVar(f'x_sec_a{a_idx}_s{s_idx}_t{t_idx}')
                             x_sec[a_idx, s_idx, t_idx] = v
@@ -481,7 +498,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 # --- GESTION DU COLLAGE REPAS (P2) ---
                 if p2_vars_for_agent:
                     mode = getattr(act, 'lunch_attach_mode', 'none')
-                    if mode in ['before', 'after']:
+                    if mode in ['before', 'after'] and lunch_required(av_s, av_e):
                         t_target = -1
                         try:
                             if mode == 'before':
@@ -503,6 +520,18 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                                 model.Add(agent_does_p2 == 0)
 
         # PAUSES & REPAS
+        has_work_am = model.NewBoolVar(f'work_am_a{a_idx}')
+        if acts_in_am:
+            model.AddMaxEquality(has_work_am, acts_in_am)
+        else:
+            model.Add(has_work_am == 0)
+
+        has_work_pm = model.NewBoolVar(f'work_pm_a{a_idx}')
+        if acts_in_pm:
+            model.AddMaxEquality(has_work_pm, acts_in_pm)
+        else:
+            model.Add(has_work_pm == 0)
+
         am_vars = []
         for t in am_indices:
             t_time = grid[t]
@@ -512,12 +541,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 am_vars.append(v)
         if am_vars:
             model.Add(sum(am_vars) <= 1)
-            has_work_am = model.NewBoolVar(f'work_am_a{a_idx}')
-            if acts_in_am: 
-                model.AddMaxEquality(has_work_am, acts_in_am)
-                model.Add(sum(am_vars) == 0).OnlyEnforceIf(has_work_am.Not())
-            else:
-                model.Add(sum(am_vars) == 0)
+            model.Add(sum(am_vars) == 0).OnlyEnforceIf(has_work_am.Not())
 
         pm_vars = []
         for t in pm_indices:
@@ -528,12 +552,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 pm_vars.append(v)
         if pm_vars:
             model.Add(sum(pm_vars) <= 1)
-            has_work_pm = model.NewBoolVar(f'work_pm_a{a_idx}')
-            if acts_in_pm: 
-                model.AddMaxEquality(has_work_pm, acts_in_pm)
-                model.Add(sum(pm_vars) == 0).OnlyEnforceIf(has_work_pm.Not())
-            else:
-                model.Add(sum(pm_vars) == 0)
+            model.Add(sum(pm_vars) == 0).OnlyEnforceIf(has_work_pm.Not())
         
         # LUNCH
         lunch_vars_agent = [start_lunch[a_idx, t] for t in lunch_indices if (a_idx, t) in start_lunch]
@@ -712,6 +731,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
         return OPTIONAL_COVERAGE_WEIGHT if allow_shortfall else MANDATORY_COVERAGE_WEIGHT
 
     shortfall_weighted_terms = []
+    shortfall_vars_by_offer: Dict[str, List[cp_model.IntVar]] = collections.defaultdict(list)
 
     for f_idx, act in enumerate(prio_acts):
         w = shortfall_weight(act.allow_shortfall)
@@ -721,6 +741,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 assigned = [x_prio[a_idx, f_idx, t_idx] for a_idx in range(len(agents)) if (a_idx, f_idx, t_idx) in x_prio]
                 model.Add(sum(assigned) == act.quantity - sf)
                 shortfall_weighted_terms.append(sf * w)
+                shortfall_vars_by_offer[act.offer_name].append(sf)
 
     for s_idx, act in enumerate(sec_acts):
         w = shortfall_weight(act.allow_shortfall)
@@ -737,6 +758,7 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
                 assigned = [x_sec[a_idx, s_idx, t_idx] for a_idx in range(len(agents)) if (a_idx, s_idx, t_idx) in x_sec]
                 model.Add(sum(assigned) == act.quantity - sf)
                 shortfall_weighted_terms.append(sf * w)
+                shortfall_vars_by_offer[act.offer_name].append(sf)
 
     # UNICITE GLOBALE
     for a_idx in range(len(agents)):
@@ -868,10 +890,19 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
     status_str = ("OPTIMAL" if status == cp_model.OPTIMAL
                   else "FEASIBLE" if status == cp_model.FEASIBLE
                   else solver.StatusName(status))
+
+    # Manques en agent x créneau (même unité que le nombre d'assignations)
+    shortfalls: Dict[str, int] = {}
+    if ok:
+        for offer_name, sf_vars in shortfall_vars_by_offer.items():
+            total = sum(solver.Value(v) for v in sf_vars)
+            if total > 0:
+                shortfalls[offer_name] = total
+
     return {
         "status": status_str,
         "assignments": final_assignments,
-        "shortfalls": {},
+        "shortfalls": shortfalls,
         "wall_time_seconds": round(solver.WallTime(), 3),
         "objective_value": solver.ObjectiveValue() if ok else None,
         "best_bound": solver.BestObjectiveBound() if ok else None,
