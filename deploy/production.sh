@@ -81,8 +81,8 @@ fi
 # 3. Rebuild + up app (db inchange, volume persistant)
 # ---------------------------------------------------------------------------
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-  log "docker compose build app"
-  docker compose build app
+  log "docker compose build --pull app"
+  docker compose build --pull app
   log "docker compose up -d app"
   docker compose up -d app
 else

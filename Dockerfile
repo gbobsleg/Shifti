@@ -1,7 +1,7 @@
 # =============================================================================
 # Image de production — CakePHP 5 + Nginx + PHP-FPM + Python (OR-Tools / Prophet)
 # =============================================================================
-FROM php:8.3-fpm-bookworm
+FROM php:8.3.36-fpm-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
     APP_HOME=/var/www/html \
