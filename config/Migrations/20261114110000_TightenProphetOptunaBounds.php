@@ -16,8 +16,7 @@ class TightenProphetOptunaBounds extends BaseMigration
         }
 
         $rows = $this->fetchAll('SELECT id, optuna_settings_json FROM wfm_settings');
-        $pdo = $this->getAdapter()->getConnection();
-        $stmt = $pdo->prepare('UPDATE wfm_settings SET optuna_settings_json = :json WHERE id = :id');
+        $connection = $this->getAdapter()->getConnection();
 
         foreach ($rows as $row) {
             $raw = $row['optuna_settings_json'] ?? null;
@@ -42,10 +41,17 @@ class TightenProphetOptunaBounds extends BaseMigration
             $data['n_cutoffs'] = 4;
             $data['test_horizon_days'] = 90;
 
-            $stmt->execute([
-                'json' => json_encode($data, JSON_UNESCAPED_UNICODE),
-                'id' => $row['id'],
-            ]);
+            $connection->execute(
+                'UPDATE wfm_settings SET optuna_settings_json = :json WHERE id = :id',
+                [
+                    'json' => json_encode($data, JSON_UNESCAPED_UNICODE),
+                    'id' => $row['id'],
+                ],
+                [
+                    'json' => 'text',
+                    'id' => 'integer',
+                ]
+            );
         }
     }
 
