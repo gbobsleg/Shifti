@@ -306,8 +306,8 @@ $budgetOk = $sum <= $limit;
                 <dd><?= (int)$optunaSettings['n_trials'] ?></dd>
             </div>
             <div>
-                <dt>Cutoffs</dt>
-                <dd><?= (int)$optunaSettings['n_cutoffs'] ?> (fixe V1)</dd>
+                <dt>Reculs de test</dt>
+                <dd><?= h(implode(' / ', array_map('intval', $optunaSettings['cutoff_lags_days'] ?? [90, 180, 270, 360]))) ?> j</dd>
             </div>
             <div>
                 <dt>Historique min</dt>

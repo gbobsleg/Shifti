@@ -62,8 +62,9 @@ class TestClampTunable(unittest.TestCase):
             },
             cfg,
         )
-        self.assertEqual(out["n_changepoints"], 25)
-        self.assertEqual(out["monthly_fourier_order"], 5)
+        self.assertEqual(set(out), {"changepoint_prior_scale", "seasonality_prior_scale"})
+        self.assertAlmostEqual(out["changepoint_prior_scale"], 0.05)
+        self.assertAlmostEqual(out["seasonality_prior_scale"], 10.0)
 
     def test_clamp_hors_bornes(self) -> None:
         cfg = {
@@ -87,8 +88,8 @@ class TestClampTunable(unittest.TestCase):
         )
         self.assertEqual(out["changepoint_prior_scale"], 0.5)
         self.assertEqual(out["seasonality_prior_scale"], 0.01)
-        self.assertEqual(out["n_changepoints"], 10)
-        self.assertEqual(out["monthly_fourier_order"], 10)
+        self.assertNotIn("n_changepoints", out)
+        self.assertNotIn("monthly_fourier_order", out)
 
     def test_clamp_incomplet(self) -> None:
         self.assertIsNone(clamp_tunable_for_search_space({}, {}))

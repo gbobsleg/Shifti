@@ -385,7 +385,7 @@ class WfmSettingsController extends AppController
         };
 
         $horizon = $int($data['test_horizon_days'] ?? null, (int)$base['test_horizon_days']);
-        $horizon = max(7, min(60, $horizon));
+        $horizon = max(7, min(365, $horizon));
 
         $trials = $int($data['n_trials'] ?? null, (int)$base['n_trials']);
         $trials = max(10, min(200, $trials));
@@ -423,7 +423,7 @@ class WfmSettingsController extends AppController
             'cron_workday_start_hour' => $workdayStart,
             'last_cron_enqueue_date' => $existing['last_cron_enqueue_date'] ?? null,
             'test_horizon_days' => $horizon,
-            'n_cutoffs' => 3,
+            'cutoff_lags_days' => $existing['cutoff_lags_days'] ?? ProphetOptunaConfig::DEFAULTS['cutoff_lags_days'],
             'n_trials' => $trials,
             'min_history_days' => $minHistory,
             'auto_apply' => !empty($data['auto_apply']),

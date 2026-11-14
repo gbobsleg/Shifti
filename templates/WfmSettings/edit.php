@@ -626,13 +626,13 @@
                             <?= $this->Form->control('optuna_settings.test_horizon_days', [
                                 'type' => 'number',
                                 'min' => 7,
-                                'max' => 60,
-                                'value' => $optunaSettings['test_horizon_days'] ?? 14,
+                                'max' => 365,
+                                'value' => $optunaSettings['test_horizon_days'] ?? 90,
                                 'label' => false,
                                 'class' => 'form-control form-control-sm',
                                 'style' => 'max-width: 120px;',
                             ]) ?>
-                            <small class="form-text text-muted">7–60. Défaut 14. Cutoffs walk-forward : 3 (fixe V1).</small>
+                            <small class="form-text text-muted">Défaut 90 jours. Quatre reculs jointifs : 90 / 180 / 270 / 360.</small>
                         </div>
                         <div class="mb-3 bg-light p-3 border rounded">
                             <label class="font-weight-bold">Nombre d’essais Optuna (n_trials)</label>
@@ -640,7 +640,7 @@
                                 'type' => 'number',
                                 'min' => 10,
                                 'max' => 200,
-                                'value' => $optunaSettings['n_trials'] ?? 50,
+                                'value' => $optunaSettings['n_trials'] ?? 30,
                                 'label' => false,
                                 'class' => 'form-control form-control-sm',
                                 'style' => 'max-width: 120px;',
@@ -743,15 +743,14 @@
                                 'step' => 'any',
                                 'min' => 0,
                                 'max' => 100,
-                                'value' => $optunaSettings['auto_apply_min_mae_improvement_pct'] ?? 5,
+                                'value' => $optunaSettings['auto_apply_min_mae_improvement_pct'] ?? 3,
                                 'label' => false,
                                 'class' => 'form-control form-control-sm',
                                 'style' => 'max-width: 120px;',
                             ]) ?>
                             <small class="form-text text-muted">
-                                Désactivé par défaut. Le % s’applique au WAPE 15 min (walk-forward 3×14 j),
-                                pas à la MAE. Clé JSON inchangée. Recalibrer après rétro-analyse ;
-                                ne pas recopier 5 % MAE tel quel.
+                                Désactivé par défaut. Le % s’applique au WAPE journalier des quatre fenêtres,
+                                pas à la MAE. Un profil hors bornes est appliqué quand même.
                             </small>
                         </div>
                     </div>
@@ -761,14 +760,14 @@
                             <label class="font-weight-bold">changepoint_prior_scale (min / max)</label>
                             <div class="d-flex align-items-center">
                                 <?= $this->Form->control('optuna_settings.changepoint_prior_scale_min', [
-                                    'type' => 'number', 'step' => 'any', 'min' => 0.001, 'max' => 0.5,
-                                    'value' => $optunaSettings['changepoint_prior_scale_min'] ?? 0.001,
+                                    'type' => 'number', 'step' => 'any', 'min' => 0.005, 'max' => 0.10,
+                                    'value' => $optunaSettings['changepoint_prior_scale_min'] ?? 0.005,
                                     'label' => false, 'class' => 'form-control form-control-sm me-2', 'style' => 'max-width: 110px;',
                                 ]) ?>
                                 <span class="mx-1">→</span>
                                 <?= $this->Form->control('optuna_settings.changepoint_prior_scale_max', [
-                                    'type' => 'number', 'step' => 'any', 'min' => 0.001, 'max' => 0.5,
-                                    'value' => $optunaSettings['changepoint_prior_scale_max'] ?? 0.5,
+                                    'type' => 'number', 'step' => 'any', 'min' => 0.005, 'max' => 0.10,
+                                    'value' => $optunaSettings['changepoint_prior_scale_max'] ?? 0.10,
                                     'label' => false, 'class' => 'form-control form-control-sm ms-2', 'style' => 'max-width: 110px;',
                                 ]) ?>
                             </div>
@@ -777,36 +776,36 @@
                             <label class="font-weight-bold">seasonality_prior_scale (min / max)</label>
                             <div class="d-flex align-items-center">
                                 <?= $this->Form->control('optuna_settings.seasonality_prior_scale_min', [
-                                    'type' => 'number', 'step' => 'any', 'min' => 0.01, 'max' => 100,
-                                    'value' => $optunaSettings['seasonality_prior_scale_min'] ?? 0.01,
+                                    'type' => 'number', 'step' => 'any', 'min' => 1, 'max' => 50,
+                                    'value' => $optunaSettings['seasonality_prior_scale_min'] ?? 1,
                                     'label' => false, 'class' => 'form-control form-control-sm me-2', 'style' => 'max-width: 110px;',
                                 ]) ?>
                                 <span class="mx-1">→</span>
                                 <?= $this->Form->control('optuna_settings.seasonality_prior_scale_max', [
-                                    'type' => 'number', 'step' => 'any', 'min' => 0.01, 'max' => 100,
-                                    'value' => $optunaSettings['seasonality_prior_scale_max'] ?? 100,
+                                    'type' => 'number', 'step' => 'any', 'min' => 1, 'max' => 50,
+                                    'value' => $optunaSettings['seasonality_prior_scale_max'] ?? 50,
                                     'label' => false, 'class' => 'form-control form-control-sm ms-2', 'style' => 'max-width: 110px;',
                                 ]) ?>
                             </div>
                         </div>
                         <div class="mb-3 bg-light p-3 border rounded">
-                            <label class="font-weight-bold">n_changepoints (min / max)</label>
+                            <label class="font-weight-bold">n_changepoints (figé à 25, ignoré par Optuna)</label>
                             <div class="d-flex align-items-center">
                                 <?= $this->Form->control('optuna_settings.n_changepoints_min', [
                                     'type' => 'number', 'min' => 1, 'max' => 100,
-                                    'value' => $optunaSettings['n_changepoints_min'] ?? 10,
+                                    'value' => $optunaSettings['n_changepoints_min'] ?? 25,
                                     'label' => false, 'class' => 'form-control form-control-sm me-2', 'style' => 'max-width: 110px;',
                                 ]) ?>
                                 <span class="mx-1">→</span>
                                 <?= $this->Form->control('optuna_settings.n_changepoints_max', [
                                     'type' => 'number', 'min' => 1, 'max' => 100,
-                                    'value' => $optunaSettings['n_changepoints_max'] ?? 50,
+                                    'value' => $optunaSettings['n_changepoints_max'] ?? 25,
                                     'label' => false, 'class' => 'form-control form-control-sm ms-2', 'style' => 'max-width: 110px;',
                                 ]) ?>
                             </div>
                         </div>
                         <div class="mb-3 bg-light p-3 border rounded">
-                            <label class="font-weight-bold">monthly_fourier_order (min / max)</label>
+                            <label class="font-weight-bold">monthly_fourier_order (retiré, ignoré par Optuna)</label>
                             <div class="d-flex align-items-center">
                                 <?= $this->Form->control('optuna_settings.monthly_fourier_order_min', [
                                     'type' => 'number', 'min' => 1, 'max' => 15,

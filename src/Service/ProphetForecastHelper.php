@@ -189,6 +189,7 @@ class ProphetForecastHelper
                     return [
                         'days' => $forecasts,
                         'dmt_profile' => self::normalizeDmtProfile($data['dmt_profile'] ?? null),
+                        'trend_damping' => is_array($data['trend_damping'] ?? null) ? $data['trend_damping'] : null,
                     ];
                 }
 
@@ -237,8 +238,9 @@ class ProphetForecastHelper
             'changepoint_range' => (float)($settings['changepoint_range'] ?? 0.8),
             
             // Jours fériés
-            'use_french_holidays' => (bool)($settings['use_french_holidays'] ?? true),
-            'custom_holidays' => $settings['custom_holidays'] ?? null
+            'use_french_holidays' => (bool)($settings['use_french_holidays'] ?? false),
+            'custom_holidays' => $settings['custom_holidays'] ?? null,
+            'use_calendar_peak_25_5' => (bool)($settings['use_calendar_peak_25_5'] ?? false),
         ];
     }
 

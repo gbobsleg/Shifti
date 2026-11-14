@@ -22,10 +22,12 @@ import traceback
 from typing import Any, Dict, Optional
 
 from prophet_common import get_db_connection
+from prophet_series import stored_profile_violates_bounds
 from prophet_tuning_core import (
     JobCancelled,
     assert_min_history,
     build_prophet_params_from_offer,
+    clamp_tunable_for_search_space,
     describe_seasonality_adaptation,
     evaluate_params_walk_forward,
     history_span_days,
@@ -151,6 +153,7 @@ def _fetch_job(conn, job_id: int) -> Optional[Dict[str, Any]]:
     cursor.execute(
         """
         SELECT j.*,
+               o.name AS offer_name,
                o.prophet_default_settings_json AS offer_prophet_json
         FROM prophet_tuning_jobs j
         INNER JOIN offers o ON o.id = j.offer_id
@@ -306,7 +309,8 @@ def process_job(job_id: int) -> None:
             )
 
         offer_raw = parse_json_field(job.get("offer_prophet_json"))
-        offer_profile = offer_raw if isinstance(offer_raw, dict) else {}
+        raw_official = dict(offer_raw) if isinstance(offer_raw, dict) else {}
+        offer_profile = dict(raw_official)
 
         try:
             df = load_offer_history_df(offer_id, offer_profile)
@@ -318,9 +322,21 @@ def process_job(job_id: int) -> None:
 
         span_days = history_span_days(df)
         seasonality_adapt = describe_seasonality_adaptation(span_days)
-        baseline_params = build_prophet_params_from_offer(
+        violates_bounds = stored_profile_violates_bounds(raw_official)
+        official_params = build_prophet_params_from_offer(
             offer_profile, history_span_days=span_days
         )
+        clamped_seed = clamp_tunable_for_search_space(official_params, optuna_cfg)
+        baseline_params = build_prophet_params_from_offer(
+            offer_profile,
+            clamped_seed,
+            history_span_days=span_days,
+        )
+        if violates_bounds:
+            print(
+                "[OptunaWorker] Profil officiel hors bornes "
+                "(baseline évaluée après clamp, apply forcé en fin de job)"
+            )
         print(
             f"[OptunaWorker] Historique {span_days} j — "
             f"yearly={'ON' if seasonality_adapt['yearly_seasonality'] else 'OFF'}, "
@@ -328,7 +344,8 @@ def process_job(job_id: int) -> None:
         )
 
         horizon = int(optuna_cfg["test_horizon_days"])
-        n_cutoffs = int(optuna_cfg.get("n_cutoffs", 3))
+        lags = optuna_cfg.get("cutoff_lags_days")
+        n_cutoffs = len(lags) if isinstance(lags, list) and lags else int(optuna_cfg.get("n_cutoffs", 4))
         n_trials = int(optuna_cfg["n_trials"])
 
         _update_job(
@@ -343,7 +360,7 @@ def process_job(job_id: int) -> None:
 
         try:
             baseline_scores_raw = evaluate_params_walk_forward(
-                df, baseline_params, horizon, n_cutoffs
+                df, baseline_params, horizon, n_cutoffs, lags_days=lags
             )
         except Exception as e:
             _fail_job(conn, job_id, f"Échec évaluation baseline: {e}")
@@ -425,14 +442,18 @@ def process_job(job_id: int) -> None:
             "seasonality_adaptation": seasonality_adapt,
         }
 
-        auto_applied = should_auto_apply(
-            float(baseline_scores["wape_volume"]),
-            float(best_scores["wape_volume"]),
-            optuna_cfg,
-        )
+        if violates_bounds:
+            auto_applied = True
+            print("[OptunaWorker] Auto-apply forcé : profil stocké hors bornes d'émission")
+        else:
+            auto_applied = should_auto_apply(
+                float(baseline_scores["wape_volume"]),
+                float(best_scores["wape_volume"]),
+                optuna_cfg,
+            )
 
         if auto_applied:
-            _auto_apply_to_offer(conn, offer_id, offer_profile or None, best_params)
+            _auto_apply_to_offer(conn, offer_id, raw_official or None, best_params)
             print(f"[OptunaWorker] Auto-apply effectué sur offer_id={offer_id}")
         else:
             _write_draft(conn, offer_id, best_params, draft_scores)

@@ -81,6 +81,10 @@ class WfmScenarioService
             if (is_array($override) && !empty($override)) {
                 $effectiveProphetSettings = array_merge($effectiveProphetSettings, $override);
             }
+            $effectiveProphetSettings = ProphetOptunaConfig::clampProphetSettings(
+                $effectiveProphetSettings,
+                (string)($offer->name ?? '')
+            );
 
             $method = $methodsByOffer[$offerId] ?? $offer->default_forecast_method ?? 'historical';
 
@@ -301,6 +305,11 @@ class WfmScenarioService
                 }
             }
 
+            $effectiveProphetSettings = ProphetOptunaConfig::clampProphetSettings(
+                $effectiveProphetSettings,
+                $offerName
+            );
+
             $this->reconnectDb();
             $link->prophet_settings_json = json_encode($effectiveProphetSettings);
             $this->ForecastScenariosOffers->save($link);
@@ -325,6 +334,12 @@ class WfmScenarioService
             }
             if (is_array($dmtProfile)) {
                 $effectiveProphetSettings['dmt_profile'] = $dmtProfile;
+            }
+            $trendDamping = $batch['trend_damping'] ?? null;
+            if (is_array($trendDamping)) {
+                $effectiveProphetSettings['trend_damping'] = $trendDamping;
+            }
+            if (is_array($dmtProfile) || is_array($trendDamping)) {
                 $this->reconnectDb();
                 $link->prophet_settings_json = $this->encodeProphetSettingsJson($effectiveProphetSettings);
                 $this->ForecastScenariosOffers->save($link);
@@ -554,7 +569,7 @@ class WfmScenarioService
             'seasonality_mode' => 'multiplicative',
             'yearly_seasonality' => true,
             'weekly_seasonality' => true,
-            'monthly_seasonality' => true,
+            'monthly_seasonality' => false,
             'monthly_fourier_order' => 5,
             'daily_seasonality' => true,
             'changepoint_prior_scale' => 0.1,
@@ -562,7 +577,7 @@ class WfmScenarioService
             'growth' => 'linear',
             'n_changepoints' => 25,
             'changepoint_range' => 0.8,
-            'use_french_holidays' => true,
+            'use_french_holidays' => false,
         ];
 
         if ($wfm && !empty($wfm->prophet_defaults_json)) {
@@ -717,6 +732,10 @@ class WfmScenarioService
             if (!empty($offerProfile)) {
                 $effectiveProphetSettings = array_merge($effectiveProphetSettings, $offerProfile);
             }
+            $effectiveProphetSettings = ProphetOptunaConfig::clampProphetSettings(
+                $effectiveProphetSettings,
+                (string)($offer->name ?? '')
+            );
 
             $method = $methodsByOffer[(int)$offerId] ?? $offer->default_forecast_method ?? 'historical';
 

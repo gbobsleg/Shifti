@@ -242,6 +242,7 @@ $statusLabels = [
                             $historyStart = $offerSnapshot['history_start_date'] ?? null;
                             $historyEnd = $offerSnapshot['history_end_date'] ?? null;
                             $hasHistory = !empty($historyStart) || !empty($historyEnd);
+                            $trendDamping = $offerSnapshot['trend_damping'] ?? null;
                         ?>
                         <tr>
                             <td><?= h($offerName) ?></td>
@@ -258,6 +259,9 @@ $statusLabels = [
                                         <?= h($historyStart ?: 'Début auto') ?> → <?= h($historyEnd ?: 'Fin auto') ?>
                                     <?php else: ?>
                                         <span class="text-muted">Historique complet (défaut système / offre)</span>
+                                    <?php endif; ?>
+                                    <?php if (is_array($trendDamping) && !empty($trendDamping['alert']) && !empty($trendDamping['message'])): ?>
+                                        <div class="small text-warning"><?= h($trendDamping['message']) ?></div>
                                     <?php endif; ?>
                                 <?php else: ?>
                                     <span class="text-muted">—</span>

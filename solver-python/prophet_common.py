@@ -17,6 +17,19 @@ import mysql.connector
 import pandas as pd
 from prophet import Prophet
 
+from prophet_series import (
+    CPS_MAX,
+    CPS_MIN,
+    DOW_PROFILE_COL,
+    MONTH_PROFILE_COL,
+    N_CHANGEPOINTS,
+    PROFILE_PRIOR,
+    SPS_MAX,
+    SPS_MIN,
+    clamp_prior,
+    prepare_training_frame,
+)
+
 # Variables d'environnement (Docker) avec repli local WAMP.
 DB_CONFIG = {
     "host": os.environ.get("DB_HOST", "localhost"),
@@ -165,23 +178,6 @@ def load_historical_data(
     return df
 
 
-def _parse_daily_fourier_order(settings: Any) -> Optional[int]:
-    """
-    Si settings.daily_fourier_order est un entier > 0, on remplace le daily
-    natif Prophet par add_seasonality(period=1). Sinon None = comportement actuel.
-    """
-    raw = getattr(settings, "daily_fourier_order", None)
-    if raw is None:
-        return None
-    try:
-        order = int(raw)
-    except (TypeError, ValueError):
-        return None
-    if order <= 0:
-        return None
-    return order
-
-
 def train_prophet_model(
     df: pd.DataFrame,
     settings: Any,
@@ -194,19 +190,27 @@ def train_prophet_model(
     Args:
         df: DataFrame avec colonnes ds, y
         settings: objet duck-typed (ProphetSettings Pydantic ou SimpleNamespace).
-            Si `daily_fourier_order` > 0 : daily natif OFF + add_seasonality(period=1).
-            Absent / None : comportement actuel (`settings.daily_seasonality`).
+            Les priors et n_changepoints sont clampés ici, les fériés sont exclus.
         verbose: logs détaillés (désactiver pendant Optuna)
     """
-    df_to_use = df.copy()
+    # Grain journalier : la forme intra-jour est une ventilation, pas une saisonnalité Prophet.
+    settings.changepoint_prior_scale = clamp_prior(
+        getattr(settings, "changepoint_prior_scale", 0.05), CPS_MIN, CPS_MAX
+    )
+    settings.seasonality_prior_scale = clamp_prior(
+        getattr(settings, "seasonality_prior_scale", 10.0), SPS_MIN, SPS_MAX
+    )
+    settings.n_changepoints = N_CHANGEPOINTS
+    settings.use_french_holidays = False
+    settings.monthly_seasonality = False
+    settings.weekly_seasonality = False
 
-    daily_fourier_order = _parse_daily_fourier_order(settings)
-    use_custom_daily = daily_fourier_order is not None
+    df_to_use, profiles = prepare_training_frame(df)
 
     if verbose:
-        print(f"[Prophet] Entraînement: {len(df_to_use)} points de 15min")
+        print(f"[Prophet] Entraînement: {len(df_to_use)} jours ouvrés (hors fériés, y>0)")
         print(
-            f"[Prophet] Stats: min={df_to_use['y'].min()}, max={df_to_use['y'].max()}, "
+            f"[Prophet] Stats journalières: min={df_to_use['y'].min()}, max={df_to_use['y'].max()}, "
             f"moyenne={df_to_use['y'].mean():.2f}"
         )
         print(
@@ -218,12 +222,18 @@ def train_prophet_model(
             f"prior_scale={settings.changepoint_prior_scale}"
         )
         print(f"[Prophet] Seasonality prior scale: {settings.seasonality_prior_scale}")
+        if profiles["use_dow"] or profiles["use_month"]:
+            print(
+                "[Prophet] Profils appris: "
+                f"semaine={'oui' if profiles['use_dow'] else 'non'}, "
+                f"mois={'oui' if profiles['use_month'] else 'non'}"
+            )
 
     model = Prophet(
         seasonality_mode=settings.seasonality_mode,
         yearly_seasonality=settings.yearly_seasonality,
-        weekly_seasonality=settings.weekly_seasonality,
-        daily_seasonality=False if use_custom_daily else settings.daily_seasonality,
+        weekly_seasonality=False,
+        daily_seasonality=False,
         changepoint_prior_scale=settings.changepoint_prior_scale,
         seasonality_prior_scale=settings.seasonality_prior_scale,
         growth=settings.growth,
@@ -235,36 +245,24 @@ def train_prophet_model(
     logging.getLogger("prophet").setLevel(logging.WARNING)
     logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
 
-    if settings.use_french_holidays:
-        model.add_country_holidays(country_name="FR")
-        if verbose:
-            print("[Prophet] Jours fériés français ajoutés")
-
-    if use_custom_daily:
-        model.add_seasonality(
-            name="daily",
-            period=1,
-            fourier_order=daily_fourier_order,
-            prior_scale=settings.seasonality_prior_scale,
+    if profiles["use_dow"]:
+        model.add_regressor(
+            DOW_PROFILE_COL,
+            mode="multiplicative",
+            prior_scale=PROFILE_PRIOR,
+            standardize=True,
         )
-        if verbose:
-            print(
-                f"[Prophet] Saisonnalité journalière custom "
-                f"(period=1, fourier_order={daily_fourier_order})"
-            )
-
-    if settings.monthly_seasonality:
-        model.add_seasonality(
-            name="monthly",
-            period=30.5,
-            fourier_order=settings.monthly_fourier_order,
-            prior_scale=settings.seasonality_prior_scale,
+    if profiles["use_month"]:
+        model.add_regressor(
+            MONTH_PROFILE_COL,
+            mode="multiplicative",
+            prior_scale=PROFILE_PRIOR,
+            standardize=True,
         )
-        if verbose:
-            print(
-                f"[Prophet] Saisonnalité mensuelle ajoutée "
-                f"(period=30.5, fourier_order={settings.monthly_fourier_order})"
-            )
+    model.offer_profiles = profiles
+
+    if verbose:
+        print("[Prophet] Fériés retirés de l'entraînement (la sortie WFM les force à 0)")
 
     old_stderr = sys.stderr
     sys.stderr = open(os.devnull, "w")

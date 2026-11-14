@@ -8,12 +8,22 @@ from __future__ import annotations
 import json
 from datetime import datetime, time as dt_time
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import optuna
 import pandas as pd
 
 from prophet_common import load_historical_data, train_prophet_model
+from prophet_series import (
+    CPS_MAX,
+    CPS_MIN,
+    DEFAULT_CUTOFF_LAGS_DAYS,
+    SPS_MAX,
+    SPS_MIN,
+    aggregate_daily,
+    drop_closed_days,
+    predict_frame,
+)
 
 # Optuna est bruyant par défaut
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -21,18 +31,19 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 DEFAULT_OPTUNA_SETTINGS: Dict[str, Any] = {
     "cron_enabled": False,
     "cron_period_days": 7,
-    "test_horizon_days": 14,
-    "n_cutoffs": 3,
-    "n_trials": 50,
+    "test_horizon_days": 90,
+    "n_cutoffs": 4,
+    "cutoff_lags_days": list(DEFAULT_CUTOFF_LAGS_DAYS),
+    "n_trials": 30,
     "min_history_days": 90,
     "auto_apply": False,
-    "auto_apply_min_mae_improvement_pct": 5,
-    "changepoint_prior_scale_min": 0.001,
-    "changepoint_prior_scale_max": 0.5,
-    "seasonality_prior_scale_min": 0.01,
-    "seasonality_prior_scale_max": 100.0,
-    "n_changepoints_min": 10,
-    "n_changepoints_max": 50,
+    "auto_apply_min_mae_improvement_pct": 3,
+    "changepoint_prior_scale_min": CPS_MIN,
+    "changepoint_prior_scale_max": CPS_MAX,
+    "seasonality_prior_scale_min": SPS_MIN,
+    "seasonality_prior_scale_max": SPS_MAX,
+    "n_changepoints_min": 25,
+    "n_changepoints_max": 25,
     "monthly_fourier_order_min": 3,
     "monthly_fourier_order_max": 10,
 }
@@ -44,7 +55,9 @@ FIXED_PROPHET_FLAGS: Dict[str, Any] = {
     "daily_seasonality": True,
     "growth": "linear",
     "changepoint_range": 0.8,
-    "use_french_holidays": True,
+    "use_french_holidays": False,
+    "n_changepoints": 25,
+    "monthly_seasonality": False,
 }
 
 # Saisonnalités adaptées automatiquement selon la longueur d'historique utile
@@ -54,8 +67,6 @@ MONTHLY_MIN_HISTORY_DAYS = 90
 TUNABLE_KEYS = (
     "changepoint_prior_scale",
     "seasonality_prior_scale",
-    "n_changepoints",
-    "monthly_fourier_order",
 )
 
 
@@ -79,9 +90,35 @@ def merge_optuna_settings(raw: Optional[dict]) -> Dict[str, Any]:
     merged = dict(DEFAULT_OPTUNA_SETTINGS)
     if isinstance(raw, dict):
         merged.update({k: v for k, v in raw.items() if v is not None})
-    # V1 : n_cutoffs toujours 3
-    merged["n_cutoffs"] = 3
+    lags = _normalize_cutoff_lags(merged.get("cutoff_lags_days"))
+    merged["cutoff_lags_days"] = lags
+    merged["n_cutoffs"] = len(lags)
+    merged["changepoint_prior_scale_min"] = max(CPS_MIN, float(merged["changepoint_prior_scale_min"]))
+    merged["changepoint_prior_scale_max"] = min(CPS_MAX, float(merged["changepoint_prior_scale_max"]))
+    if merged["changepoint_prior_scale_min"] > merged["changepoint_prior_scale_max"]:
+        merged["changepoint_prior_scale_min"] = CPS_MIN
+        merged["changepoint_prior_scale_max"] = CPS_MAX
+    merged["seasonality_prior_scale_min"] = max(SPS_MIN, float(merged["seasonality_prior_scale_min"]))
+    merged["seasonality_prior_scale_max"] = min(SPS_MAX, float(merged["seasonality_prior_scale_max"]))
+    if merged["seasonality_prior_scale_min"] > merged["seasonality_prior_scale_max"]:
+        merged["seasonality_prior_scale_min"] = SPS_MIN
+        merged["seasonality_prior_scale_max"] = SPS_MAX
     return merged
+
+
+def _normalize_cutoff_lags(raw: Any) -> List[int]:
+    if not isinstance(raw, (list, tuple)) or not raw:
+        return list(DEFAULT_CUTOFF_LAGS_DAYS)
+    lags: List[int] = []
+    for value in raw:
+        try:
+            lag = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 7 <= lag <= 3650:
+            lags.append(lag)
+    lags = sorted(set(lags))
+    return lags or list(DEFAULT_CUTOFF_LAGS_DAYS)
 
 
 def history_span_days(df: pd.DataFrame) -> int:
@@ -93,13 +130,13 @@ def history_span_days(df: pd.DataFrame) -> int:
 
 def seasonality_flags_for_history(history_span_days: int) -> Dict[str, bool]:
     """
-    Active yearly / monthly seulement si l'historique est assez long.
-    Weekly / daily restent toujours ON (via FIXED_PROPHET_FLAGS).
+    Active yearly seulement si l'historique est assez long.
+    Le Fourier mensuel (30,5 j) est retiré : le mois est un profil appris sur l'offre.
     """
     span = int(history_span_days or 0)
     return {
         "yearly_seasonality": span >= YEARLY_MIN_HISTORY_DAYS,
-        "monthly_seasonality": span >= MONTHLY_MIN_HISTORY_DAYS,
+        "monthly_seasonality": False,
     }
 
 
@@ -116,23 +153,21 @@ def describe_seasonality_adaptation(history_span_days: int) -> Dict[str, Any]:
         notes.append(
             f"saisonnalité annuelle activée (historique {span} j ≥ {YEARLY_MIN_HISTORY_DAYS} j)"
         )
-    if not flags["monthly_seasonality"]:
-        notes.append(
-            f"saisonnalité mensuelle désactivée (historique {span} j < {MONTHLY_MIN_HISTORY_DAYS} j)"
-        )
-    else:
-        notes.append(
-            f"saisonnalité mensuelle activée (historique {span} j ≥ {MONTHLY_MIN_HISTORY_DAYS} j)"
-        )
-    notes.append("saisonnalités hebdomadaire et journalière toujours activées")
+    notes.append(
+        "saisonnalité mensuelle Fourier retirée (profil du mois appris sur l'offre)"
+    )
+    notes.append(
+        "semaine apprise sur les jours ouvrés ; pas de Fourier 7 jours ; "
+        "la forme 15 min est une ventilation"
+    )
     return {
         "history_span_days": span,
         "yearly_min_days": YEARLY_MIN_HISTORY_DAYS,
         "monthly_min_days": MONTHLY_MIN_HISTORY_DAYS,
         "yearly_seasonality": flags["yearly_seasonality"],
         "monthly_seasonality": flags["monthly_seasonality"],
-        "weekly_seasonality": True,
-        "daily_seasonality": True,
+        "weekly_seasonality": False,
+        "daily_seasonality": False,
         "notes": notes,
     }
 
@@ -192,22 +227,27 @@ def build_cutoffs(
     df: pd.DataFrame,
     horizon_days: int,
     n_cutoffs: int = 3,
+    lags_days: Optional[Sequence[int]] = None,
 ) -> List[pd.Timestamp]:
     """
-    Cutoffs walk-forward espacés de horizon_days depuis la fin d'historique.
-    Pour i=1..n : cutoff_i = end - i*horizon + 1 jour
-    Train: ds < cutoff ; Test: cutoff <= ds < cutoff + horizon
+    Cutoffs walk-forward.
+    Avec lags_days : cutoff = fin - lag + 1 jour, test = [cutoff, cutoff+horizon).
+    Sans lags : ancien espacement i * horizon (i=1..n).
     """
     if df.empty:
         raise ValueError("DataFrame historique vide")
 
     end = pd.Timestamp(df["ds"].max()).normalize()
     cutoffs: List[pd.Timestamp] = []
-    for i in range(1, n_cutoffs + 1):
-        cutoff = end - pd.Timedelta(days=horizon_days * i) + pd.Timedelta(days=1)
+    if lags_days:
+        offsets = [int(lag) for lag in lags_days]
+    else:
+        offsets = [int(horizon_days) * i for i in range(1, n_cutoffs + 1)]
+    for lag in offsets:
+        cutoff = end - pd.Timedelta(days=lag) + pd.Timedelta(days=1)
         cutoffs.append(cutoff.normalize())
 
-    return sorted(cutoffs)
+    return sorted(set(cutoffs))
 
 
 def wape_percent(abs_err_sum: float, y_sum: float) -> float:
@@ -247,20 +287,27 @@ def _window_scores(
     train = df[df["ds"] < cutoff_ts][["ds", "y"]].copy()
     test = df[(df["ds"] >= cutoff_ts) & (df["ds"] < horizon_end)][["ds", "y"]].copy()
 
-    if len(train) < 96:  # < 1 jour de slots 15min
+    if len(train) < 96:  # < 1 jour de slots 15min, ou trop peu de jours
         return None
     if len(test) == 0:
         return None
 
+    scored = drop_closed_days(aggregate_daily(test))
+    if scored.empty:
+        return None
+
     model = None
     try:
-        model, _ = train_prophet_model(
-            train,
-            params_to_settings(params),
-            verbose=False,
-        )
-        forecast = model.predict(test[["ds"]].copy())
-        comparison = pd.merge(test, forecast[["ds", "yhat"]], on="ds").dropna()
+        try:
+            model, _ = train_prophet_model(
+                train,
+                params_to_settings(params),
+                verbose=False,
+            )
+        except ValueError:
+            return None
+        forecast = model.predict(predict_frame(model, scored["ds"]))
+        comparison = pd.merge(scored, forecast[["ds", "yhat"]], on="ds").dropna()
         if comparison.empty:
             return None
 
@@ -298,15 +345,16 @@ def evaluate_params_walk_forward(
     horizon_days: int,
     n_cutoffs: int = 3,
     *,
+    lags_days: Optional[Sequence[int]] = None,
     open_start: Optional[dt_time] = None,
     open_end: Optional[dt_time] = None,
 ) -> Dict[str, float]:
     """
-    Évalue des params sur N cutoffs.
+    Évalue des params sur les cutoffs (lags explicites, sinon espacement historique).
     Objectif Optuna = WAPE global (somme des |e| / somme des y, en %).
-    MAE / MAPE restent en diagnostic.
+    Le score est au grain journalier.
     """
-    cutoffs = build_cutoffs(df, horizon_days, n_cutoffs)
+    cutoffs = build_cutoffs(df, horizon_days, n_cutoffs, lags_days=lags_days)
     maes: List[float] = []
     mapes: List[float] = []
     abs_err_total = 0.0
@@ -387,6 +435,7 @@ def clamp_tunable_for_search_space(
 ) -> Optional[Dict[str, Any]]:
     """
     Tunables officiels bornés à l'espace Optuna, pour enqueue_trial.
+    Seulement cps et sps : n_changepoints et le Fourier mensuel ne sont plus cherchés.
     None si une clé manque ou n'est pas numérique.
     """
     try:
@@ -394,23 +443,15 @@ def clamp_tunable_for_search_space(
         cps_max = float(optuna_cfg["changepoint_prior_scale_max"])
         sps_min = float(optuna_cfg["seasonality_prior_scale_min"])
         sps_max = float(optuna_cfg["seasonality_prior_scale_max"])
-        ncp_min = int(optuna_cfg["n_changepoints_min"])
-        ncp_max = int(optuna_cfg["n_changepoints_max"])
-        mfo_min = int(optuna_cfg["monthly_fourier_order_min"])
-        mfo_max = int(optuna_cfg["monthly_fourier_order_max"])
         cps = float(params["changepoint_prior_scale"])
         sps = float(params["seasonality_prior_scale"])
-        ncp = int(params["n_changepoints"])
-        mfo = int(params["monthly_fourier_order"])
     except (KeyError, TypeError, ValueError):
         return None
-    if cps_min > cps_max or sps_min > sps_max or ncp_min > ncp_max or mfo_min > mfo_max:
+    if cps_min > cps_max or sps_min > sps_max:
         return None
     return {
         "changepoint_prior_scale": min(max(cps, cps_min), cps_max),
         "seasonality_prior_scale": min(max(sps, sps_min), sps_max),
-        "n_changepoints": min(max(ncp, ncp_min), ncp_max),
-        "monthly_fourier_order": min(max(mfo, mfo_min), mfo_max),
     }
 
 
@@ -431,7 +472,8 @@ def run_optuna_search(
     au total (pas N+1).
     """
     horizon = int(optuna_cfg["test_horizon_days"])
-    n_cutoffs = int(optuna_cfg.get("n_cutoffs", 3))
+    lags = _normalize_cutoff_lags(optuna_cfg.get("cutoff_lags_days"))
+    n_cutoffs = len(lags)
     n_trials = int(optuna_cfg["n_trials"])
     span_days = history_span_days(df)
 
@@ -439,10 +481,6 @@ def run_optuna_search(
     cps_max = float(optuna_cfg["changepoint_prior_scale_max"])
     sps_min = float(optuna_cfg["seasonality_prior_scale_min"])
     sps_max = float(optuna_cfg["seasonality_prior_scale_max"])
-    ncp_min = int(optuna_cfg["n_changepoints_min"])
-    ncp_max = int(optuna_cfg["n_changepoints_max"])
-    mfo_min = int(optuna_cfg["monthly_fourier_order_min"])
-    mfo_max = int(optuna_cfg["monthly_fourier_order_max"])
 
     def objective(trial: optuna.Trial) -> float:
         if cancel_check is not None and cancel_check():
@@ -455,15 +493,11 @@ def run_optuna_search(
             "seasonality_prior_scale": trial.suggest_float(
                 "seasonality_prior_scale", sps_min, sps_max, log=True
             ),
-            "n_changepoints": trial.suggest_int("n_changepoints", ncp_min, ncp_max),
-            "monthly_fourier_order": trial.suggest_int(
-                "monthly_fourier_order", mfo_min, mfo_max
-            ),
         }
         params = build_prophet_params_from_offer(
             offer_profile, tunable, history_span_days=span_days
         )
-        scores = evaluate_params_walk_forward(df, params, horizon, n_cutoffs)
+        scores = evaluate_params_walk_forward(df, params, horizon, n_cutoffs, lags_days=lags)
         trial.set_user_attr("wape_volume", scores["wape_volume"])
         trial.set_user_attr("mape_volume", scores["mape_volume"])
         trial.set_user_attr("mae_volume", scores["mae_volume"])
