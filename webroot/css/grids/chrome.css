@@ -107,6 +107,11 @@
     padding: 0.35rem 0;
 }
 
+.grids-app a.grids-display-link {
+    text-decoration: none;
+    border-bottom: 1px solid var(--grids-border);
+}
+
 .grids-app .grids-display-item {
     display: flex;
     align-items: center;

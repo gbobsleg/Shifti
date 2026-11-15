@@ -14,6 +14,8 @@ $budgetResult = $budgetResult ?? [
     'code' => 'ok',
     'working_days' => 1,
     'view' => GridQueryBudget::VIEW_GANTT,
+    'auto_view' => GridQueryBudget::VIEW_GANTT,
+    'gantt_allowed' => true,
 ];
 $zoom = $zoom ?? '15';
 $gridView = $gridView ?? GridQueryBudget::VIEW_GANTT;
@@ -129,6 +131,9 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
         'zoom' => $zoom,
         'sortBy' => $sortBy,
         'canAlertsAdd' => $canAlertsAdd,
+        'gridView' => $gridView,
+        'ganttAllowed' => !empty($budgetResult['gantt_allowed']),
+        'budgetAllowed' => !empty($budgetResult['allowed']),
     ]) ?>
     <?php if ($totalAlerts > 0): ?>
     <div class="grids-alerts">

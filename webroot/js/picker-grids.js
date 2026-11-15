@@ -23,6 +23,10 @@ $(function() {
         'Le mois prochain': [moment().add(1, 'month').startOf('month'), moment().add(1, 'month').endOf('month')]
     };
 
+    var spanDays = (window.gridsBudget && window.gridsBudget.max_span_days != null)
+        ? window.gridsBudget.max_span_days
+        : 34;
+
     // Cibler UNIQUEMENT #date-start
     $('#date-start').daterangepicker({
         "startDate": moment($('#date-start').val(), localeOptions.format).isValid() ? moment($('#date-start').val(), localeOptions.format) : moment(),
@@ -37,7 +41,7 @@ $(function() {
         "showISOWeekNumbers": true,
         "showCustomRangeLabel": true,
         "alwaysShowCalendars": true,
-        "maxSpan": { months: (window.gridsBudget && window.gridsBudget.max_calendar_months) ? window.gridsBudget.max_calendar_months : 1 },
+        "maxSpan": { days: spanDays },
         "ranges": predefinedRanges,
         "locale": localeOptions,
         "drops": "down"

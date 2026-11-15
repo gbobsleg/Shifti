@@ -22,6 +22,7 @@ class GridQueryBudget
     private int $monthViewAfter;
     private int $maxWorkingDays;
     private int $maxCalendarMonths;
+    private int $maxWeeks;
 
     /**
      * @param array<string,mixed>|null $config
@@ -34,6 +35,15 @@ class GridQueryBudget
         $this->monthViewAfter = (int)($cfg['month_view_after'] ?? 10);
         $this->maxWorkingDays = (int)($cfg['max_working_days'] ?? 23);
         $this->maxCalendarMonths = (int)($cfg['max_calendar_months'] ?? 1);
+        $this->maxWeeks = max(1, (int)($cfg['max_weeks'] ?? 5));
+    }
+
+    /**
+     * Du lundi au dimanche de la 5e semaine : 34 jours d'écart.
+     */
+    public function maxSpanDays(): int
+    {
+        return $this->maxWeeks * 7 - 1;
     }
 
     /**
@@ -47,6 +57,8 @@ class GridQueryBudget
             'month_view_after' => $this->monthViewAfter,
             'max_working_days' => $this->maxWorkingDays,
             'max_calendar_months' => $this->maxCalendarMonths,
+            'max_weeks' => $this->maxWeeks,
+            'max_span_days' => $this->maxSpanDays(),
         ];
     }
 
@@ -124,6 +136,8 @@ class GridQueryBudget
      * @return array{
      *   allowed: bool,
      *   view: string,
+     *   auto_view: string,
+     *   gantt_allowed: bool,
      *   working_days: int,
      *   code: string,
      *   message: string
@@ -135,7 +149,8 @@ class GridQueryBudget
         int $siteId,
         int $userId,
         array $offerIds = [],
-        ?array $frameDays = null
+        ?array $frameDays = null,
+        ?string $requestedView = null
     ): array {
         $workingDays = $this->countWorkingDays($begin, $end, $frameDays);
         $offerIds = array_values(array_filter(array_map('intval', $offerIds)));
@@ -144,16 +159,13 @@ class GridQueryBudget
 
         $beginDay = FrozenTime::parse($begin->format('Y-m-d'))->startOfDay();
         $endDay = FrozenTime::parse($end->format('Y-m-d'))->startOfDay();
-        $maxEnd = $beginDay->addMonths($this->maxCalendarMonths);
+        $spanDays = $endDay < $beginDay
+            ? 0
+            : (int)round(($endDay->getTimestamp() - $beginDay->getTimestamp()) / 86400);
 
-        if ($endDay > $maxEnd) {
+        if ($spanDays > $this->maxSpanDays()) {
             return $this->deny($workingDays, 'span', 'La période ne peut pas dépasser '
-                . $this->maxCalendarMonths . ' mois. Choisis une plage plus courte.');
-        }
-
-        if ($workingDays > $this->maxWorkingDays) {
-            return $this->deny($workingDays, 'working_days', 'Trop de jours ouvrés ('
-                . $workingDays . ', max ' . $this->maxWorkingDays . '). Restreins les dates.');
+                . $this->maxWeeks . ' semaines. Choisis une plage plus courte.');
         }
 
         if ($workingDays > $this->needSiteOrUserAfter && !$hasDimension) {
@@ -165,15 +177,20 @@ class GridQueryBudget
             );
         }
 
+        $ganttAllowed = $endDay <= $beginDay->addMonths($this->maxCalendarMonths)
+            && $workingDays <= $this->maxWorkingDays;
         $offersOnly = $hasOffers && $siteId <= 0 && $userId <= 0;
-        $view = ($userId <= 0 && $workingDays > $this->monthViewAfter)
-            || ($offersOnly && $workingDays > $this->needSiteOrUserAfter)
-            ? self::VIEW_MONTH
-            : self::VIEW_GANTT;
+        $autoMonth = ($userId <= 0 && $workingDays > $this->monthViewAfter)
+            || ($offersOnly && $workingDays > $this->needSiteOrUserAfter);
+        $autoView = $autoMonth ? self::VIEW_MONTH : self::VIEW_GANTT;
+        $forceMonth = $requestedView === self::VIEW_MONTH;
+        $view = (!$ganttAllowed || $autoMonth || $forceMonth) ? self::VIEW_MONTH : self::VIEW_GANTT;
 
         return [
             'allowed' => true,
             'view' => $view,
+            'auto_view' => $autoView,
+            'gantt_allowed' => $ganttAllowed,
             'working_days' => $workingDays,
             'code' => 'ok',
             'message' => '',
@@ -181,13 +198,23 @@ class GridQueryBudget
     }
 
     /**
-     * @return array{allowed: bool, view: string, working_days: int, code: string, message: string}
+     * @return array{
+     *   allowed: bool,
+     *   view: string,
+     *   auto_view: string,
+     *   gantt_allowed: bool,
+     *   working_days: int,
+     *   code: string,
+     *   message: string
+     * }
      */
     private function deny(int $workingDays, string $code, string $message): array
     {
         return [
             'allowed' => false,
             'view' => self::VIEW_GANTT,
+            'auto_view' => self::VIEW_GANTT,
+            'gantt_allowed' => false,
             'working_days' => $workingDays,
             'code' => $code,
             'message' => $message,

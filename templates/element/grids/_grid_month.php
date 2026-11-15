@@ -118,6 +118,7 @@ $isWeekStart = function (int $index) use ($days): bool {
                 $offerCount = count($dayOffers);
                 $tooltip = implode("\n", array_column($dayOffers, 'name'));
                 $next = $q;
+                unset($next['view']);
                 $next['date_start'] = $day->format('d/m/Y');
                 $next['date_end'] = $day->format('d/m/Y');
                 $dayLink = ['action' => $action, '?' => $next];

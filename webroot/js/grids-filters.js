@@ -57,10 +57,12 @@
         if (!start || !end) {
             return { ok: true, message: '' };
         }
-        const months = cfg.max_calendar_months || 1;
-        const maxEnd = new Date(start.getFullYear(), start.getMonth() + months, start.getDate());
+        const spanDays = cfg.max_span_days == null ? 34 : Number(cfg.max_span_days);
+        const weeks = cfg.max_weeks || 5;
+        const maxEnd = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        maxEnd.setDate(maxEnd.getDate() + spanDays);
         if (end > maxEnd) {
-            return { ok: false, message: 'La période ne peut pas dépasser ' + months + ' mois.' };
+            return { ok: false, message: 'La période ne peut pas dépasser ' + weeks + ' semaines.' };
         }
         const working = countWorkingDays(start, end);
         const needAfter = cfg.need_site_or_user_after || 5;

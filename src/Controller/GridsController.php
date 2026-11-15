@@ -338,7 +338,16 @@ class GridsController extends AppController
                 $params['site_id'] = $siteId;
             }
         }
-        $budgetResult = $budget->evaluate($day_ranges['begin'], $day_ranges['end'], $siteId, $userId, $offerIds, $frameDays);
+        $requestedView = (string)$this->request->getQuery('view');
+        $budgetResult = $budget->evaluate(
+            $day_ranges['begin'],
+            $day_ranges['end'],
+            $siteId,
+            $userId,
+            $offerIds,
+            $frameDays,
+            $requestedView
+        );
         $budgetThresholds = $budget->thresholds();
         $zoom = (string)$this->request->getQuery('zoom', '15');
         if ($zoom !== 'hour') {

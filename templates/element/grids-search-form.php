@@ -6,9 +6,18 @@
  * @var array $sites
  * @var array $day_ranges
  * @var array|null $searchUrl
+ * @var string $gridView
+ * @var bool $ganttAllowed
+ * @var bool $budgetAllowed
  */
+use App\Service\Planning\GridQueryBudget;
+
 $zoom = $zoom ?? '15';
 $sortBy = $sortBy ?? (string)$this->request->getQuery('sort_by', 'site_name');
+$gridView = $gridView ?? GridQueryBudget::VIEW_GANTT;
+$ganttAllowed = $ganttAllowed ?? false;
+$budgetAllowed = $budgetAllowed ?? false;
+$requestedMonth = (string)$this->request->getQuery('view') === GridQueryBudget::VIEW_MONTH;
 
 echo $this->Form->create(null, [
     'url' => $searchUrl ?? ['action' => 'index'],
@@ -24,6 +33,9 @@ if ($zoom === 'hour') {
 }
 if ($sortBy !== 'site_name') {
     echo $this->Form->hidden('sort_by', ['value' => $sortBy]);
+}
+if ($requestedMonth) {
+    echo $this->Form->hidden('view', ['value' => GridQueryBudget::VIEW_MONTH]);
 }
 
 $offerIdParam = $this->request->getQuery('offer_id');
@@ -129,6 +141,24 @@ if ($currentAction === 'draft') {
                 Affichage
             </button>
             <div class="dropdown-menu dropdown-menu-end grids-display-menu">
+                <?php
+                $viewQuery = $this->request->getQueryParams();
+                if ($budgetAllowed && $gridView === GridQueryBudget::VIEW_GANTT) {
+                    $viewQuery['view'] = GridQueryBudget::VIEW_MONTH;
+                    echo $this->Html->link(
+                        'Calendrier en pastilles',
+                        $zoomBase + ['?' => $viewQuery],
+                        ['class' => 'grids-display-item grids-display-link']
+                    );
+                } elseif ($budgetAllowed && $requestedMonth && $ganttAllowed) {
+                    unset($viewQuery['view']);
+                    echo $this->Html->link(
+                        'Grille horaire',
+                        $zoomBase + ['?' => $viewQuery],
+                        ['class' => 'grids-display-item grids-display-link']
+                    );
+                }
+                ?>
                 <label class="grids-display-item" for="grids-display-site">
                     <input type="checkbox" id="grids-display-site" checked>
                     <span>Colonne site</span>
