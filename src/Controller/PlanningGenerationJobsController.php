@@ -2126,7 +2126,8 @@ class PlanningGenerationJobsController extends AppController
         $closedByDate = $jobCalendar->closedFrameLabels($beginDay, $endDay, $jobSettings);
         $budget = new \App\Service\Planning\GridQueryBudget();
         $budgetThresholds = $budget->thresholds();
-        $budgetResult = $budget->evaluate($begin, $end, $siteId, $userId, $offerIds, $frameDays);
+        $requestedView = (string)($q['view'] ?? '');
+        $budgetResult = $budget->evaluate($begin, $end, $siteId, $userId, $offerIds, $frameDays, $requestedView);
         $zoom = (string)($q['zoom'] ?? '15');
         if ($zoom !== 'hour') {
             $zoom = '15';

@@ -76,7 +76,8 @@ return [
      * free_days : plage affichable sans filtre site/agent.
      * need_site_or_user_after : au-delà, site, agent ou au moins une offre.
      * month_view_after : au-delà, vue calendrier (sauf si un agent est choisi).
-     * max_working_days / max_calendar_months : plafond dur.
+     * max_working_days / max_calendar_months : plafond de la grille horaire.
+     * max_weeks : plafond d'affichage. Au-delà, refus. Entre les deux, pastilles.
      */
     'Grids' => [
         'budget' => [
@@ -85,6 +86,7 @@ return [
             'month_view_after' => 10,
             'max_working_days' => 23,
             'max_calendar_months' => 1,
+            'max_weeks' => 5,
         ],
     ],
 
