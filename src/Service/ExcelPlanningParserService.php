@@ -7,6 +7,8 @@ use Cake\ORM\Locator\LocatorAwareTrait;
 use SimpleXMLElement;
 use RuntimeException;
 use Cake\Log\Log;
+use App\Model\Entity\WfmSetting;
+use Cake\I18n\Date as CakeDate;
 use Cake\I18n\Time;
 
 /**
@@ -19,9 +21,16 @@ class ExcelPlanningParserService
 
     private const START_COL_INDEX = 4; // Colonne E
 
+    private function calendar(): OperatingCalendarService
+    {
+        return $this->calendar ??= new OperatingCalendarService();
+    }
+
     // --- PROPRIÉTÉS PAR DÉFAUT (Écrasées par WfmSettings) ---
     private array $mappingRules = [];
     private array $workedDays = [1, 2, 3, 4, 5];
+    private ?WfmSetting $wfmSettings = null;
+    private ?OperatingCalendarService $calendar = null;
     
     // Horaires par défaut
     private string $dayStartTime = '08:00:00'; // Début Journée
@@ -108,7 +117,12 @@ class ExcelPlanningParserService
             
             $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
             $dayOfWeek = (int)date('N', strtotime($dateStr));
-            if (!in_array($dayOfWeek, $this->workedDays)) continue;
+            if (!in_array($dayOfWeek, $this->workedDays, true)) {
+                continue;
+            }
+            if ($this->wfmSettings !== null && !$this->calendar()->isOpen(new CakeDate($dateStr), $this->wfmSettings)) {
+                continue;
+            }
 
             $colIndexAM = self::START_COL_INDEX + (($day - 1) * 2);
             $colIndexPM = $colIndexAM + 1;
@@ -313,6 +327,7 @@ class ExcelPlanningParserService
         try {
             $wfmTable = $this->fetchTable('WfmSettings');
             $settings = $wfmTable->find()->first();
+            $this->wfmSettings = $settings instanceof WfmSetting ? $settings : null;
             if ($settings) {
                 if (!empty($settings->worked_days_json)) {
                     $days = is_string($settings->worked_days_json) ? json_decode($settings->worked_days_json, true) : $settings->worked_days_json;

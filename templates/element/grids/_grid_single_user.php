@@ -31,9 +31,11 @@ $rangesProperty = $rangesProperty ?? 'ranges';
         <tr>
             <th scope="col" class="th_col2">Date</th>
             <?php 
-            // Utilise le premier jour ouvré pour l'en-tête des heures
+            $frameDays = array_map('intval', $frameDays ?? [1, 2, 3, 4, 5]);
+            $closedByDate = $closedByDate ?? [];
+            // Premier jour de la trame pour l'en-tête des heures (un férié reste affiché)
             $firstDay = clone $day_ranges['begin'];
-            while ($firstDay->isWeekend()) {
+            while (!in_array((int)$firstDay->format('N'), $frameDays, true)) {
                 $firstDay = $firstDay->addDays(1);
             }
             echo $this->Grids->writeThTime('hours', $firstDay); 
@@ -50,11 +52,12 @@ $rangesProperty = $rangesProperty ?? 'ranges';
     $currentDay = $day_ranges['begin'];
     
     for ($i = 0; $i <= $days; $i++):
-        // Exclusion des weekends
-        if ($currentDay->isWeekend()) {
+        if (!in_array((int)$currentDay->format('N'), $frameDays, true)) {
             $currentDay = $currentDay->addDays(1);
             continue;
         }
+        $rowYmdEarly = $currentDay->format('Y-m-d');
+        $closedLabel = $closedByDate[$rowYmdEarly] ?? null;
         
         // Vérifier si agent en télétravail ce jour
         $remoteWorkInfo = $this->Grids->isUserInRemoteWork($user, $currentDay);
@@ -73,13 +76,13 @@ $rangesProperty = $rangesProperty ?? 'ranges';
             }
         }
     ?>
-        <?php $rowYmd = $currentDay->format('Y-m-d'); ?>
-        <tr id="grid-day-<?= h($rowYmd) ?>" class="tr_quarter<?= $remoteWorkInfo['is_remote'] ? ' is-remote-row' : '' ?>" data_user="<?= $user->id ?>">
+        <?php $rowYmd = $rowYmdEarly; ?>
+        <tr id="grid-day-<?= h($rowYmd) ?>" class="tr_quarter<?= $remoteWorkInfo['is_remote'] ? ' is-remote-row' : '' ?><?= $closedLabel !== null ? ' grid-day-closed' : '' ?>" data_user="<?= $user->id ?>"<?php if ($closedLabel !== null): ?> data-closed-label="<?= h($closedLabel) ?>"<?php endif; ?>>
             <th scope="row" class="th_row <?= $bg ?>"<?= $remoteStyle ?>
                 data-bs-toggle="tooltip"
                 data-placement="right"
-                title="<?= h($user['site']['number']) ?> - <?= h($user->user_code) ?><?= $homework ?>">
-                <?= $icon ?><?= $currentDay->i18nFormat('EEEE dd/MM') ?>
+                title="<?= h($user['site']['number']) ?> - <?= h($user->user_code) ?><?= $homework ?><?= $closedLabel !== null ? ' — ' . h($closedLabel) : '' ?>">
+                <?= $icon ?><?= $currentDay->i18nFormat('EEEE dd/MM') ?><?php if ($closedLabel !== null): ?> <span class="grid-day-closed-label"><?= h($closedLabel) ?></span><?php endif; ?>
             </th>
             <?php echo $this->Grids->writeTimeSlots($user, $currentDay, (string)$rangesProperty); ?>
         </tr>

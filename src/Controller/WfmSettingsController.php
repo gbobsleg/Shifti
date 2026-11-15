@@ -295,7 +295,6 @@ class WfmSettingsController extends AppController
             'growth' => 'linear',
             'n_changepoints' => isset($data['n_changepoints']) ? (int)$data['n_changepoints'] : 25,
             'changepoint_range' => 0.8,
-            'use_french_holidays' => !empty($data['use_french_holidays']),
             'history_start_date' => $data['history_start_date'] ?? null,
             'history_end_date' => $data['history_end_date'] ?? null,
         ];
@@ -339,7 +338,6 @@ class WfmSettingsController extends AppController
             'growth' => 'linear',
             'n_changepoints' => 25,
             'changepoint_range' => 0.8,
-            'use_french_holidays' => true,
             'history_start_date' => null,
             'history_end_date' => null,
         ];

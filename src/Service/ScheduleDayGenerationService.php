@@ -40,6 +40,23 @@ class ScheduleDayGenerationService
 
         $job = $Jobs->get($jobId);
         $settings = $WfmSettings->get((int)$job->wfm_setting_id, ['contain' => ['PauseOffers', 'LunchOffers']]);
+        $calendar = new OperatingCalendarService();
+        if (!$calendar->isOpen($date, $settings)) {
+            $Jobs->updateAll(
+                ['current_step' => null, 'modified' => (new \DateTimeImmutable())->format('Y-m-d H:i:s')],
+                ['id' => $jobId],
+            );
+
+            return [
+                'status' => 'ok',
+                'report_json' => json_encode([
+                    'date' => $date->format('Y-m-d'),
+                    'skipped' => 'closed_day',
+                    'label' => $calendar->label($date),
+                ], JSON_UNESCAPED_UNICODE),
+                'error_message' => null,
+            ];
+        }
 
         // Timeouts solveurs dynamiques (depuis wfm_settings.solver_settings_json)
         $solverSettings = $settings->solver_settings_json;
@@ -524,17 +541,23 @@ class ScheduleDayGenerationService
 
         $usersForRotation = $usersForRotationQuery->all();
 
-        // Optimisation : On ne lance le solveur de rotation qu'une seule fois par semaine
-        // (Le Lundi, ou le tout premier jour du job si on commence en milieu de semaine)
-        $isFirstJobDay = $job->start_date->equals($date);
-        $shouldRunRotationSolver = $date->equals($weekStart) || $isFirstJobDay;
+        // Une fois par semaine, le premier jour ouvert (un lundi férié décale au mardi).
+        $jobStart = $job->start_date instanceof FrozenDate
+            ? $job->start_date
+            : new FrozenDate($job->start_date->format('Y-m-d'));
+        $jobEnd = $job->end_date instanceof FrozenDate
+            ? $job->end_date
+            : new FrozenDate($job->end_date->format('Y-m-d'));
+        $openDayIndices = $calendar->openDayIndices($weekStart, $settings, $jobStart, $jobEnd);
+        $dayIndex = (int)$date->format('N') - 1;
+        $shouldRunRotationSolver = $openDayIndices !== [] && $dayIndex === $openDayIndices[0];
 
         if ($debugSolvers) {
             \Cake\Log\Log::debug(sprintf(
-                '[ROTATION] conditions: date=%s weekStart=%s isFirstJobDay=%s shouldRun=%s ignoreRotation=%s nbUsers=%d',
+                '[ROTATION] conditions: date=%s weekStart=%s openDays=%s shouldRun=%s ignoreRotation=%s nbUsers=%d',
                 $date->format('Y-m-d'),
                 $weekStart->format('Y-m-d'),
-                $isFirstJobDay ? '1' : '0',
+                implode(',', $openDayIndices),
                 $shouldRunRotationSolver ? '1' : '0',
                 $ignoreRotation ? '1' : '0',
                 count($usersForRotation)
@@ -600,6 +623,9 @@ class ScheduleDayGenerationService
                 $debugSolvers,
                 fn($s) => $this->truncateForLog((string)$s),
                 fn($t) => $this->timeToMinutes((string)$t),
+                $jobStart,
+                $jobEnd,
+                $settings,
             );
             $rotationLines = $builtRotation['lines'];
             $rotationExclusiveDay = (bool)$builtRotation['exclusive_day'];
@@ -648,19 +674,19 @@ class ScheduleDayGenerationService
                     }
                 }
 
+                $scopeStart = $jobStart > $weekStart ? $jobStart : $weekStart;
+                $scopeEnd = $jobEnd < $weekEnd ? $jobEnd : $weekEnd;
+                $rotationCalculator->setWfmSettings($settings);
                 $targetSlots = $rotationCalculator->calculateTargetForUser(
                     $user->id,
                     $user->users_rotation_rule->rotation_rule_id,
-                    $weekStart, 
-                    $weekEnd,
+                    $scopeStart,
+                    $scopeEnd,
                     $activeContract ? $activeContract->start_date : null,
-                    $activeContract ? $activeContract->end_date : null
+                    $activeContract ? $activeContract->end_date : null,
+                    null,
+                    $settings
                 );
-
-                // Application de l'override manuel s'il existe
-                if ($user->users_rotation_rule->target_count_override !== null) {
-                    $targetSlots = $user->users_rotation_rule->target_count_override;
-                }
 
                 if ($debugSolvers) {
                     \Cake\Log\Log::debug(sprintf(
@@ -846,7 +872,15 @@ class ScheduleDayGenerationService
                     'date' => $weekStart->format('Y-m-d'), // Toujours caler la grille sur le Lundi
                     'agents' => $rotationAgents,
                     'slot_minutes' => 15,
-                    'need_curve' => $needCurveById, // Courbe de besoin indexée par ID d'offre
+                    'need_curve' => $needCurveById,
+                    'need_curve_by_day' => $this->needCurvesByOpenDay(
+                        $openDayIndices,
+                        $weekStart,
+                        $settings,
+                        $scenarioId,
+                        $offerMapNameId
+                    ),
+                    'open_day_indices' => $openDayIndices,
                     'timeout_seconds' => $solverTimeoutPass1_5,
                     'exclusive_day' => $rotationExclusiveDay ?? true,
                 ];
@@ -963,7 +997,13 @@ class ScheduleDayGenerationService
                             foreach ($result['blocks'] as $block) {
                                 // CORRECTION : Calcul de la date réelle basée sur le Lundi + day_index
                                 $targetDay = $weekStart->addDays((int)($block['day_index'] ?? 0));
-                                
+                                if ($targetDay < $jobStart || $targetDay > $jobEnd) {
+                                    continue;
+                                }
+                                if (!$calendar->isOpen($targetDay, $settings)) {
+                                    continue;
+                                }
+
                                 // Construction des timestamps complets (Date + Heure)
                                 $blockStart = new FrozenTime($targetDay->format('Y-m-d') . ' ' . $block['start']);
                                 $blockEnd = new FrozenTime($targetDay->format('Y-m-d') . ' ' . $block['end']);
@@ -1035,7 +1075,13 @@ class ScheduleDayGenerationService
             if ($ignoreRotation) {
                 \Cake\Log\Log::info("[ROTATION] ✅ Passe 1.5 Rotation ignorée (option ignore_rotation activée).");
             } else {
-                \Cake\Log\Log::debug("[ROTATION] Solveur de rotation non lancé (shouldRunRotationSolver = false, isFirstJobDay: " . ($isFirstJobDay ? 'true' : 'false') . ", date equals weekStart: " . ($date->equals($weekStart) ? 'true' : 'false') . ")");
+                \Cake\Log\Log::debug(
+                    '[ROTATION] Solveur de rotation non lancé (jour index '
+                    . $dayIndex
+                    . ', premier ouvert '
+                    . ($openDayIndices[0] ?? 'aucun')
+                    . ').'
+                );
             }
         }
 
@@ -2117,6 +2163,37 @@ class ScheduleDayGenerationService
         }
 
         return $normalized;
+    }
+
+    /**
+     * Une courbe de besoin par jour ouvert. day_index ISO → offer_id → liste de créneaux.
+     *
+     * @param list<int> $openDayIndices
+     * @param array<string, int> $offerMapNameId
+     */
+    private function needCurvesByOpenDay(
+        array $openDayIndices,
+        FrozenDate $weekStart,
+        $settings,
+        int $scenarioId,
+        array $offerMapNameId
+    ): \stdClass {
+        $builder = new ScheduleProblemBuilderService();
+        $byDay = new \stdClass();
+        foreach ($openDayIndices as $index) {
+            $day = $weekStart->addDays((int)$index);
+            $curve = $builder->needCurveForDate(new FrozenTime($day->format('Y-m-d')), $settings, $scenarioId);
+            $byOffer = new \stdClass();
+            foreach ($curve as $name => $slots) {
+                if (!isset($offerMapNameId[$name]) || !is_array($slots)) {
+                    continue;
+                }
+                $byOffer->{(string)(int)$offerMapNameId[$name]} = array_values($slots);
+            }
+            $byDay->{(string)(int)$index} = $byOffer;
+        }
+
+        return $byDay;
     }
 }
 

@@ -49,6 +49,9 @@ class FixedActivitiesBuilderService
     {
         $dateToCalc = new FrozenTime($date . ' 00:00:00');
         $settings = $this->resolveSettings($options);
+        if (!(new OperatingCalendarService())->isOpen($dateToCalc, $settings)) {
+            return $this->emptyPayload($settings);
+        }
         $workdayStart = $this->normalizeTime((string)($settings->day_start_time ?? null), '09:00:00');
         $workdayEnd = $this->normalizeTime((string)($settings->day_end_time ?? null), '17:00:00');
         $scenarioId = (int)($options['scenario_id'] ?? 0);
@@ -266,6 +269,35 @@ class FixedActivitiesBuilderService
             'enable_am_pm_breaks' => ($settings->enable_am_pm_breaks === null) ? true : (bool)$settings->enable_am_pm_breaks,
             'lunch_activity_name' => $lunchName,
             'break_activity_name' => $pauseName,
+            'enforce_remote_work_incompatibilities' => !empty($settings->enforce_remote_work_incompatibilities),
+            'relative_gap_limit' => 0.01,
+            'min_block_minutes' => (int)($settings->min_block_minutes ?? 60),
+            'max_block_minutes' => (int)($settings->max_block_minutes ?? 240),
+        ];
+    }
+
+    /**
+     * Jour fermé : aucune activité fixe. Les agents restent vides pour ne pas staffer.
+     *
+     * @return array<string, mixed>
+     */
+    private function emptyPayload(WfmSetting $settings): array
+    {
+        return [
+            'agents' => [],
+            'fixed_activities' => [],
+            'daily_targets' => [],
+            'workday_start_time' => $this->normalizeTime((string)($settings->day_start_time ?? null), '09:00:00'),
+            'workday_end_time' => $this->normalizeTime((string)($settings->day_end_time ?? null), '17:00:00'),
+            'slot_minutes' => 15,
+            'lunch_window' => ['start' => '12:00:00', 'end' => '14:00:00'],
+            'lunch_duration_minutes' => (int)($settings->lunch_duration_minutes ?? 60),
+            'am_break_window' => ['start' => '10:00:00', 'end' => '11:00:00'],
+            'pm_break_window' => ['start' => '15:00:00', 'end' => '16:00:00'],
+            'break_duration_minutes' => (int)($settings->am_pause_duration_minutes ?? 15),
+            'enable_am_pm_breaks' => ($settings->enable_am_pm_breaks === null) ? true : (bool)$settings->enable_am_pm_breaks,
+            'lunch_activity_name' => 'LUNCH',
+            'break_activity_name' => 'Pause',
             'enforce_remote_work_incompatibilities' => !empty($settings->enforce_remote_work_incompatibilities),
             'relative_gap_limit' => 0.01,
             'min_block_minutes' => (int)($settings->min_block_minutes ?? 60),

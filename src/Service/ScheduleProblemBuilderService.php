@@ -188,6 +188,19 @@ class ScheduleProblemBuilderService
      *   groups_meta: list<array{name:string,mixed:string,members:list<string>}>
      * }
      */
+    /**
+     * Courbe de besoin du jour (noms d'offres → créneaux), sans reconstruire les agents.
+     *
+     * @return array<string, array<string, int>>
+     */
+    public function needCurveForDate(FrozenTime $dateToCalc, WfmSetting $settings, int $scenarioId): array
+    {
+        $diagnostics = [];
+        $built = $this->buildNeedCurve($dateToCalc, $settings, $scenarioId, $diagnostics);
+
+        return $built['need_curve'];
+    }
+
     private function buildNeedCurve(FrozenTime $dateToCalc, WfmSetting $settings, int $scenarioId, array &$diagnostics): array
     {
         $forecastService = new ForecastService();

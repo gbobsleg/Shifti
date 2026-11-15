@@ -50,18 +50,35 @@
         return d.getFullYear() + '-' + mm + '-' + dd;
     }
 
-    function isWeekend(d) {
-        const day = d.getDay();
-        return day === 0 || day === 6;
+    function frameDays() {
+        const app = document.querySelector('.grids-app');
+        const raw = app ? app.getAttribute('data-frame-days') : '';
+        try {
+            const parsed = JSON.parse(raw || '[1,2,3,4,5]');
+            if (Array.isArray(parsed) && parsed.length) {
+                return parsed.map(function (n) { return parseInt(n, 10); });
+            }
+        } catch (e) {
+            // trame par défaut
+        }
+        return [1, 2, 3, 4, 5];
+    }
+
+    function isFrameDay(d) {
+        const js = d.getDay();
+        const iso = js === 0 ? 7 : js;
+        return frameDays().indexOf(iso) !== -1;
     }
 
     function addWorkingDays(date, step) {
         const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
         const dir = step > 0 ? 1 : -1;
         let left = Math.abs(step);
-        while (left > 0) {
+        let guard = 0;
+        while (left > 0 && guard < 370) {
             d.setDate(d.getDate() + dir);
-            if (!isWeekend(d)) {
+            guard += 1;
+            if (isFrameDay(d)) {
                 left -= 1;
             }
         }
@@ -73,7 +90,7 @@
         const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
         const last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
         while (cursor <= last) {
-            if (!isWeekend(cursor)) {
+            if (isFrameDay(cursor)) {
                 count += 1;
             }
             cursor.setDate(cursor.getDate() + 1);

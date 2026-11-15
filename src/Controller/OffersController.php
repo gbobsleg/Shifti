@@ -8,6 +8,7 @@ use App\Model\Entity\OfferColorFamilyOffer;
 use App\Model\Entity\ProphetTuningJob;
 use App\Service\OfferColors\BoardOutcome;
 use App\Service\OfferColors\OfferColorBoard;
+use App\Service\OperatingCalendarService;
 use App\Service\ProphetOptunaConfig;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Routing\Router;
@@ -722,7 +723,10 @@ class OffersController extends AppController
 
             return $this->redirect(['action' => 'edit', $offer->id]);
         }
-        $optuna = ProphetOptunaConfig::fromStorage($wfm->optuna_settings_json ?? null);
+        $optuna = (new OperatingCalendarService())->attachToOptunaSnapshot(
+            ProphetOptunaConfig::fromStorage($wfm->optuna_settings_json ?? null),
+            $wfm
+        );
 
         $identity = $this->request->getAttribute('identity');
         $userId = $identity ? (int)$identity->getIdentifier() : null;
@@ -1064,9 +1068,6 @@ class OffersController extends AppController
             'n_changepoints' => isset($data['n_changepoints']) ? (int)$data['n_changepoints'] : 25,
             'changepoint_range' => 0.8,
 
-            // Jours fériés
-            'use_french_holidays' => !empty($data['use_french_holidays']),
-
             // Plage historique (par défaut : tout l'historique)
             'history_start_date' => $data['history_start_date'] ?? null,
             'history_end_date' => $data['history_end_date'] ?? null,
@@ -1099,7 +1100,6 @@ class OffersController extends AppController
             'growth' => 'linear',
             'n_changepoints' => 25,
             'changepoint_range' => 0.8,
-            'use_french_holidays' => true,
             'history_start_date' => null,
             'history_end_date' => null,
         ];

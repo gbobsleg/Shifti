@@ -477,9 +477,6 @@ $statusLabels = [
                         $seasonalityModeLabel = $seasonalityMode === 'additive'
                             ? 'Additif (y = tendance + saisonnalité)'
                             : 'Multiplicatif (y = tendance × saisonnalité)';
-                        $holidays = array_key_exists('use_french_holidays', $offerSnapshot)
-                            ? (bool)$offerSnapshot['use_french_holidays']
-                            : true;
                         $flags = [
                             'yearly_seasonality' => 'Saisonnalité annuelle',
                             'weekly_seasonality' => 'Saisonnalité hebdomadaire',
@@ -507,10 +504,6 @@ $statusLabels = [
                             <div>
                                 <dt data-bs-toggle="tooltip" title="seasonality_mode">Mode de saisonnalité</dt>
                                 <dd><?= h($seasonalityModeLabel) ?></dd>
-                            </div>
-                            <div>
-                                <dt data-bs-toggle="tooltip" title="use_french_holidays">Jours fériés</dt>
-                                <dd><?= $holidays ? 'Français activés' : 'Désactivés' ?></dd>
                             </div>
                             <?php foreach ($flags as $key => $label):
                                 $enabled = array_key_exists($key, $offerSnapshot) ? (bool)$offerSnapshot[$key] : true;

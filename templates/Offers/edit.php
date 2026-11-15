@@ -226,21 +226,6 @@ $this->Html->script('offers-color-picker', ['block' => true]);
                             ]) ?>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="font-weight-bold" data-bs-toggle="tooltip" title="use_french_holidays">Jours fériés</label>
-                            <div class="form-check">
-                                <?= $this->Form->checkbox('prophet_defaults.use_french_holidays', [
-                                    'checked' => !empty($prophetDefaults['use_french_holidays']),
-                                    'class' => 'form-check-input',
-                                    'id' => 'prophet_defaults_use_french_holidays',
-                                ]) ?>
-                                <label class="form-check-label" for="prophet_defaults_use_french_holidays">
-                                    Utiliser les jours fériés français (recommandé)
-                                </label>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <h3 class="crud-subsection-title">Saisonnalités</h3>

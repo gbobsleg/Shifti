@@ -22,7 +22,7 @@ import sys
 import time
 from typing import Any, Dict, List, Optional
 
-from prophet_common import get_db_connection
+from prophet_common import get_db_connection, read_calendar_from_db
 from prophet_tuning_core import (
     assert_min_history,
     evaluate_params_walk_forward,
@@ -128,7 +128,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         print(f"\n=== Job #{job_id} offre #{offer_id} {name} ===")
         try:
-            df = load_offer_history_df(offer_id, profile)
+            worked_days, closed_dates = read_calendar_from_db()
+            df = load_offer_history_df(offer_id, profile, worked_days, closed_dates)
             assert_min_history(df, min_history)
         except Exception as exc:
             print(f"  [SKIP] historique : {exc}")
@@ -136,8 +137,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         t0 = time.perf_counter()
         try:
-            base_scores = evaluate_params_walk_forward(df, baseline_params, horizon, n_cutoffs)
-            best_scores = evaluate_params_walk_forward(df, best_params, horizon, n_cutoffs)
+            base_scores = evaluate_params_walk_forward(
+                df, baseline_params, horizon, n_cutoffs, closed_dates=closed_dates
+            )
+            best_scores = evaluate_params_walk_forward(
+                df, best_params, horizon, n_cutoffs, closed_dates=closed_dates
+            )
         except Exception as exc:
             print(f"  [SKIP] walk-forward : {exc}")
             continue

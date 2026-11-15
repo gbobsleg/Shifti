@@ -7,6 +7,7 @@ use App\Authorization\Capability;
 use App\Resource\GridsResource;
 use App\Service\Authorization\PerimeterService;
 use App\Service\Authorization\PermissionService;
+use App\Service\OperatingCalendarService;
 use App\Service\Planning\GridQueryBudget;
 use App\Service\PlanningDayHistoryService;
 use App\Service\RangeSource;
@@ -314,6 +315,11 @@ class GridsController extends AppController
         ];
         $order = $orderMap[$sortBy] ?? $orderMap['site_name'];
 
+        $gridWfm = $this->fetchTable('WfmSettings')->find()->orderAsc('WfmSettings.id')->first();
+        $gridCalendar = new OperatingCalendarService();
+        $frameDays = $gridCalendar->frameDays($gridWfm);
+        $closedByDate = $gridCalendar->closedFrameLabels($day_ranges['begin'], $day_ranges['end'], $gridWfm);
+
         $budget = new GridQueryBudget();
         $siteId = (int)($this->request->getQuery('site_id') ?? 0);
         $userId = (int)($this->request->getQuery('user_id') ?? 0);
@@ -332,7 +338,7 @@ class GridsController extends AppController
                 $params['site_id'] = $siteId;
             }
         }
-        $budgetResult = $budget->evaluate($day_ranges['begin'], $day_ranges['end'], $siteId, $userId, $offerIds);
+        $budgetResult = $budget->evaluate($day_ranges['begin'], $day_ranges['end'], $siteId, $userId, $offerIds, $frameDays);
         $budgetThresholds = $budget->thresholds();
         $zoom = (string)$this->request->getQuery('zoom', '15');
         if ($zoom !== 'hour') {
@@ -399,6 +405,8 @@ class GridsController extends AppController
             'params',
             'sortBy',
             'publishedByDate',
+            'frameDays',
+            'closedByDate',
             'gridStartHour',
             'gridEndHour',
             'budgetResult',

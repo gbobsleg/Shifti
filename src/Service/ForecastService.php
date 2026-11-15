@@ -2,6 +2,7 @@
 namespace App\Service;
 
 use App\Model\Entity\WfmSetting;
+use Cake\I18n\Date as CakeDate;
 use Cake\ORM\Locator\LocatorAwareTrait;
 use DateTime;
 use DateTimeInterface;
@@ -61,6 +62,9 @@ class ForecastService
         $this->floorToQuarterHour($current); // ex: 09:00:00
         $this->ceilToQuarterHour($end);      // ex: 17:00:00
 
+        $targetDate = new CakeDate($dateToForecast->format('Y-m-d'));
+        $targetClosed = !(new OperatingCalendarService())->isOpen($targetDate, $settings);
+
         // OPTIMISATION: Une seule requête pour toute la journée avec GROUP BY
         $query = $this->HistoricalData->find();
         $query = $query
@@ -84,7 +88,20 @@ class ForecastService
             $query->andWhere(['DATE(datetime_interval) <=' => $historyEnd]);
         }
 
-        $results = $query
+        // Un vendredi férié à 0 ne doit pas tirer la moyenne de tous les vendredis.
+        $exceptions = $this->fetchTable('CalendarExceptions');
+        $query->where(function ($exp) use ($exceptions) {
+            $closedDays = $exceptions->find()
+                ->select(['CalendarExceptions.id'])
+                ->where(['CalendarExceptions.is_open' => false])
+                ->where($exceptions->find()->newExpr(
+                    'CalendarExceptions.date = DATE(HistoricalData.datetime_interval)'
+                ));
+
+            return $exp->notExists($closedDays);
+        });
+
+        $results = $targetClosed ? [] : $query
             ->group('TIME(datetime_interval)')
             ->toArray();
 

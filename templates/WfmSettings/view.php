@@ -28,7 +28,6 @@ $prophetDefaults = [
     'growth' => 'linear',
     'n_changepoints' => 25,
     'changepoint_range' => 0.8,
-    'use_french_holidays' => true,
 ];
 
 $rawProphet = $wfmSetting->prophet_defaults_json ?? null;
@@ -249,7 +248,7 @@ $budgetOk = $sum <= $limit;
                 </dd>
             </div>
         </dl>
-        <h3 class="crud-subsection-title">Saisonnalités et jours fériés</h3>
+        <h3 class="crud-subsection-title">Saisonnalités</h3>
         <dl class="crud-fields">
             <?php
             $flags = [
@@ -265,10 +264,6 @@ $budgetOk = $sum <= $limit;
                     <dd><?= !empty($prophetDefaults[$key]) ? 'Activée' : 'Désactivée' ?></dd>
                 </div>
             <?php endforeach; ?>
-            <div>
-                <dt>Jours fériés FR</dt>
-                <dd><?= !empty($prophetDefaults['use_french_holidays']) ? 'Pris en compte' : 'Ignorés' ?></dd>
-            </div>
         </dl>
     </section>
 

@@ -84,8 +84,8 @@ class TestStoredBounds(unittest.TestCase):
             )
         )
 
-    def test_feries_absents_comptent_comme_actifs(self) -> None:
-        self.assertTrue(
+    def test_feries_absents_ne_rendent_pas_le_profil_mort(self) -> None:
+        self.assertFalse(
             stored_profile_violates_bounds(
                 {
                     "changepoint_prior_scale": 0.05,
@@ -113,7 +113,7 @@ class TestDailySeries(unittest.TestCase):
                 "y": [12.0, 0.0, 8.0],
             }
         )
-        kept = drop_closed_days(df)
+        kept = drop_closed_days(df, ["2026-01-01"])
         self.assertEqual(list(kept["ds"].dt.strftime("%Y-%m-%d")), ["2026-01-06"])
 
     def test_winsor_autres_annees_puis_repli(self) -> None:

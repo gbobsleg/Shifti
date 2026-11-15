@@ -499,21 +499,9 @@
                                 </small>
                             </div>
 
-                            <div class="mb-3 bg-light p-3 border rounded">
-                                <div class="form-check">
-                                    <?= $this->Form->checkbox('prophet_defaults.use_french_holidays', [
-                                        'checked' => $prophetDefaults['use_french_holidays'] ?? true,
-                                        'class' => 'form-check-input',
-                                        'id' => 'prophet_defaults_use_french_holidays'
-                                    ]) ?>
-                                    <label class="form-check-label" for="prophet_defaults_use_french_holidays">
-                                        <strong>Prendre en compte les jours fériés français</strong>
-                                    </label>
-                                </div>
-                                <small class="form-text text-muted">
-                                    Les jours fériés sont automatiquement mis à 0 dans les prévisions.
-                                </small>
-                        </div>
+                            <p class="text-muted">
+                                Les jours fériés et fermetures se gèrent dans le calendrier d'ouverture, pas ici.
+                            </p>
                     </div>
 
                     <h6 class="text-primary mt-3 mb-2"><i class="bi bi-calendar-range"></i> Plage de données historiques par défaut (système)</h6>

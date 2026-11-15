@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Authorization\Capability;
 use App\Service\Authorization\PermissionService;
+use App\Service\OperatingCalendarService;
 use App\Service\PlanningDayHistoryService;
 use App\Service\RangeSource;
 use Cake\Http\Exception\NotFoundException;
@@ -304,6 +305,27 @@ class PlanningGenerationJobsController extends AppController
         return $options;
     }
 
+    /**
+     * Jours réellement ouverts du job : trame WFM, hors fériés et fermetures.
+     *
+     * @return list<\Cake\I18n\FrozenDate>
+     */
+    private function openJobDates(FrozenDate $start, FrozenDate $end, int $settingsId): array
+    {
+        $settings = $this->fetchTable('WfmSettings')->get($settingsId);
+        $calendar = new OperatingCalendarService();
+        $dates = [];
+        $day = $start;
+        while ($day <= $end) {
+            if ($calendar->isOpen($day, $settings)) {
+                $dates[] = $day;
+            }
+            $day = $day->addDays(1);
+        }
+
+        return $dates;
+    }
+
     public function add()
     {
         $this->Authorization->authorize(new \App\Resource\PlanningGenerationJobsResource(), 'add');
@@ -339,15 +361,7 @@ class PlanningGenerationJobsController extends AppController
 
             $options = $this->buildJobOptions($data);
 
-            // Jours ouvrés uniquement (cohérent avec la grille qui saute les weekends)
-            $day = $start;
-            $jobDays = [];
-            while ($day <= $end) {
-                if (!$day->isWeekend()) {
-                    $jobDays[] = $day;
-                }
-                $day = $day->addDays(1);
-            }
+            $jobDays = $this->openJobDates($start, $end, $settingsId);
 
             $job = $Jobs->newEntity([
                 'user_id' => $userId,
@@ -438,15 +452,10 @@ class PlanningGenerationJobsController extends AppController
             } else {
                 $newOptions = $this->buildJobOptions($data);
 
-                // Jours ouvrés uniquement (même logique que add(), cohérente avec la grille qui saute les weekends)
-                $day = $start;
-                $newDates = [];
-                while ($day <= $end) {
-                    if (!$day->isWeekend()) {
-                        $newDates[] = $day->format('Y-m-d');
-                    }
-                    $day = $day->addDays(1);
-                }
+                $newDates = array_map(
+                    static fn(FrozenDate $day): string => $day->format('Y-m-d'),
+                    $this->openJobDates($start, $end, $settingsId),
+                );
 
                 $job = $Jobs->patchEntity($job, [
                     'start_date' => $start,
@@ -2111,9 +2120,13 @@ class PlanningGenerationJobsController extends AppController
         $siteId = (int)($q['site_id'] ?? 0);
         $userId = (int)($q['user_id'] ?? 0);
         $offerIds = \App\Service\Planning\GridQueryBudget::normalizeOfferIds($q['offer_id'] ?? null);
+        $jobSettings = $job->wfm_setting ?? $this->fetchTable('WfmSettings')->get((int)$job->wfm_setting_id);
+        $jobCalendar = new OperatingCalendarService();
+        $frameDays = $jobCalendar->frameDays($jobSettings);
+        $closedByDate = $jobCalendar->closedFrameLabels($beginDay, $endDay, $jobSettings);
         $budget = new \App\Service\Planning\GridQueryBudget();
         $budgetThresholds = $budget->thresholds();
-        $budgetResult = $budget->evaluate($begin, $end, $siteId, $userId, $offerIds);
+        $budgetResult = $budget->evaluate($begin, $end, $siteId, $userId, $offerIds, $frameDays);
         $zoom = (string)($q['zoom'] ?? '15');
         if ($zoom !== 'hour') {
             $zoom = '15';
@@ -2179,7 +2192,7 @@ class PlanningGenerationJobsController extends AppController
             if ($job->scenario_id && $job->scenario_id > 0) {
                 $scanDay = clone $beginDay;
                 while ($scanDay <= $endDay) {
-                    if (!$scanDay->isWeekend()) {
+                    if ($jobCalendar->isFrameDay($scanDay, $jobSettings)) {
                         $dateKey = $scanDay->i18nFormat('yyyy-MM-dd');
                         $publishedByDate[$dateKey] = (int)$job->scenario_id;
                     }
@@ -2215,6 +2228,8 @@ class PlanningGenerationJobsController extends AppController
             'params',
             'sortBy',
             'publishedByDate',
+            'closedByDate',
+            'frameDays',
             'gridStartHour',
             'gridEndHour',
             'saveUrl',

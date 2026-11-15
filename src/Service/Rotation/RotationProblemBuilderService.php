@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service\Rotation;
 
+use App\Model\Entity\WfmSetting;
 use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
 use Cake\Log\Log;
@@ -35,7 +36,10 @@ class RotationProblemBuilderService
         FrozenDate $currentDate,
         bool $debugSolvers,
         callable $truncateForLog,
-        callable $timeToMinutes
+        callable $timeToMinutes,
+        ?FrozenDate $jobStart = null,
+        ?FrozenDate $jobEnd = null,
+        ?WfmSetting $wfmSettings = null
     ): array {
         $users = is_array($usersForRotation) ? $usersForRotation : iterator_to_array($usersForRotation);
         shuffle($users);
@@ -120,18 +124,17 @@ class RotationProblemBuilderService
                 $oid = (int)($quotaLine->offer_id ?? 0);
                 $hasSkill = $oid <= 0 || in_array($oid, $skillOfferIds, true);
                 if ($hasSkill) {
+                    [$scopeStart, $scopeEnd] = $this->scopeWeek($weekStart, $weekEnd, $jobStart, $jobEnd);
                     $targetSlots = $rotationCalculator->calculateTargetForUser(
                         (int)$user->id,
                         $ruleId,
-                        $weekStart,
-                        $weekEnd,
+                        $scopeStart,
+                        $scopeEnd,
                         $activeContract ? $activeContract->start_date : null,
                         $activeContract ? $activeContract->end_date : null,
-                        (int)($quotaLine->target_count ?? 0) ?: null
+                        (int)($quotaLine->target_count ?? 0) ?: null,
+                        $wfmSettings
                     );
-                    if ($user->users_rotation_rule->target_count_override !== null) {
-                        $targetSlots = (int)$user->users_rotation_rule->target_count_override;
-                    }
                     $targetSlotsByLine[(string)$quotaLine->id] = $targetSlots;
                 }
             }
@@ -221,6 +224,23 @@ class RotationProblemBuilderService
             'exclusive_day' => $exclusiveDay,
             'user_ids' => $userIds,
         ];
+    }
+
+    /**
+     * @return array{0: \Cake\I18n\FrozenDate, 1: \Cake\I18n\FrozenDate}
+     */
+    private function scopeWeek(FrozenDate $weekStart, FrozenDate $weekEnd, ?FrozenDate $jobStart, ?FrozenDate $jobEnd): array
+    {
+        $start = $weekStart;
+        $end = $weekEnd;
+        if ($jobStart !== null && $jobStart > $start) {
+            $start = $jobStart;
+        }
+        if ($jobEnd !== null && $jobEnd < $end) {
+            $end = $jobEnd;
+        }
+
+        return [$start, $end];
     }
 
     private function serializeLine($line): array

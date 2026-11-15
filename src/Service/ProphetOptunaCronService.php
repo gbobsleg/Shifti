@@ -61,6 +61,8 @@ class ProphetOptunaCronService
     {
         $Offers = $this->fetchTable('Offers');
         $Jobs = $this->fetchTable('ProphetTuningJobs');
+        $wfm = $this->fetchTable('WfmSettings')->find()->first();
+        $optuna = (new OperatingCalendarService())->attachToOptunaSnapshot($optuna, $wfm);
 
         $periodDays = max(1, (int)$optuna['cron_period_days']);
         $cutoff = (new DateTime())->modify(sprintf('-%d days', $periodDays));

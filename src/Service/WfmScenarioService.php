@@ -285,7 +285,7 @@ class WfmScenarioService
                     'history_start_date', 'history_end_date', 'seasonality_mode',
                     'yearly_seasonality', 'weekly_seasonality', 'monthly_seasonality', 'monthly_fourier_order', 'daily_seasonality',
                     'changepoint_prior_scale', 'seasonality_prior_scale',
-                    'growth', 'n_changepoints', 'changepoint_range', 'use_french_holidays',
+                    'growth', 'n_changepoints', 'changepoint_range',
                 ];
                 foreach ($existingSnapshot as $k => $v) {
                     if ($v === '' || $v === null) {
@@ -577,7 +577,6 @@ class WfmScenarioService
             'growth' => 'linear',
             'n_changepoints' => 25,
             'changepoint_range' => 0.8,
-            'use_french_holidays' => false,
         ];
 
         if ($wfm && !empty($wfm->prophet_defaults_json)) {
