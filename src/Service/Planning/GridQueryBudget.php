@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service\Planning;
 
+use App\Service\OperatingCalendarService;
 use Cake\Core\Configure;
 use Cake\I18n\FrozenTime;
 use DateTimeInterface;
@@ -49,7 +50,10 @@ class GridQueryBudget
         ];
     }
 
-    public function countWorkingDays(DateTimeInterface $begin, DateTimeInterface $end): int
+    /**
+     * @param list<int>|null $frameDays 1=lundi … 7=dimanche. Null = lundi–vendredi.
+     */
+    public function countWorkingDays(DateTimeInterface $begin, DateTimeInterface $end, ?array $frameDays = null): int
     {
         $cursor = FrozenTime::parse($begin->format('Y-m-d'))->startOfDay();
         $last = FrozenTime::parse($end->format('Y-m-d'))->startOfDay();
@@ -59,7 +63,7 @@ class GridQueryBudget
 
         $count = 0;
         while ($cursor <= $last) {
-            if (!$cursor->isWeekend()) {
+            if ($this->isFrameDay($cursor, $frameDays)) {
                 $count++;
             }
             $cursor = $cursor->addDays(1);
@@ -69,9 +73,10 @@ class GridQueryBudget
     }
 
     /**
+     * @param list<int>|null $frameDays
      * @return list<\Cake\I18n\FrozenTime>
      */
-    public function workingDays(DateTimeInterface $begin, DateTimeInterface $end): array
+    public function workingDays(DateTimeInterface $begin, DateTimeInterface $end, ?array $frameDays = null): array
     {
         $cursor = FrozenTime::parse($begin->format('Y-m-d'))->startOfDay();
         $last = FrozenTime::parse($end->format('Y-m-d'))->startOfDay();
@@ -80,13 +85,23 @@ class GridQueryBudget
             return $days;
         }
         while ($cursor <= $last) {
-            if (!$cursor->isWeekend()) {
+            if ($this->isFrameDay($cursor, $frameDays)) {
                 $days[] = $cursor;
             }
             $cursor = $cursor->addDays(1);
         }
 
         return $days;
+    }
+
+    /**
+     * @param list<int>|null $frameDays
+     */
+    private function isFrameDay(DateTimeInterface $day, ?array $frameDays): bool
+    {
+        $frame = $frameDays ?? OperatingCalendarService::DEFAULT_FRAME;
+
+        return in_array((int)$day->format('N'), array_map('intval', $frame), true);
     }
 
     /**
@@ -119,9 +134,10 @@ class GridQueryBudget
         DateTimeInterface $end,
         int $siteId,
         int $userId,
-        array $offerIds = []
+        array $offerIds = [],
+        ?array $frameDays = null
     ): array {
-        $workingDays = $this->countWorkingDays($begin, $end);
+        $workingDays = $this->countWorkingDays($begin, $end, $frameDays);
         $offerIds = array_values(array_filter(array_map('intval', $offerIds)));
         $hasOffers = $offerIds !== [];
         $hasDimension = $siteId > 0 || $userId > 0 || $hasOffers;

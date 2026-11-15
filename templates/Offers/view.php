@@ -323,10 +323,6 @@ $formatDateFr = function (?string $date): ?string {
                                 <label class="text-muted small mb-1" data-bs-toggle="tooltip" title="seasonality_mode">Mode de saisonnalité</label>
                                 <div><strong><?= h($seasonalityModeLabel) ?></strong></div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                                <label class="text-muted small mb-1" data-bs-toggle="tooltip" title="use_french_holidays">Jours fériés</label>
-                                <div><?= h($boolText(!empty($prophetDefaults['use_french_holidays']), 'Français activés', 'Désactivés')) ?></div>
-                        </div>
                     </div>
 
                     <h3 class="crud-subsection-title">Saisonnalités</h3>

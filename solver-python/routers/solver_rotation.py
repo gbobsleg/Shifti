@@ -69,6 +69,10 @@ class RotationRequest(BaseModel):
     timeout_seconds: float = 10.0
     # Nouvelle courbe de besoin : ID Offre -> Liste de floats (besoin par slot)
     need_curve: Optional[Dict[int, List[float]]] = None
+    # day_index ISO → offer_id → slots. Prioritaire sur need_curve.
+    need_curve_by_day: Optional[Dict[int, Dict[int, List[float]]]] = None
+    # Jours jouables, indices ISO (0=lundi). Absent = lundi–vendredi.
+    open_day_indices: Optional[List[int]] = None
     lines: Optional[List[RotationLine]] = None
     exclusive_day: bool = True
 
@@ -122,6 +126,26 @@ def _dict_int_keys(d: Optional[Dict]) -> Dict[int, Any]:
         except (TypeError, ValueError):
             continue
     return out
+
+
+def _open_days(request: RotationRequest) -> List[int]:
+    raw = request.open_day_indices
+    if not raw:
+        return [0, 1, 2, 3, 4]
+    days = sorted({int(d) for d in raw if 0 <= int(d) <= 6})
+    return days or [0, 1, 2, 3, 4]
+
+
+def _need_for_day(request: RotationRequest, day: int, offer_id: Optional[int]) -> List[float]:
+    by_day = request.need_curve_by_day
+    if by_day:
+        day_map = by_day.get(day)
+        if day_map is None:
+            day_map = by_day.get(str(day))  # type: ignore[arg-type]
+        if isinstance(day_map, dict):
+            return _curve_for(day_map, offer_id)
+        return []
+    return _curve_for(request.need_curve, offer_id)
 
 
 def _curve_for(need_curve: Optional[Dict], offer_id: Optional[int]) -> List[float]:
@@ -203,16 +227,16 @@ def _agent_has_skill(agent: RotationAgent, offer_id: Optional[int]) -> bool:
     return offer_id in agent.skills
 
 
-def _coverage_days(line: RotationLine, days: int) -> List[int]:
+def _coverage_days(line: RotationLine, open_days: List[int]) -> List[int]:
     if not line.days_of_week:
-        return list(range(days))
+        return list(open_days)
     allowed = set()
     for n in line.days_of_week:
         # PHP format('N'): 1=Lundi → day_index 0
         idx = int(n) - 1
-        if 0 <= idx < days:
+        if idx in open_days:
             allowed.add(idx)
-    return sorted(allowed) if allowed else list(range(days))
+    return sorted(allowed)
 
 
 # --- Logique du Solveur ---
@@ -231,7 +255,7 @@ def solve_rotation_legacy(request: RotationRequest) -> RotationResponse:
     except ValueError:
         monday_date = datetime.now()
 
-    days = 5 # Lundi au Vendredi
+    open_days = _open_days(request)
     slot_step = request.slot_minutes
     
     # --- 1. Création des Variables ---
@@ -270,7 +294,7 @@ def solve_rotation_legacy(request: RotationRequest) -> RotationResponse:
             # Fenêtre trop courte, on ignore cet agent silencieusement ou via log
             continue
 
-        for d in range(days):
+        for d in open_days:
             # Optimisation : on ne boucle que sur les créneaux possibles
             for s in range(w_start, latest_start + 1):
                 
@@ -368,7 +392,7 @@ def solve_rotation_legacy(request: RotationRequest) -> RotationResponse:
             shortfall_penalties.append(shortfall * 1_000_000)
         
         # B. Unicité Journalière (max 1 shift par jour par agent)
-        for d in range(days):
+        for d in open_days:
             daily_vars = [shifts[(agent.id, d, s)] for (a, dy, s) in shifts if a == agent.id and dy == d]
             if daily_vars:
                 model.Add(sum(daily_vars) <= 1)
@@ -422,11 +446,8 @@ def solve_rotation_legacy(request: RotationRequest) -> RotationResponse:
 
     for offer_id in relevant_offer_ids:
         # Récupération de la courbe pour cette offre (ou liste vide)
-        curve = []
-        if request.need_curve and offer_id in request.need_curve:
-            curve = request.need_curve[offer_id]
-        
-        for day in range(days):
+        for day in open_days:
+            curve = _need_for_day(request, day, offer_id)
             for t in range(global_w_start, global_w_end):
                 # 1. Calcul du Staffing à l'instant t pour cette offre
                 active_shifts_at_t = []
@@ -531,7 +552,7 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
     except ValueError:
         monday_date = datetime.now()
 
-    days = 5
+    open_days = _open_days(request)
     slot_step = request.slot_minutes
     exclusive_day = bool(request.exclusive_day)
     agents_map = {a.id: a for a in request.agents}
@@ -580,7 +601,7 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
             target = int(targets.get(line.id, agent.target_slots if len(quota_lines) == 1 else 0))
             if target <= 0:
                 continue
-            for d in range(days):
+            for d in open_days:
                 for s in range(w_start, latest_start + 1):
                     end = s + duration_slots
                     if interval_blocked(agent, d, s, end):
@@ -610,7 +631,7 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
             slot_defs.append((idx, st, en, sl.start, sl.end))
         if not slot_defs:
             continue
-        allowed_days = _coverage_days(line, days)
+        allowed_days = _coverage_days(line, open_days)
         for agent in request.agents:
             if not _agent_has_skill(agent, line.offer_id):
                 continue
@@ -694,7 +715,7 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
         lunch_dur = agent.lunch_duration // slot_step
         if lunch_end <= lunch_start or lunch_dur <= 0:
             continue
-        for d in range(days):
+        for d in open_days:
             ivs = by_agent_day.get((agent.id, d), [])
             if not ivs:
                 continue
@@ -773,7 +794,7 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
     for line in coverage_lines:
         w = line_weight(line.sort_order)
         qty = max(1, int(line.quantity or 1))
-        allowed_days = _coverage_days(line, days)
+        allowed_days = _coverage_days(line, open_days)
         for d in allowed_days:
             for idx, sl in enumerate(line.slots):
                 staff_vars = [
@@ -834,12 +855,12 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
     for line in quota_lines:
         if not line.fit_need_curve or line.offer_id is None:
             continue
-        curve = _curve_for(request.need_curve, line.offer_id)
         w_start = parse_time_to_slot(line.window_start or '09:00:00', slot_step)
         w_end = parse_time_to_slot(line.window_end or '17:00:00', slot_step)
         duration = int(line.shift_duration or 0)
         duration_slots = duration // slot_step if duration else 0
-        for day in range(days):
+        for day in open_days:
+            curve = _need_for_day(request, day, line.offer_id)
             for t in range(w_start, w_end):
                 active = []
                 for iv in intervals:
@@ -864,7 +885,7 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
     for agent in request.agents:
         hist_days = set(agent.history_worked_days or [])
         work_by_day = {}
-        for d in range(days):
+        for d in open_days:
             dvars = duties.get((agent.id, d), [])
             if not dvars:
                 continue

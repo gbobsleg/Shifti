@@ -9,10 +9,9 @@ et les zéros calendaires (week-end, férié) sont faits à l'émission.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
-from holidays import France
 
 # Bornes d'émission : un JSON hors de cette boîte est ramené au fit,
 # même si l'espace Optuna stocké est encore l'ancien.
@@ -48,7 +47,7 @@ def clamp_prior(value: float, low: float, high: float) -> float:
 def stored_profile_violates_bounds(profile: Optional[dict]) -> bool:
     """
     True si le JSON d'offre est hors bornes d'émission ou viole un flag figé
-    (n_changepoints, fériés FR encore actifs).
+    (n_changepoints). Les fériés ne sont plus un flag : le calendrier PHP les envoie.
     """
     data = profile or {}
     try:
@@ -62,9 +61,6 @@ def stored_profile_violates_bounds(profile: Optional[dict]) -> bool:
     if sps < SPS_MIN - 1e-12 or sps > SPS_MAX + 1e-12:
         return True
     if ncp != N_CHANGEPOINTS:
-        return True
-    holidays = data.get("use_french_holidays", True)
-    if holidays in (True, 1, "1", "true", "True"):
         return True
     return False
 
@@ -94,25 +90,20 @@ def aggregate_daily(df: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values("ds").reset_index(drop=True)
 
 
-def french_holiday_dates(dates: Iterable[pd.Timestamp]) -> set:
-    years = set()
-    for value in dates:
+def drop_closed_days(df: pd.DataFrame, closed_dates: Optional[Sequence[str]] = None) -> pd.DataFrame:
+    """Retire y <= 0 et les dates fermées fournies par PHP. N'invente aucun férié."""
+    if df.empty:
+        return df.copy()
+    closed = set()
+    for value in closed_dates or []:
         ts = pd.Timestamp(value)
         if pd.isna(ts):
             continue
-        years.add(int(ts.year))
-    if not years:
-        return set()
-    return set(France(years=sorted(years)).keys())
-
-
-def drop_closed_days(df: pd.DataFrame) -> pd.DataFrame:
-    """Retire y <= 0 et les jours fériés français."""
-    if df.empty:
-        return df.copy()
-    holidays = french_holiday_dates(df["ds"])
+        closed.add(ts.normalize().date())
     day = df["ds"].dt.date
-    keep = (df["y"] > 0) & ~day.isin(holidays)
+    keep = df["y"] > 0
+    if closed:
+        keep = keep & ~day.isin(closed)
     return df.loc[keep].reset_index(drop=True)
 
 
@@ -257,13 +248,17 @@ def apply_offer_profiles(df: pd.DataFrame, profiles: Optional[dict]) -> pd.DataF
     return out
 
 
-def prepare_training_frame(df: pd.DataFrame, use_peak: bool = False) -> tuple:
+def prepare_training_frame(
+    df: pd.DataFrame,
+    use_peak: bool = False,
+    closed_dates: Optional[Sequence[str]] = None,
+) -> tuple:
     """
     Historique prêt pour Prophet et profils du fit.
     use_peak est ignoré : les anciens JSON ne déclenchent plus de règle par offre.
     """
     del use_peak
-    daily = drop_closed_days(aggregate_daily(df))
+    daily = drop_closed_days(aggregate_daily(df), closed_dates)
     if len(daily) < 30:
         raise ValueError(
             f"Historique journalier trop court après retrait des fériés et des zéros "

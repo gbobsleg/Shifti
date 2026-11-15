@@ -55,8 +55,16 @@ $(document).ready(function () {
         paintedRow = cell.closest('tr');
     }
 
+    function isClosedDayCell($cell) {
+        return $cell.closest('.grid-day-closed').length > 0;
+    }
+
     $('.td_quarter').mousedown(function (e) {
         const $cell = $(this);
+        if (isClosedDayCell($cell)) {
+            e.preventDefault();
+            return false;
+        }
 
         if ($cell.hasClass('td_unavailable')) {
             if (selectedColor === 'white' || selectedId === '0') {
@@ -100,6 +108,9 @@ $(document).ready(function () {
             return;
         }
         const $cell = $(this);
+        if (isClosedDayCell($cell)) {
+            return;
+        }
         const newUserId = $cell.closest('tr').attr('data_user');
         if (userId === newUserId) {
             if ($cell.hasClass('td_unavailable')) {

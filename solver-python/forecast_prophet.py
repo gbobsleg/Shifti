@@ -15,7 +15,6 @@ import json
 
 from prophet_common import (
     get_db_connection,
-    get_worked_days_from_db,
     load_historical_data,
     train_prophet_model,
 )
@@ -68,9 +67,6 @@ class ProphetSettings(BaseModel):
     n_changepoints: int = Field(default=25, ge=0, le=100)
     changepoint_range: float = Field(default=0.8, ge=0.5, le=0.95)
     
-    # Jours fériés : la sortie WFM les force déjà à 0, l'entraînement les retire.
-    use_french_holidays: bool = False
-    custom_holidays: Optional[List[str]] = None
     # Ancien drapeau 25-5. Ignoré : le profil du mois est appris sur l'offre.
     use_calendar_peak_25_5: bool = False
     
@@ -81,9 +77,11 @@ class ProphetSettings(BaseModel):
 
 
 class WfmSettings(BaseModel):
-    """Paramètres WFM pour formater les prévisions"""
+    """Paramètres WFM pour formater les prévisions. worked_days vient de PHP."""
     day_start_time: str = "09:00:00"
     day_end_time: str = "17:00:00"
+    worked_days: List[int]
+    closed_dates: List[str] = []
 
 
 class ForecastRequest(BaseModel):
@@ -128,36 +126,23 @@ class ForecastResponse(BaseModel):
 # ================================
 
 
-def is_working_day(date: datetime, worked_days: Optional[List[int]] = None) -> bool:
-    """
-    Vérifie si une date est un jour ouvré selon worked_days_json, hors fériés
-    
-    Args:
-        date: Date à vérifier
-        worked_days: Liste des jours travaillés (1=Lundi à 7=Dimanche)
-                     Si None, charge depuis wfm_settings
-    
-    Returns:
-        True si c'est un jour travaillé et non férié
-    """
-    from holidays import France
-    
-    # Charger les jours travaillés si non fournis
-    if worked_days is None:
-        worked_days = get_worked_days_from_db()
-    
-    # Python weekday(): 0=Lundi, ..., 6=Dimanche
-    # worked_days: 1=Lundi, ..., 7=Dimanche
-    day_of_week = date.weekday() + 1  # Convertir 0-6 en 1-7
-    
+def is_working_day(
+    date: datetime,
+    worked_days: Optional[List[int]] = None,
+    closed_dates: Optional[List[str]] = None,
+) -> bool:
+    """Jour de la trame PHP, hors dates fermées envoyées par PHP."""
+    if not worked_days:
+        raise ValueError("worked_days requis")
+
+    day_of_week = date.weekday() + 1
     if day_of_week not in worked_days:
         return False
-    
-    # Vérifier les jours fériés français
-    fr_holidays = France(years=date.year)
-    if date.date() in fr_holidays:
+
+    closed = set(closed_dates or [])
+    if date.strftime("%Y-%m-%d") in closed:
         return False
-    
+
     return True
 
 
@@ -281,6 +266,7 @@ def generate_forecast_for_date(
     damping: Optional[Dict] = None,
     prophet_settings: Optional[ProphetSettings] = None,
     damping_gaps: Optional[List[float]] = None,
+    closed_dates: Optional[List[str]] = None,
 ) -> Dict[str, ForecastPoint]:
     """
     Génère une prévision pour une date au pas de 15 minutes
@@ -299,10 +285,10 @@ def generate_forecast_for_date(
     if dmt_profile is None:
         dmt_profile = fallback_profile()
 
-    if worked_days is None:
-        worked_days = get_worked_days_from_db()
+    if not worked_days:
+        raise ValueError("worked_days requis")
 
-    if not is_working_day(target_date, worked_days):
+    if not is_working_day(target_date, worked_days, closed_dates):
         print(f"[Prophet] {target_date.date()} est un jour non travaillé/férié → prévisions = 0")
         return _zero_forecast(target_date, wfm_settings, dmt_profile)
 
@@ -418,7 +404,9 @@ def generate_forecast(request: ForecastRequest):
         df = load_historical_data(
             request.offer_id,
             start_date=request.prophet_settings.history_start_date,
-            end_date=request.prophet_settings.history_end_date
+            end_date=request.prophet_settings.history_end_date,
+            worked_days=request.wfm_settings.worked_days,
+            closed_dates=request.wfm_settings.closed_dates,
         )
 
         # Profil DMT sur le DataFrame brut 15 min, avant tout agrégat Prophet
@@ -432,7 +420,11 @@ def generate_forecast(request: ForecastRequest):
         # Préparer les données pour Prophet
         df_volume = df[['ds', 'y']].copy()
         
-        model, df_used = train_prophet_model(df_volume, request.prophet_settings)
+        model, df_used = train_prophet_model(
+            df_volume,
+            request.prophet_settings,
+            closed_dates=request.wfm_settings.closed_dates,
+        )
 
         target_date = datetime.strptime(request.date, '%Y-%m-%d')
         shares = build_volume_shares(
@@ -448,9 +440,11 @@ def generate_forecast(request: ForecastRequest):
             request.wfm_settings,
             dmt_profile,
             None,
+            worked_days=request.wfm_settings.worked_days,
             volume_shares=shares,
             damping=damping,
             prophet_settings=request.prophet_settings,
+            closed_dates=request.wfm_settings.closed_dates,
         )
 
         metrics = calculate_metrics(
@@ -490,7 +484,9 @@ def generate_batch_forecast(request: BatchForecastRequest):
         df = load_historical_data(
             request.offer_id,
             start_date=request.prophet_settings.history_start_date,
-            end_date=request.prophet_settings.history_end_date
+            end_date=request.prophet_settings.history_end_date,
+            worked_days=request.wfm_settings.worked_days,
+            closed_dates=request.wfm_settings.closed_dates,
         )
 
         # Profil DMT sur le DataFrame brut 15 min, avant tout agrégat Prophet
@@ -504,7 +500,11 @@ def generate_batch_forecast(request: BatchForecastRequest):
         # Préparer les données
         df_volume = df[['ds', 'y']].copy()
         
-        model, df_used = train_prophet_model(df_volume, request.prophet_settings)
+        model, df_used = train_prophet_model(
+            df_volume,
+            request.prophet_settings,
+            closed_dates=request.wfm_settings.closed_dates,
+        )
 
         metrics = calculate_metrics(
             model, df_used, use_peak=bool(request.prophet_settings.use_calendar_peak_25_5)
@@ -539,9 +539,11 @@ def generate_batch_forecast(request: BatchForecastRequest):
                 request.wfm_settings,
                 dmt_profile,
                 None,
+                worked_days=request.wfm_settings.worked_days,
                 volume_shares=shares,
                 damping=damping,
                 prophet_settings=request.prophet_settings,
+                closed_dates=request.wfm_settings.closed_dates,
             )
             
             results.append({

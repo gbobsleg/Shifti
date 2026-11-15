@@ -69,7 +69,6 @@ final class ProphetOptunaConfig
         'daily_seasonality' => true,
         'growth' => 'linear',
         'changepoint_range' => 0.8,
-        'use_french_holidays' => false,
         'n_changepoints' => 25,
         'monthly_seasonality' => false,
     ];
@@ -255,7 +254,7 @@ final class ProphetOptunaConfig
             self::SPS_MAX
         );
         $out['n_changepoints'] = 25;
-        $out['use_french_holidays'] = false;
+        unset($out['use_french_holidays'], $out['custom_holidays']);
         $out['monthly_seasonality'] = false;
 
         return $out;

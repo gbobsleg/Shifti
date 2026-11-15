@@ -170,6 +170,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
                 \App\Resource\PlanningGenerationJobsResource::class => \App\Policy\PlanningGenerationJobsPolicy::class,
                 \App\Resource\BackgroundJobsResource::class => \App\Policy\BackgroundJobsPolicy::class,
                 \App\Resource\WfmSettingsResource::class => \App\Policy\WfmSettingsPolicy::class,
+                \App\Resource\CalendarExceptionsResource::class => \App\Policy\CalendarExceptionsPolicy::class,
             ]),
         ]);
 

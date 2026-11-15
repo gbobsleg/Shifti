@@ -99,6 +99,28 @@
     display: none;
 }
 
+.grids-app table.quarter.grid-day-closed,
+.grids-app table.quarter tr.grid-day-closed {
+    position: relative;
+}
+
+.grids-app table.quarter.grid-day-closed .td_quarter,
+.grids-app table.quarter tr.grid-day-closed .td_quarter {
+    background: #eceff1 !important;
+    pointer-events: none;
+}
+
+.grids-app .grid-day-closed-label {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0 0.35rem;
+    border-radius: 0.25rem;
+    background: #cfd8dc;
+    color: #37474f;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
 .grids-app table.quarter .th_row.is-remote i {
     color: var(--grids-muted);
     font-size: 0.75rem;

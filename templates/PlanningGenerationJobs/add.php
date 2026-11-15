@@ -146,7 +146,7 @@ $selectedAgentIds = $selectedAgentIds ?? [];
             ]) ?>
         </div>
         <small class="text-muted d-block mt-2">
-            Les weekends sont ignorés (cohérent avec l’affichage de la grille).
+            Seuls les jours de la trame d'ouverture sont générés. Un jour férié ou fermé de cette trame est ignoré.
         </small>
     </section>
 

@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
 from typing import Any, List, Optional, Tuple
 
 import mysql.connector
@@ -38,65 +37,37 @@ DB_CONFIG = {
     "database": os.environ.get("DB_NAME", "cake_planning"),
 }
 
-_worked_days_cache = {
-    "value": None,
-    "timestamp": None,
-    "ttl_seconds": 300,
-}
-
-
 def get_db_connection():
     """Crée une connexion MySQL."""
     return mysql.connector.connect(**DB_CONFIG)
 
 
-def get_worked_days_from_db() -> List[int]:
+def read_calendar_from_db() -> Tuple[List[int], List[str]]:
     """
-    Récupère les jours travaillés depuis wfm_settings.worked_days_json.
-    Cache 5 minutes. Défaut: [1, 2, 3, 4, 5].
+    Repli explicite (worker sans snapshot, scripts). Pas un défaut de load_historical_data.
+    worked_days du premier profil WFM, dates calendar_exceptions is_open = 0.
     """
-    global _worked_days_cache
-
-    now = datetime.now()
-    if (
-        _worked_days_cache["value"] is not None
-        and _worked_days_cache["timestamp"] is not None
-        and (now - _worked_days_cache["timestamp"]).total_seconds()
-        < _worked_days_cache["ttl_seconds"]
-    ):
-        return _worked_days_cache["value"]
-
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT worked_days_json FROM wfm_settings LIMIT 1")
+        cursor.execute(
+            "SELECT worked_days_json FROM wfm_settings ORDER BY id ASC LIMIT 1"
+        )
         row = cursor.fetchone()
-        cursor.close()
-        conn.close()
-
         worked_days = [1, 2, 3, 4, 5]
-
         if row and row[0]:
             raw_value = row[0]
-            if isinstance(raw_value, str):
-                parsed = json.loads(raw_value)
-            elif isinstance(raw_value, (list, tuple)):
-                parsed = list(raw_value)
-            else:
-                parsed = None
-
-            if parsed and isinstance(parsed, list):
+            parsed = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+            if isinstance(parsed, list) and parsed:
                 worked_days = [int(d) for d in parsed]
-
-        _worked_days_cache["value"] = worked_days
-        _worked_days_cache["timestamp"] = now
-
-        print(f"[Prophet] Jours travaillés chargés depuis BDD: {worked_days}")
-        return worked_days
-
-    except Exception as e:
-        print(f"[Prophet] ⚠️ Erreur lecture worked_days_json: {e} - utilisation défaut [1-5]")
-        return [1, 2, 3, 4, 5]
+        cursor.execute(
+            "SELECT DATE_FORMAT(`date`, '%Y-%m-%d') FROM calendar_exceptions WHERE is_open = 0"
+        )
+        closed = [str(item[0]) for item in cursor.fetchall()]
+        cursor.close()
+        return worked_days, closed
+    finally:
+        conn.close()
 
 
 def load_historical_data(
@@ -104,15 +75,18 @@ def load_historical_data(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     worked_days: Optional[List[int]] = None,
+    closed_dates: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
     Charge les données historiques (intervalles 15 minutes).
 
+    worked_days est obligatoire : PHP (ou read_calendar_from_db) doit le fournir.
+
     Returns:
         DataFrame colonnes: ds, y (volume), dmt
     """
-    if worked_days is None:
-        worked_days = get_worked_days_from_db()
+    if not worked_days:
+        raise ValueError("worked_days requis")
 
     conn = get_db_connection()
 
@@ -148,6 +122,11 @@ def load_historical_data(
         raise ValueError(f"Aucune donnée historique trouvée pour offer_id={offer_id}")
 
     df["ds"] = pd.to_datetime(df["ds"])
+    if closed_dates:
+        closed = {pd.Timestamp(value).normalize() for value in closed_dates}
+        df = df.loc[~df["ds"].dt.normalize().isin(closed)].reset_index(drop=True)
+        if df.empty:
+            raise ValueError(f"Aucune donnée historique hors jours fermés pour offer_id={offer_id}")
 
     total_points = len(df)
     zero_points = (df["y"] == 0).sum()
@@ -183,6 +162,7 @@ def train_prophet_model(
     settings: Any,
     *,
     verbose: bool = True,
+    closed_dates: Optional[List[str]] = None,
 ) -> Tuple[Prophet, pd.DataFrame]:
     """
     Entraîne un modèle Prophet.
@@ -201,11 +181,11 @@ def train_prophet_model(
         getattr(settings, "seasonality_prior_scale", 10.0), SPS_MIN, SPS_MAX
     )
     settings.n_changepoints = N_CHANGEPOINTS
-    settings.use_french_holidays = False
     settings.monthly_seasonality = False
     settings.weekly_seasonality = False
 
-    df_to_use, profiles = prepare_training_frame(df)
+    dates = closed_dates if closed_dates is not None else getattr(settings, "closed_dates", None)
+    df_to_use, profiles = prepare_training_frame(df, closed_dates=dates)
 
     if verbose:
         print(f"[Prophet] Entraînement: {len(df_to_use)} jours ouvrés (hors fériés, y>0)")

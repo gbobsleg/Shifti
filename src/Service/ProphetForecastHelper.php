@@ -2,6 +2,7 @@
 namespace App\Service;
 
 use App\Model\Entity\WfmSetting;
+use Cake\Chronos\ChronosDate;
 use Cake\Core\Configure;
 use Cake\Http\Client;
 use DateTimeInterface;
@@ -75,14 +76,12 @@ class ProphetForecastHelper
         }
 
         try {
+            $formattedSettings = $this->formatProphetSettings($prophetSettings);
             $payload = [
                 'offer_id' => $offerId,
                 'date' => $date->format('Y-m-d'),
-                'prophet_settings' => $this->formatProphetSettings($prophetSettings),
-                'wfm_settings' => [
-                    'day_start_time' => (string)$wfmSettings->day_start_time,
-                    'day_end_time' => (string)$wfmSettings->day_end_time,
-                ]
+                'prophet_settings' => $formattedSettings,
+                'wfm_settings' => $this->wfmSettingsPayload($wfmSettings, $formattedSettings, $date),
             ];
 
             $response = $this->httpClient->post(
@@ -146,10 +145,7 @@ class ProphetForecastHelper
                 'start_date' => $startDate->format('Y-m-d'),
                 'end_date' => $endDate->format('Y-m-d'),
                 'prophet_settings' => $formattedSettings,
-                'wfm_settings' => [
-                    'day_start_time' => (string)$wfmSettings->day_start_time,
-                    'day_end_time' => (string)$wfmSettings->day_end_time,
-                ]
+                'wfm_settings' => $this->wfmSettingsPayload($wfmSettings, $formattedSettings, $endDate),
             ];
 
             error_log("[ProphetForecastHelper] Batch forecast pour offre {$offerId}");
@@ -236,11 +232,33 @@ class ProphetForecastHelper
             'growth' => 'linear',
             'n_changepoints' => (int)($settings['n_changepoints'] ?? 25),
             'changepoint_range' => (float)($settings['changepoint_range'] ?? 0.8),
-            
-            // Jours fériés
-            'use_french_holidays' => (bool)($settings['use_french_holidays'] ?? false),
-            'custom_holidays' => $settings['custom_holidays'] ?? null,
             'use_calendar_peak_25_5' => (bool)($settings['use_calendar_peak_25_5'] ?? false),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $formattedSettings
+     * @return array{day_start_time: string, day_end_time: string, worked_days: list<int>, closed_dates: list<string>}
+     */
+    private function wfmSettingsPayload(WfmSetting $wfmSettings, array $formattedSettings, DateTimeInterface $horizonEnd): array
+    {
+        $calendar = new OperatingCalendarService();
+        $rangeStart = null;
+        $historyStart = $formattedSettings['history_start_date'] ?? null;
+        if (is_string($historyStart) && $historyStart !== '') {
+            $rangeStart = new ChronosDate($historyStart);
+        }
+        $rangeEnd = new ChronosDate($horizonEnd->format('Y-m-d'));
+        $historyEnd = $formattedSettings['history_end_date'] ?? null;
+        if (is_string($historyEnd) && $historyEnd !== '' && $historyEnd > $rangeEnd->format('Y-m-d')) {
+            $rangeEnd = new ChronosDate($historyEnd);
+        }
+
+        return [
+            'day_start_time' => (string)$wfmSettings->day_start_time,
+            'day_end_time' => (string)$wfmSettings->day_end_time,
+            'worked_days' => $calendar->frameDays($wfmSettings),
+            'closed_dates' => $calendar->closedDateStrings($rangeStart, $rangeEnd),
         ];
     }
 

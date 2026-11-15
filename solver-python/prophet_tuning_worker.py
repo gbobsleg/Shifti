@@ -21,7 +21,7 @@ import time
 import traceback
 from typing import Any, Dict, Optional
 
-from prophet_common import get_db_connection
+from prophet_common import get_db_connection, read_calendar_from_db
 from prophet_series import stored_profile_violates_bounds
 from prophet_tuning_core import (
     JobCancelled,
@@ -312,8 +312,19 @@ def process_job(job_id: int) -> None:
         raw_official = dict(offer_raw) if isinstance(offer_raw, dict) else {}
         offer_profile = dict(raw_official)
 
+        calendar = None
+        if isinstance(snapshot, dict) and snapshot.get("worked_days"):
+            calendar = (
+                [int(day) for day in snapshot["worked_days"]],
+                [str(day) for day in (snapshot.get("closed_dates") or [])],
+            )
+        if calendar is None:
+            worked_days, closed_dates = read_calendar_from_db()
+        else:
+            worked_days, closed_dates = calendar
+
         try:
-            df = load_offer_history_df(offer_id, offer_profile)
+            df = load_offer_history_df(offer_id, offer_profile, worked_days, closed_dates)
             assert_min_history(df, int(optuna_cfg["min_history_days"]))
         except Exception as e:
             _fail_job(conn, job_id, str(e))
@@ -360,7 +371,7 @@ def process_job(job_id: int) -> None:
 
         try:
             baseline_scores_raw = evaluate_params_walk_forward(
-                df, baseline_params, horizon, n_cutoffs, lags_days=lags
+                df, baseline_params, horizon, n_cutoffs, lags_days=lags, closed_dates=closed_dates
             )
         except Exception as e:
             _fail_job(conn, job_id, f"Échec évaluation baseline: {e}")
@@ -411,6 +422,7 @@ def process_job(job_id: int) -> None:
                 optuna_cfg,
                 progress_callback=on_progress,
                 cancel_check=cancel_check,
+                closed_dates=closed_dates,
             )
         except JobCancelled as e:
             print(f"[OptunaWorker] Job #{job_id} annulé — arrêt Optuna ({e})")

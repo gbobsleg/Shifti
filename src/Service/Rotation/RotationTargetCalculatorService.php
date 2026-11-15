@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Service\Rotation;
 
+use App\Model\Entity\WfmSetting;
+use App\Service\OperatingCalendarService;
 use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
 use Cake\ORM\Locator\LocatorAwareTrait;
@@ -30,6 +32,10 @@ class RotationTargetCalculatorService
      */
     private string $dayEndTime = '17:00:00';
 
+    private ?WfmSetting $wfmSettings = null;
+
+    private ?OperatingCalendarService $calendar = null;
+
     /**
      * Configure les paramètres de journée depuis wfm_settings.
      * 
@@ -42,6 +48,28 @@ class RotationTargetCalculatorService
         $this->dayStartTime = $dayStartTime;
         $this->dayEndTime = $dayEndTime;
         return $this;
+    }
+
+    public function setWfmSettings(?WfmSetting $settings): self
+    {
+        $this->wfmSettings = $settings;
+
+        return $this;
+    }
+
+    /**
+     * Cible WEEKLY : dénominateur = taille de la trame, pas les jours ouverts de la période.
+     * Ex. trame 5, 4 jours ouverts, base 3 → round(3 * 4/5) = 2, plafonné par les jours dispo.
+     */
+    public function weeklyQuota(int $base, int $theoreticalWeekDays, int $openDaysInScope, int $absenceDays): int
+    {
+        $available = max(0, $openDaysInScope - $absenceDays);
+        if ($base <= 0 || $theoreticalWeekDays <= 0 || $available <= 0) {
+            return 0;
+        }
+        $ratio = $available / $theoreticalWeekDays;
+
+        return min((int)round($base * $ratio), $available);
     }
 
     /**
@@ -61,8 +89,12 @@ class RotationTargetCalculatorService
         FrozenDate $periodEnd,
         ?FrozenDate $contractStart = null,
         ?FrozenDate $contractEnd = null,
-        ?int $lineTargetCount = null
+        ?int $lineTargetCount = null,
+        ?WfmSetting $settings = null
     ): int {
+        if ($settings !== null) {
+            $this->wfmSettings = $settings;
+        }
         $RotationRules = $this->fetchTable('RotationRules');
         $UsersRotationRules = $this->fetchTable('UsersRotationRules');
 
@@ -113,7 +145,7 @@ class RotationTargetCalculatorService
     /**
      * Calcule la cible hebdomadaire avec proratisation selon les absences.
      * 
-     * Formule : Round(Cible * (Jours Ouvrés Période - Absences) / Jours Ouvrés Période)
+     * Formule : min(round(cible * joursDispo / tailleTrame), joursDispo)
      */
     private function calculateWeeklyTarget(
         int $userId,
@@ -124,23 +156,14 @@ class RotationTargetCalculatorService
         ?FrozenDate $contractEnd = null
     ): int {
         // Calculer les jours ouvrés de la période (restreinte par le contrat)
-        $workingDays = $this->getWorkingDays($periodStart, $periodEnd, $contractStart, $contractEnd);
-        
-        if ($workingDays <= 0) {
+        $openDays = $this->getWorkingDays($periodStart, $periodEnd, $contractStart, $contractEnd);
+        if ($openDays <= 0) {
             return 0;
         }
-
-        // Récupérer les absences de l'agent sur la période
         $absenceDays = $this->getAbsenceDays($userId, $periodStart, $periodEnd);
+        $theoretical = count($this->calendar()->frameDays($this->wfmSettings));
 
-        // Calculer le ratio
-        $ratio = ($workingDays - $absenceDays) / $workingDays;
-        if ($ratio < 0) {
-            $ratio = 0;
-        }
-
-        // Retourner arrondi
-        return (int)round($target * $ratio);
+        return $this->weeklyQuota($target, $theoretical, $openDays, $absenceDays);
     }
 
     /**
@@ -210,7 +233,7 @@ class RotationTargetCalculatorService
     }
 
     /**
-     * Compte les jours ouvrés (exclut les weekends).
+     * Compte les jours ouverts (trame, hors fériés et fermetures).
      * 
      * @param FrozenDate $start Date de début
      * @param FrozenDate $end Date de fin (inclusive)
@@ -232,17 +255,7 @@ class RotationTargetCalculatorService
             return 0;
         }
 
-        $count = 0;
-        $current = $start;
-        
-        while ($current <= $end) {
-            if (!$current->isWeekend()) {
-                $count++;
-            }
-            $current = $current->addDays(1);
-        }
-        
-        return $count;
+        return count($this->calendar()->openDates($start, $end, $this->wfmSettings));
     }
 
     /**
@@ -321,9 +334,9 @@ class RotationTargetCalculatorService
             
             while ($current <= $rangeEndDay) {
                 $dateKey = $current->format('Y-m-d');
-                // Vérifier que le jour est dans la période et n'est pas un weekend
+                // Compter seulement un jour ouvert de la période (pas un férié, pas hors trame).
                 $date = new FrozenDate($dateKey);
-                if ($date >= $start && $date <= $end && !$date->isWeekend()) {
+                if ($date >= $start && $date <= $end && $this->calendar()->isOpen($date, $this->wfmSettings)) {
                     $fullDayAbsences[$dateKey] = true;
                 }
                 $current = $current->addDays(1);
@@ -393,5 +406,10 @@ class RotationTargetCalculatorService
         }
 
         return $count;
+    }
+
+    private function calendar(): OperatingCalendarService
+    {
+        return $this->calendar ??= new OperatingCalendarService();
     }
 }

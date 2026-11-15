@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Service\ForecastService;
+use App\Service\OperatingCalendarService;
 use App\Service\AgentsAfterFixedActivitiesService;
 use App\Service\FixedActivitiesBuilderService;
 use App\Service\PlanningDayHistoryService;
@@ -74,6 +75,16 @@ class SchedulesController extends AppController
             $dateToCalc = new FrozenTime($data['date']);
             $settingsId = $data['wfm_setting_id'];
             $settings = $WfmSettingsTable->get($settingsId, ['contain' => ['PauseOffers', 'LunchOffers']]);
+            if (!(new OperatingCalendarService())->isOpen($dateToCalc, $settings)) {
+                $label = (new OperatingCalendarService())->label($dateToCalc);
+                $this->Flash->error(
+                    'Jour fermé'
+                    . ($label !== null && $label !== '' ? ' (' . $label . ')' : '')
+                    . ' : génération refusée.'
+                );
+
+                return $this->redirect(['action' => 'generate']);
+            }
 
             $this->log('=== DÉBUT GÉNÉRATION PLANNING ===', 'debug');
             $this->log('Date: ' . $dateToCalc->format('Y-m-d'), 'debug');

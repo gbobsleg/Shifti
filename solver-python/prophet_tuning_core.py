@@ -55,7 +55,6 @@ FIXED_PROPHET_FLAGS: Dict[str, Any] = {
     "daily_seasonality": True,
     "growth": "linear",
     "changepoint_range": 0.8,
-    "use_french_holidays": False,
     "n_changepoints": 25,
     "monthly_seasonality": False,
 }
@@ -213,7 +212,6 @@ def build_prophet_params_from_offer(
     base.setdefault("monthly_fourier_order", 5)
     base.setdefault("history_start_date", None)
     base.setdefault("history_end_date", None)
-    base.setdefault("custom_holidays", None)
 
     return apply_fixed_prophet_flags(base, history_span_days=history_span_days)
 
@@ -276,6 +274,7 @@ def _window_scores(
     *,
     open_start: Optional[dt_time] = None,
     open_end: Optional[dt_time] = None,
+    closed_dates: Optional[Sequence[str]] = None,
 ) -> Optional[Dict[str, float]]:
     """
     Train avant cutoff, score sur [cutoff, cutoff+horizon).
@@ -292,7 +291,7 @@ def _window_scores(
     if len(test) == 0:
         return None
 
-    scored = drop_closed_days(aggregate_daily(test))
+    scored = drop_closed_days(aggregate_daily(test), closed_dates)
     if scored.empty:
         return None
 
@@ -303,6 +302,7 @@ def _window_scores(
                 train,
                 params_to_settings(params),
                 verbose=False,
+                closed_dates=list(closed_dates) if closed_dates else None,
             )
         except ValueError:
             return None
@@ -348,6 +348,7 @@ def evaluate_params_walk_forward(
     lags_days: Optional[Sequence[int]] = None,
     open_start: Optional[dt_time] = None,
     open_end: Optional[dt_time] = None,
+    closed_dates: Optional[Sequence[str]] = None,
 ) -> Dict[str, float]:
     """
     Évalue des params sur les cutoffs (lags explicites, sinon espacement historique).
@@ -371,6 +372,7 @@ def evaluate_params_walk_forward(
             horizon_days,
             open_start=open_start,
             open_end=open_end,
+            closed_dates=closed_dates,
         )
         if result is None:
             continue
@@ -461,6 +463,7 @@ def run_optuna_search(
     optuna_cfg: Dict[str, Any],
     progress_callback: Optional[ProgressCallback] = None,
     cancel_check: Optional[CancelCheck] = None,
+    closed_dates: Optional[Sequence[str]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any], optuna.Study]:
     """
     Lance Optuna (TPE). Retourne (best_params, best_scores, study).
@@ -497,7 +500,9 @@ def run_optuna_search(
         params = build_prophet_params_from_offer(
             offer_profile, tunable, history_span_days=span_days
         )
-        scores = evaluate_params_walk_forward(df, params, horizon, n_cutoffs, lags_days=lags)
+        scores = evaluate_params_walk_forward(
+            df, params, horizon, n_cutoffs, lags_days=lags, closed_dates=closed_dates
+        )
         trial.set_user_attr("wape_volume", scores["wape_volume"])
         trial.set_user_attr("mape_volume", scores["mape_volume"])
         trial.set_user_attr("mae_volume", scores["mae_volume"])
@@ -579,12 +584,19 @@ def should_auto_apply(
     return proposed_score <= max_allowed
 
 
-def load_offer_history_df(offer_id: int, offer_profile: Dict[str, Any]) -> pd.DataFrame:
-    """Charge l'historique selon history_* du profil offre."""
+def load_offer_history_df(
+    offer_id: int,
+    offer_profile: Dict[str, Any],
+    worked_days: Optional[List[int]] = None,
+    closed_dates: Optional[Sequence[str]] = None,
+) -> pd.DataFrame:
+    """Charge l'historique selon history_* du profil offre. worked_days est obligatoire."""
     return load_historical_data(
         offer_id,
         start_date=offer_profile.get("history_start_date") or None,
         end_date=offer_profile.get("history_end_date") or None,
+        worked_days=list(worked_days) if worked_days else None,
+        closed_dates=list(closed_dates) if closed_dates else None,
     )
 
 

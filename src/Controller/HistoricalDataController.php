@@ -5,6 +5,7 @@ namespace App\Controller;
 
 // Importe le lecteur CSV
 use App\Service\VolumeCompareService;
+use App\Service\OperatingCalendarService;
 use League\Csv\Reader;
 use League\Csv\Statement;
 
@@ -83,6 +84,9 @@ class HistoricalDataController extends AppController
             
             // Récupérer l'option d'exclusion des jours non travaillés
             $excludeNonWorkedDays = (bool)$this->request->getData('exclude_non_worked_days');
+            $closedDates = $excludeNonWorkedDays
+                ? array_flip((new OperatingCalendarService())->closedDateStrings())
+                : [];
             
             $file = $this->request->getData('uploaded_file');
 
@@ -190,7 +194,7 @@ class HistoricalDataController extends AppController
                             if ($excludeNonWorkedDays) {
                                 // DateTime::format('N') retourne 1 (lundi) à 7 (dimanche)
                                 $dayOfWeek = (int)$dt->format('N');
-                                if (!in_array($dayOfWeek, $workedDays)) {
+                                if (!in_array($dayOfWeek, $workedDays, true) || isset($closedDates[$dt->format('Y-m-d')])) {
                                     $totalExcluded++;
                                     continue; // Passer à la ligne suivante
                                 }

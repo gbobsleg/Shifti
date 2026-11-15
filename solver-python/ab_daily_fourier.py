@@ -20,7 +20,7 @@ import time
 from datetime import datetime, time as dt_time, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from prophet_common import get_db_connection
+from prophet_common import get_db_connection, read_calendar_from_db
 from prophet_tuning_core import (
     assert_min_history,
     build_prophet_params_from_offer,
@@ -118,7 +118,8 @@ def run_offer(
     print(f"Offre #{offer_id} — {offer['name']}")
     print("=" * 72)
 
-    df = load_offer_history_df(offer_id, profile)
+    worked_days, closed_dates = read_calendar_from_db()
+    df = load_offer_history_df(offer_id, profile, worked_days, closed_dates)
     assert_min_history(df, min_history_days)
     span_days = history_span_days(df)
     print(f"Historique utile : {span_days} j  ({df['ds'].min()} → {df['ds'].max()})")
@@ -147,6 +148,7 @@ def run_offer(
             n_cutoffs,
             open_start=open_start,
             open_end=open_end,
+            closed_dates=closed_dates,
         )
         elapsed = time.perf_counter() - t0
         print(f"  {_fmt_scores(scores)}  ({elapsed:.0f} s)")

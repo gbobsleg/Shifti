@@ -183,6 +183,7 @@ $referentials = [
     ['bi-sliders', 'Affichage', 'Paramètres visuels', ['controller' => 'DisplaySettings', 'action' => 'index'], 'index', new \App\Resource\DisplaySettingsResource()],
     ['bi-link-45deg', 'Mappings absences', 'Pour GroomRH', ['controller' => 'PlanningEventMappings', 'action' => 'index'], 'index', new \App\Resource\PlanningEventMappingsResource()],
     ['bi-sliders', 'Paramètres WFM', 'Config solveur', ['controller' => 'WfmSettings', 'action' => 'index'], 'index', new \App\Resource\WfmSettingsResource()],
+    ['bi-calendar-x', 'Calendrier', 'Fériés et fermetures', ['controller' => 'CalendarExceptions', 'action' => 'index'], 'index', new \App\Resource\CalendarExceptionsResource()],
 ];
 $allowed = static function (array $item) use ($can): bool {
     return $can($item[4], $item[5]);

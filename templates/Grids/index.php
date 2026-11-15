@@ -110,7 +110,7 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
     $remoteWorkColor = '';
 }
 ?>
-<div class="<?= h($appClass) ?>"<?php if ($remoteWorkColor !== ''): ?> style="--grids-remote-bg: <?= h($remoteWorkColor) ?>"<?php endif; ?> data-budget="<?= h(json_encode($budgetThresholds)) ?>">
+<div class="<?= h($appClass) ?>"<?php if ($remoteWorkColor !== ''): ?> style="--grids-remote-bg: <?= h($remoteWorkColor) ?>"<?php endif; ?> data-budget="<?= h(json_encode($budgetThresholds)) ?>" data-frame-days="<?= h(json_encode(array_values($frameDays ?? [1, 2, 3, 4, 5]))) ?>">
 <?php if (!empty($job) && !$embedMode): ?>
 <div class="alert alert-info mb-2">
     <i class="bi bi-info-circle"></i>
@@ -193,11 +193,12 @@ if ($remoteWorkColor !== '' && !preg_match('/^#[0-9A-Fa-f]{3,8}$/', $remoteWorkC
         && !$isSingleUser
         && !empty($offers_list);
     if (!empty($showCharts) && !empty($canLoadSeries) && $gridView !== GridQueryBudget::VIEW_MONTH) {
+        $chartFrame = array_map('intval', $frameDays ?? [1, 2, 3, 4, 5]);
         $chartDay = $day_ranges['begin'];
-        while ($chartDay->isWeekend() && $chartDay <= $day_ranges['end']) {
+        while ($chartDay <= $day_ranges['end'] && !in_array((int)$chartDay->format('N'), $chartFrame, true)) {
             $chartDay = $chartDay->addDays(1);
         }
-        if (!$chartDay->isWeekend()) {
+        if ($chartDay <= $day_ranges['end'] && in_array((int)$chartDay->format('N'), $chartFrame, true)) {
             echo $this->element('grids/_single_day_chart', [
                 'dayDate' => $chartDay,
                 'offers_list' => $offers_list,

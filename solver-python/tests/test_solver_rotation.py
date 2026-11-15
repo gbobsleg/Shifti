@@ -323,5 +323,68 @@ class MultiLineRotationTests(unittest.TestCase):
             self.assertEqual(tel_same, [])
 
 
+class OpenCalendarRotationTests(unittest.TestCase):
+    def test_noel_cible_2_sans_vendredi(self) -> None:
+        req = RotationRequest(
+            date='2026-12-21',
+            timeout_seconds=8,
+            open_day_indices=[0, 1, 2, 3],
+            agents=[_agent(1, target_slots=2)],
+        )
+        result = solve_rotation(req)
+        self.assertEqual(result.status, 'FEASIBLE')
+        self.assertEqual(len(result.blocks), 2)
+        self.assertTrue(all(b.day_index in (0, 1, 2, 3) for b in result.blocks))
+
+    def test_lundi_paques_besoin_du_mardi(self) -> None:
+        curve = [0.0] * 96
+        for index in range(36, 48):
+            curve[index] = 1.0
+        req = RotationRequest(
+            date='2026-04-06',
+            timeout_seconds=8,
+            open_day_indices=[1, 2, 3, 4],
+            need_curve={10: [0.0] * 96},
+            need_curve_by_day={1: {10: curve}},
+            agents=[_agent(1, target_slots=1)],
+        )
+        result = solve_rotation(req)
+        self.assertEqual(result.status, 'FEASIBLE')
+        self.assertEqual(len(result.blocks), 1)
+        self.assertEqual(result.blocks[0].day_index, 1)
+
+    def test_couverture_ignore_le_jour_ferme(self) -> None:
+        line = RotationLine(
+            id=2,
+            line_type='coverage',
+            offer_id=20,
+            sort_order=1,
+            quantity=1,
+            days_of_week=[1, 2, 3, 4, 5],
+            slots=[RotationLineSlot(start='09:00:00', end='12:00:00')],
+        )
+        req = RotationRequest(
+            date='2026-12-21',
+            timeout_seconds=8,
+            open_day_indices=[0, 1, 2, 3],
+            lines=[line],
+            agents=[_agent(1, skills=[20], target_slots=0)],
+        )
+        result = solve_rotation(req)
+        self.assertEqual(result.status, 'FEASIBLE', result.debug_info)
+        self.assertEqual(len(result.blocks), 1 * 4)
+        self.assertTrue(all(b.day_index != 4 for b in result.blocks))
+
+    def test_champ_absent_garde_cinq_jours(self) -> None:
+        req = RotationRequest(
+            date='2026-09-07',
+            timeout_seconds=8,
+            agents=[_agent(1, target_slots=5)],
+        )
+        result = solve_rotation(req)
+        self.assertEqual(result.status, 'FEASIBLE')
+        self.assertEqual({b.day_index for b in result.blocks}, {0, 1, 2, 3, 4})
+
+
 if __name__ == '__main__':
     unittest.main()
