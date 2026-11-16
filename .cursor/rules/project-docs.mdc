@@ -1,0 +1,16 @@
+---
+description: Oriente les agents vers la documentation projet dans docs/ (en français)
+alwaysApply: true
+---
+
+# Documentation projet
+
+La documentation de référence est dans `docs/` (**en français**). Lire le fichier pertinent avant toute décision d’architecture ou question déjà tranchée.
+
+Docs clés :
+- `docs/project-overview.md` — stack, runtime, carte des dossiers, workflows
+- `docs/domain-model.md` — glossaire WFM (offres, passes, jobs, équité, forecast)
+- `docs/solver-contracts.md` — ports et endpoints PHP ↔ Python
+- `docs/feature_groupes_offres.md` — groupes d’offres / profils mixtes
+
+Aussi utiles : `solver-python/README_SERVICES.md`, `README.md` racine.

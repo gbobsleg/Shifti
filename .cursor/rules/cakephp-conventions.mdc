@@ -1,0 +1,25 @@
+---
+description: Conventions CakePHP 5 — couches, Services, Policies, locale FR pour src/
+globs:
+  - "src/**/*.php"
+---
+
+# Conventions CakePHP
+
+## Couches
+
+1. **Controllers** — fins : parser la requête, autoriser, appeler les Services, view vars / JSON. Pas d’algorithmes de planning.
+2. **Services** (`src/Service/`) — logique métier : passes de génération, groupes d’offres, équité, forecast, télétravail, statut des jobs.
+3. **Model** (Table/Entity) — persistance, associations, validation à la frontière données.
+4. **Policies** — autorisation des actions ; ne pas se reposer sur le masquage UI seul.
+5. **Commands** — workers et tickers (`bin/cake …`).
+
+## Pratiques
+
+- Préférer les Services existants plutôt que grossir les Controllers.
+- Appeler les solveurs Python via `PythonSolver.url` ; aligner les payloads sur `docs/solver-contracts.md`.
+- Génération longue via les patterns job/worker déjà en place.
+- Matcher le style CakePHP 5 des fichiers voisins ; pas de refactors opportunistes.
+- Datetimes planificateur : locale française / Europe/Paris sauf spec contraire.
+- Pas de règles métier dans les templates.
+- Messages utilisateur et commentaires ajoutés **en français**.

@@ -1,0 +1,26 @@
+---
+description: Le dépôt Shifti, l’UI, la documentation et les livrables agents sont en français
+alwaysApply: true
+---
+
+# Langue française
+
+Shifti est un projet **open source francophone** (licence MIT).
+
+## À rédiger en français
+
+- Documentation (`docs/`, README prose)
+- Libellés UI, flash messages, textes d’aide, emails utilisateur
+- Specs d’agents (architecture, UX), critiques, revues, résumés d’orchestration
+- Messages de commit (sujet + corps) — format `type(scope): …` conservé
+- Commentaires de code **ajoutés** ou fichiers nouveaux, sauf si le fichier voisin est déjà dans un autre style : alors **matcher le style local**
+
+## À conserver tels quels (technique)
+
+- Identifiants du code existant : classes, méthodes, tables, colonnes, endpoints, clés JSON, noms de process Supervisord (souvent anglais)
+- Messages d’exception techniques internes uniquement s’ils existent déjà en anglais dans le voisinage — ne pas traduire en masse sans demande
+
+## Locale applicative
+
+- Défauts produit : **français / Europe/Paris**
+- Jours fériés FR côté Prophet / Optuna selon la doc solveur

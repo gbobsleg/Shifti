@@ -1,0 +1,18 @@
+---
+description: Patterns UI CakePHP + Bootstrap-UI pour templates et assets webroot (FR)
+globs:
+  - "templates/**/*"
+  - "webroot/**/*.css"
+  - "webroot/**/*.js"
+---
+
+# Templates et UI
+
+- Templates CakePHP serveur + Bootstrap-UI + CSS/JS `webroot` existants — pas de nouvelle SPA.
+- Préserver le langage visuel admin et la navigation (ex. hub Pages/admin).
+- Templates sans logique métier planning/forecast ; view vars et helpers.
+- Patterns Ajax/plugin existants plutôt que nouvelles stacks JS.
+- Desktop-first pour les écrans de planning denses ; tables scannables.
+- Éviter cartes, grappes de badges et CTA concurrents inutiles.
+- **Copy UI en français** ; pas de jargon solveur/OR-Tools sur les écrans superviseur.
+- Actions longues : statut visible (flash, progression, lien job) — pas d’attente silencieuse.
