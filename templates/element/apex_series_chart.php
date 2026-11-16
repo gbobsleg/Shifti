@@ -21,6 +21,12 @@ window.renderApexLine = function(containerId, categories, series, options = {}) 
           zoomout: true,
           pan: true,
           reset: true
+        },
+        export: {
+          csv: {
+            columnDelimiter: ';',
+            headerCategory: 'Date/Heure'
+          }
         }
       }
     },
@@ -127,6 +133,12 @@ window.renderApexStacked = function(containerId, categories, series, customOptio
           zoomout: true,
           pan: true,
           reset: true
+        },
+        export: {
+          csv: {
+            columnDelimiter: ';',
+            headerCategory: 'Date/Heure'
+          }
         }
       }
     },
@@ -246,6 +258,12 @@ window.renderApexArea = function(containerId, categories, series, options = {}) 
         zoomout: true,
         pan: true,
         reset: true
+      },
+      export: {
+        csv: {
+          columnDelimiter: ';',
+          headerCategory: 'Date/Heure'
+        }
       }
     },
     zoom: {
@@ -431,6 +449,12 @@ window.renderApexMixed = function(containerId, categories, forecastData, needDat
           zoomout: true,
           pan: true,
           reset: true
+        },
+        export: {
+          csv: {
+            columnDelimiter: ';',
+            headerCategory: 'Date/Heure'
+          }
         }
       }
     },
