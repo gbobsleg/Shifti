@@ -1,0 +1,93 @@
+name: Anonymize users once
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: sauvegarde (dump + CSV) ou apply (UPDATE)
+        required: true
+        type: choice
+        options:
+          - sauvegarde
+          - apply
+      confirm:
+        description: Taper SAUVEGARDER ou ANONYMISER
+        required: true
+        type: string
+
+concurrency:
+  group: anonymize-users
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Anonymisation manuelle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Contrôle de confirmation
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.action }}" == "sauvegarde" && "${{ inputs.confirm }}" != "SAUVEGARDER" ]]; then
+            echo "Confirmation refusée"
+            exit 1
+          fi
+          if [[ "${{ inputs.action }}" == "apply" && "${{ inputs.confirm }}" != "ANONYMISER" ]]; then
+            echo "Confirmation refusée"
+            exit 1
+          fi
+
+      - name: Exécuter sur le VPS
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.VPS_APP_PATH }}"
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            if [[ "${{ inputs.action }}" == "sauvegarde" ]]; then
+              bash deploy/anonymize-users.sh
+            else
+              COPIED=1 bash deploy/anonymize-users.sh --apply
+            fi
+
+      - name: Copier la sauvegarde hors du VPS
+        if: inputs.action == 'sauvegarde'
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh" identity
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          ssh-keyscan -H "$VPS_HOST" >> "$HOME/.ssh/known_hosts"
+          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes \
+            "$VPS_USER@$VPS_HOST" \
+            'test -s "$HOME/shifti-identity-backup/current/users.csv" && test -s "$HOME/shifti-identity-backup/current/full.sql.gz" && test -s "$HOME/shifti-identity-backup/current/SHA256SUMS"'
+          scp -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes \
+            "$VPS_USER@$VPS_HOST:shifti-identity-backup/current/users.csv" \
+            "$VPS_USER@$VPS_HOST:shifti-identity-backup/current/full.sql.gz" \
+            "$VPS_USER@$VPS_HOST:shifti-identity-backup/current/SHA256SUMS" \
+            identity/
+          test -s identity/users.csv
+          test -s identity/full.sql.gz
+          gzip -t identity/full.sql.gz
+          (cd identity && sha256sum -c SHA256SUMS)
+          echo "Fichiers récupérés. Leur contenu n'est pas affiché."
+          wc -c identity/users.csv identity/full.sql.gz
+
+      - name: Publier l'archive
+        if: inputs.action == 'sauvegarde'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shifti-identity-backup
+          path: identity/
+          retention-days: 1
+          if-no-files-found: error
