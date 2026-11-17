@@ -475,17 +475,7 @@ $(document).ready(function() {
     }
 
     restorePresets();
-    
-    // Export CSV
-    $('#export-csv-btn').on('click', function() {
-        if (!window.historicalChartData) {
-            alert('Aucune donnée à exporter');
-            return;
-        }
-        
-        exportToCSV();
-    });
-    
+
     // Rendu des graphiques si données disponibles
     if (typeof window.historicalChartData !== 'undefined' && window.historicalChartData) {
         renderCharts();
@@ -724,63 +714,5 @@ function renderCharts() {
             'default': 'int'
         }
     });
-}
-
-/**
- * Exporte les séries déjà agrégées. La colonne prévu n'existe que si elle est dans le payload.
- * La DMT reste en secondes.
- */
-function exportToCSV() {
-    const data = window.historicalChartData;
-
-    if (!data || !data.categories) {
-        return;
-    }
-
-    const columns = [];
-    (data.volumeSeries || []).forEach(function(series) {
-        columns.push({ header: series.name, data: series.data });
-    });
-    (data.forecastSeries || []).forEach(function(series) {
-        columns.push({ header: series.name, data: series.data });
-    });
-    (data.dmtSeries || []).forEach(function(series) {
-        columns.push({ header: series.name + ' (s)', data: series.data });
-    });
-
-    let csv = 'Date/Heure';
-    columns.forEach(function(column) {
-        csv += ';' + column.header;
-    });
-    csv += '\n';
-
-    for (let i = 0; i < data.categories.length; i++) {
-        csv += data.categories[i];
-        columns.forEach(function(column) {
-            const value = column.data ? column.data[i] : null;
-            csv += ';' + (value !== null && typeof value !== 'undefined' ? value : '');
-        });
-        csv += '\n';
-    }
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    const now = new Date();
-    const filename = 'reel_et_prevision_' +
-        now.getFullYear() +
-        String(now.getMonth() + 1).padStart(2, '0') +
-        String(now.getDate()).padStart(2, '0') +
-        '_' +
-        String(now.getHours()).padStart(2, '0') +
-        String(now.getMinutes()).padStart(2, '0') +
-        '.csv';
-
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
 }
 

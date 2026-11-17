@@ -165,6 +165,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
                 \App\Resource\RotationRulesResource::class => \App\Policy\RotationRulesPolicy::class,
                 \App\Resource\DisplaySettingsResource::class => \App\Policy\DisplaySettingsPolicy::class,
                 \App\Resource\HistoricalDataResource::class => \App\Policy\HistoricalDataPolicy::class,
+                \App\Resource\DataExportsResource::class => \App\Policy\DataExportsPolicy::class,
                 \App\Resource\ExcelUploadsResource::class => \App\Policy\ExcelUploadsPolicy::class,
                 \App\Resource\PlanningEventMappingsResource::class => \App\Policy\PlanningEventMappingsPolicy::class,
                 \App\Resource\PlanningGenerationJobsResource::class => \App\Policy\PlanningGenerationJobsPolicy::class,

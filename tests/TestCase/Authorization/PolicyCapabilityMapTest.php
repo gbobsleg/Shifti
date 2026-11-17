@@ -9,6 +9,8 @@ use App\Policy\AbsencesPolicy;
 use App\Policy\AbstractCapabilityPolicy;
 use App\Policy\AlertsPolicy;
 use App\Policy\BackgroundJobsPolicy;
+use App\Policy\CalendarExceptionsPolicy;
+use App\Policy\DataExportsPolicy;
 use App\Policy\DisplaySettingsPolicy;
 use App\Policy\ExcelUploadsPolicy;
 use App\Policy\FixedActivityRulesPolicy;
@@ -63,6 +65,18 @@ class PolicyCapabilityMapTest extends TestCase
                 'canIndex' => Capability::JOBS_SUPERVISER,
                 'canStatus' => Capability::JOBS_SUPERVISER,
                 'canCancelOptuna' => Capability::JOBS_SUPERVISER,
+            ],
+            CalendarExceptionsPolicy::class => [
+                'canIndex' => Capability::REF_WFM,
+                'canAdd' => Capability::REF_WFM,
+                'canEdit' => Capability::REF_WFM,
+                'canDelete' => Capability::REF_WFM,
+                'canSeed' => Capability::REF_WFM,
+                'canToggle' => Capability::REF_WFM,
+            ],
+            DataExportsPolicy::class => [
+                'canIndex' => Capability::HISTORIQUE_CONSULTER,
+                'canDownload' => Capability::HISTORIQUE_CONSULTER,
             ],
             DisplaySettingsPolicy::class => $crud(Capability::REF_AFFICHAGE),
             ExcelUploadsPolicy::class => [
