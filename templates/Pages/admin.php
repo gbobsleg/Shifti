@@ -272,6 +272,7 @@ $hasContent = $workflowSteps !== [] || $operations !== [] || $referentials !== [
                 <?php endif; ?>
                 <?php if ($canVisualizeHistory): ?>
                     <?= $tile('bi-graph-up', 'Réel et prévision', 'Comparer le volume réel à la prévision publiée', ['controller' => 'HistoricalData', 'action' => 'visualize']) ?>
+                    <?= $tile('bi-download', 'Export', 'Télécharger le réel, un scénario ou la prévision publiée', ['controller' => 'DataExports', 'action' => 'index']) ?>
                 <?php endif; ?>
             </div>
         </section>

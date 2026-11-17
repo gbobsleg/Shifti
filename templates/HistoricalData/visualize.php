@@ -175,9 +175,6 @@ try {
 
             <div class="hv-filter-actions">
                 <button type="submit" class="btn btn-primary">Afficher</button>
-                <button type="button" id="export-csv-btn" class="btn btn-outline-secondary" <?= !$hasData ? 'disabled' : '' ?>>
-                    Exporter CSV
-                </button>
             </div>
         </div>
         </div>
