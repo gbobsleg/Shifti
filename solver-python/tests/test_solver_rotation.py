@@ -323,6 +323,131 @@ class MultiLineRotationTests(unittest.TestCase):
             self.assertEqual(tel_same, [])
 
 
+def _monday_morning_peak(level: float) -> list:
+    """Courbe 96 quarts d'heure : besoin `level` le matin 09:00-12:00, 0 ailleurs."""
+    curve = [0.0] * 96
+    for index in range(36, 48):
+        curve[index] = level
+    return curve
+
+
+class PriorityOrderTests(unittest.TestCase):
+    """La couverture du besoin prime sur la rotation des jours, et les plages dues sur tout."""
+
+    def test_legacy_peak_beats_repeated_day(self) -> None:
+        # Lundi matin : 2 agents manquants. L'agent a travaillé le lundi la semaine passée.
+        # Ancienne somme pondérée : gain de couverture < 100 (jour répété) → plage placée un autre jour.
+        req = RotationRequest(
+            date='2026-09-07',
+            timeout_seconds=8,
+            need_curve={10: [0.0] * 96},
+            need_curve_by_day={0: {10: _monday_morning_peak(2.0)}},
+            agents=[_agent(1, target_slots=1, history_worked_days=[0])],
+        )
+        result = solve_rotation(req)
+        self.assertEqual(result.status, 'FEASIBLE', result.debug_info)
+        self.assertEqual(len(result.blocks), 1)
+        self.assertEqual(result.blocks[0].day_index, 0)
+        self.assertEqual(result.blocks[0].start, '09:00:00')
+
+    def test_lines_peak_beats_repeated_day(self) -> None:
+        req = RotationRequest(
+            date='2026-09-07',
+            timeout_seconds=8,
+            need_curve={10: [0.0] * 96},
+            need_curve_by_day={0: {10: _monday_morning_peak(2.0)}},
+            lines=[RotationLine(
+                id=1,
+                line_type='quota',
+                offer_id=10,
+                sort_order=1,
+                target_count=1,
+                shift_duration=180,
+                window_start='09:00:00',
+                window_end='17:00:00',
+                fit_need_curve=True,
+            )],
+            agents=[_agent(
+                1,
+                skills=[10],
+                target_slots=1,
+                target_slots_by_line={'1': 1},
+                history_worked_days=[0],
+            )],
+        )
+        result = solve_rotation(req)
+        self.assertEqual(result.status, 'FEASIBLE', result.debug_info)
+        self.assertEqual(len(result.blocks), 1)
+        self.assertEqual(result.blocks[0].day_index, 0)
+        self.assertEqual(result.blocks[0].start, '09:00:00')
+
+    def test_need_above_headcount_stays_feasible(self) -> None:
+        # Besoin 10 avec 1 seul agent : l'écart dépassait la borne de la variable → INFEASIBLE.
+        line = RotationLine(
+            id=1,
+            line_type='quota',
+            offer_id=10,
+            sort_order=1,
+            target_count=1,
+            shift_duration=180,
+            window_start='09:00:00',
+            window_end='17:00:00',
+            fit_need_curve=True,
+        )
+        for lines, agent in (
+            (None, _agent(1, target_slots=1)),
+            ([line], _agent(1, skills=[10], target_slots=1, target_slots_by_line={'1': 1})),
+        ):
+            req = RotationRequest(
+                date='2026-09-07',
+                timeout_seconds=8,
+                need_curve={10: [0.0] * 96},
+                need_curve_by_day={0: {10: _monday_morning_peak(10.0)}},
+                lines=lines,
+                agents=[agent],
+            )
+            result = solve_rotation(req)
+            self.assertEqual(result.status, 'FEASIBLE', result.debug_info)
+            self.assertEqual(len(result.blocks), 1)
+            self.assertEqual(result.blocks[0].day_index, 0)
+
+    def test_low_rank_line_keeps_due_slots_despite_repeated_days(self) -> None:
+        # Ligne de rang 4 : ancien poids d'une plage manquante = 1, jour répété = 100
+        # → les plages étaient supprimées. Elles doivent toutes être placées.
+        unavail = {
+            str(d): [UnavailableInterval(start='09:00:00', end='17:00:00')]
+            for d in (1, 2)
+        }
+        req = RotationRequest(
+            date='2026-09-07',
+            timeout_seconds=8,
+            exclusive_day=True,
+            lines=[RotationLine(
+                id=1,
+                line_type='quota',
+                offer_id=10,
+                sort_order=4,
+                target_count=3,
+                shift_duration=180,
+                window_start='09:00:00',
+                window_end='17:00:00',
+                fit_need_curve=False,
+            )],
+            agents=[_agent(
+                1,
+                skills=[10],
+                target_slots=3,
+                target_slots_by_line={'1': 3},
+                history_worked_days=[0, 3, 4],
+                unavailable_by_day=unavail,
+            )],
+        )
+        result = solve_rotation(req)
+        self.assertEqual(result.status, 'FEASIBLE', result.debug_info)
+        self.assertEqual(len(result.blocks), 3)
+        self.assertEqual(result.shortfalls, [])
+
+
 class OpenCalendarRotationTests(unittest.TestCase):
     def test_noel_cible_2_sans_vendredi(self) -> None:
         req = RotationRequest(

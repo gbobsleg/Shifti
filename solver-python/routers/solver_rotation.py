@@ -166,6 +166,61 @@ def line_weight(sort_order: int) -> int:
     return 10 ** exp
 
 
+def _solve_by_levels(
+    model: cp_model.CpModel,
+    levels: List[List[Any]],
+    decision_vars: List[Any],
+    timeout_seconds: float,
+) -> Tuple[cp_model.CpSolver, int, float]:
+    """
+    Optimisation lexicographique : chaque niveau est minimisé sans jamais
+    dégrader la valeur obtenue aux niveaux précédents. Un niveau inférieur
+    ne départage donc que des solutions équivalentes pour les niveaux supérieurs.
+
+    Le temps est réparti entre les niveaux restants ; si un niveau ne trouve
+    aucune solution dans son budget, on conserve la solution du niveau précédent.
+    """
+    exprs = []
+    for terms in levels:
+        if not terms:
+            continue
+        expr = sum(terms)
+        if isinstance(expr, int):
+            continue
+        exprs.append(expr)
+
+    remaining = max(1.0, float(timeout_seconds))
+    solver = cp_model.CpSolver()
+    if not exprs:
+        solver.parameters.max_time_in_seconds = remaining
+        status = solver.Solve(model)
+        return solver, status, solver.WallTime()
+
+    best_solver: Optional[cp_model.CpSolver] = None
+    best_status = cp_model.UNKNOWN
+    status = cp_model.UNKNOWN
+    wall = 0.0
+    for i, expr in enumerate(exprs):
+        model.Minimize(expr)
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = max(0.5, remaining / (len(exprs) - i))
+        status = solver.Solve(model)
+        wall += solver.WallTime()
+        remaining = max(0.5, remaining - solver.WallTime())
+        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            break
+        best_solver, best_status = solver, status
+        if i < len(exprs) - 1:
+            model.Add(expr <= int(round(solver.ObjectiveValue())))
+            model.ClearHints()
+            for var in decision_vars:
+                model.AddHint(var, solver.Value(var))
+
+    if best_solver is None:
+        return solver, status, wall
+    return best_solver, best_status, wall
+
+
 def _intervals_overlap(a0: int, a1: int, b0: int, b1: int) -> bool:
     return max(a0, b0) < min(a1, b1)
 
@@ -472,39 +527,26 @@ def solve_rotation_legacy(request: RotationRequest) -> RotationResponse:
                     
                     # 3. Calcul de l'écart au carré : (Staffing - Target)^2
                     # C'est ce que nous voulons minimiser pour coller à la courbe
-                    delta = model.NewIntVar(-max_agents, max_agents, f"delta_o{offer_id}_d{day}_t{t}")
+                    # Borne ≥ besoin : un besoin supérieur à l'effectif rendait le modèle INFEASIBLE
+                    bound = max(max_agents, target_need)
+                    delta = model.NewIntVar(-bound, bound, f"delta_o{offer_id}_d{day}_t{t}")
                     model.Add(delta == staffing_at_t - target_need)
                     
-                    delta_sq = model.NewIntVar(0, max_agents**2, f"delta_sq_o{offer_id}_d{day}_t{t}")
+                    delta_sq = model.NewIntVar(0, bound**2, f"delta_sq_o{offer_id}_d{day}_t{t}")
                     model.AddMultiplicationEquality(delta_sq, [delta, delta])
                     
                     delta_squared_vars.append(delta_sq)
 
-    # --- OBJECTIF GLOBAL CONSOLIDÉ ---
-    # Priorités (par poids décroissant) :
-    # 1. Shortfall (1 000 000) : Respecter la cible contractuelle autant que possible
-    # 2. Couverture Need Curve (1) : Coller au besoin prévisionnel
-    # 3. Préférences (10-100) : Rotation des jours, étalement
-    
-    objective_terms = []
-    
-    # 1. Pénalités de shortfall (PRIORITÉ ABSOLUE)
-    objective_terms.extend(shortfall_penalties)
-    
-    # 2. Écarts de couverture Need Curve
-    objective_terms.extend(delta_squared_vars)
-    
-    # 3. Pénalités de préférence (rotation, étalement)
-    objective_terms.extend(preference_penalties)
-    
-    if objective_terms:
-        model.Minimize(sum(objective_terms))
-
-    # --- 4. Résolution ---
-    
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = max(1.0, float(request.timeout_seconds))
-    status = solver.Solve(model)
+    # --- OBJECTIF LEXICOGRAPHIQUE ---
+    # 1. Shortfall : respecter la cible hebdomadaire de chaque agent
+    # 2. Couverture need curve : coller au besoin prévisionnel
+    # 3. Préférences : rotation des jours, étalement (départage uniquement)
+    solver, status, wall_time = _solve_by_levels(
+        model,
+        [shortfall_penalties, delta_squared_vars, preference_penalties],
+        list(shifts.values()),
+        request.timeout_seconds,
+    )
     
     response_blocks = []
     status_str = "INFEASIBLE"
@@ -535,7 +577,7 @@ def solve_rotation_legacy(request: RotationRequest) -> RotationResponse:
     return RotationResponse(
         status=status_str,
         blocks=response_blocks,
-        debug_info=f"Solved in {solver.WallTime()}s",
+        debug_info=f"Solved in {wall_time}s",
         shortfalls=[],
     )
 
@@ -756,8 +798,15 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
             else:
                 model.AddBoolOr(lunch_ok_opts).OnlyEnforceIf(any_work)
 
-    # --- Objectifs ---
-    objective_terms = []
+    # --- Objectifs (lexicographiques) ---
+    # 1. due_terms     : plages dues (quotas + lignes de couverture), ordonnées par sort_order
+    # 2. need_terms    : écart à la need curve
+    # 3. equity_terms  : équité des lignes de couverture
+    # 4. comfort_terms : rotation des jours, jours consécutifs
+    due_terms: List[Any] = []
+    need_terms: List[Any] = []
+    equity_terms: List[Any] = []
+    comfort_terms: List[Any] = []
     shortfalls_meta: List[Dict[str, Any]] = []
 
     # Quota shortfalls
@@ -777,13 +826,13 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
                     'kind': 'quota_agent', 'agent_id': agent.id, 'expected': target, 'actual': 0,
                     'var': None, 'forced': target,
                 })
-                objective_terms.append(target * w)
+                due_terms.append(target * w)
                 continue
             assigned = model.NewIntVar(0, target, f"qass_a{agent.id}_l{line.id}")
             model.Add(assigned == sum(vars_a))
             sf = model.NewIntVar(0, target, f"qsf_a{agent.id}_l{line.id}")
             model.Add(assigned + sf == target)
-            objective_terms.append(sf * w)
+            due_terms.append(sf * w)
             shortfalls_meta.append({
                 'line_id': line.id, 'line_type': 'quota', 'offer_id': line.offer_id,
                 'kind': 'quota_agent', 'agent_id': agent.id, 'expected': target,
@@ -809,7 +858,7 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
                     model.Add(staffing == 0)
                 sf = model.NewIntVar(0, qty, f"csf_l{line.id}_d{d}_i{idx}")
                 model.Add(staffing + sf >= qty)
-                objective_terms.append(sf * w)
+                due_terms.append(sf * w)
                 shortfalls_meta.append({
                     'line_id': line.id, 'line_type': 'coverage', 'offer_id': line.offer_id,
                     'kind': 'coverage_slot', 'day_index': d,
@@ -843,11 +892,11 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
                         over = model.NewBoolVar(f"coverk_a{agent.id}_l{line.id}_k{k}")
                         model.Add(load >= k).OnlyEnforceIf(over)
                         model.Add(load < k).OnlyEnforceIf(over.Not())
-                        objective_terms.append(over * k)
+                        equity_terms.append(over * k)
                 if loads:
                     max_load = model.NewIntVar(0, max(hist_max + 10, 20), f"cmaxload_l{line.id}")
                     model.AddMaxEquality(max_load, loads)
-                    objective_terms.append(max_load * eq_w)
+                    equity_terms.append(max_load * eq_w)
 
     # Need curve (quota lines)
     delta_squared_vars = []
@@ -874,12 +923,14 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
                 target_need = 0
                 if t < len(curve):
                     target_need = int(round(curve[t]))
-                delta = model.NewIntVar(-max_agents, max_agents, f"delta_l{line.id}_d{day}_t{t}")
+                # Borne ≥ besoin : un besoin supérieur à l'effectif rendait le modèle INFEASIBLE
+                bound = max(max_agents, target_need)
+                delta = model.NewIntVar(-bound, bound, f"delta_l{line.id}_d{day}_t{t}")
                 model.Add(delta == staffing_at_t - target_need)
-                delta_sq = model.NewIntVar(0, max_agents ** 2, f"dsq_l{line.id}_d{day}_t{t}")
+                delta_sq = model.NewIntVar(0, bound ** 2, f"dsq_l{line.id}_d{day}_t{t}")
                 model.AddMultiplicationEquality(delta_sq, [delta, delta])
                 delta_squared_vars.append(delta_sq)
-    objective_terms.extend(delta_squared_vars)
+    need_terms.extend(delta_squared_vars)
 
     # Préférences jours (duties)
     for agent in request.agents:
@@ -901,7 +952,7 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
             model.Add(sum(uniq) == 0).OnlyEnforceIf(is_working.Not())
             work_by_day[d] = is_working
             if d in hist_days:
-                objective_terms.append(is_working * 100)
+                comfort_terms.append(is_working * 100)
         ordered = sorted(work_by_day.keys())
         for i in range(len(ordered) - 1):
             d1, d2 = ordered[i], ordered[i + 1]
@@ -909,14 +960,14 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
                 consecutive = model.NewBoolVar(f"consec_a{agent.id}_d{d1}")
                 model.AddBoolAnd([work_by_day[d1], work_by_day[d2]]).OnlyEnforceIf(consecutive)
                 model.AddBoolOr([work_by_day[d1].Not(), work_by_day[d2].Not()]).OnlyEnforceIf(consecutive.Not())
-                objective_terms.append(consecutive * 10)
+                comfort_terms.append(consecutive * 10)
 
-    if objective_terms:
-        model.Minimize(sum(objective_terms))
-
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = max(1.0, float(request.timeout_seconds))
-    status = solver.Solve(model)
+    solver, status, wall_time = _solve_by_levels(
+        model,
+        [due_terms, need_terms, equity_terms, comfort_terms],
+        [iv['var'] for iv in intervals],
+        request.timeout_seconds,
+    )
 
     response_blocks: List[RotationBlock] = []
     shortfalls: List[RotationShortfall] = []
@@ -963,7 +1014,7 @@ def solve_rotation_lines(request: RotationRequest) -> RotationResponse:
     return RotationResponse(
         status=status_str,
         blocks=response_blocks,
-        debug_info=f"Solved in {solver.WallTime()}s",
+        debug_info=f"Solved in {wall_time}s",
         shortfalls=shortfalls,
     )
 
