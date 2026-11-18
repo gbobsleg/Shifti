@@ -1209,7 +1209,6 @@ def solve_schedule(problem: Problem):
     W_SURP = problem.weight_surplus
     W_SAME = problem.weight_same_offer_windows
     W_EEND = problem.weight_early_end
-    # W_BRK_ALIGN ignoré intentionnellement (voir commentaires)
     W_PER_EQ = getattr(problem, "weight_period_equity", 0) or 0
     W_PREF_MIXED = int(getattr(problem, "weight_prefer_mixed", 80) or 0)
     obj_terms: List[cp_model.LinearExpr] = []

@@ -192,9 +192,7 @@ class Problem(BaseModel):
     weight_early_end: int = 0
     weight_late_work: int = 0
     weight_same_offer_windows: int = 300
-    weight_break_alignment: int = 2
-    weight_break_dispersion: int = 3
-    
+
     debug_logging: bool = False
     forbid_midday_singletons: bool = False
     

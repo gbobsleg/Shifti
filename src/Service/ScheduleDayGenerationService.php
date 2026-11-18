@@ -1371,9 +1371,6 @@ class ScheduleDayGenerationService
                 'break_duration_minutes' => $breakDurationMinutes,
                 'lunch_duration_minutes' => $lunchDurationMinutes,
                 'forbid_midday_singletons' => $forbidMiddaySingletons,
-                // Dispersion des pauses: pénalité renforcée pour éviter que plusieurs agents fassent la pause au même moment
-                // Particulièrement important pour les agents avec activités fixes (même contraintes → même créneau optimal)
-                'weight_break_dispersion' => 12,  // Augmenté de 3 (défaut) à 12 pour forcer le décalage
                 'debug_logging' => $debugSolvers,
                 'relative_gap_limit' => 0.01, // Stop si < 1% d'écart avec l'optimum
             ];
