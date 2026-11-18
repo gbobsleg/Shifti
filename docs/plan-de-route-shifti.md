@@ -17,6 +17,8 @@ _Créé le 18/11/2026 — dérivé de `docs/diagnostic-shifti-vs-editeurs-wfm.md
 
 Objectif : corriger les défauts qui faussent les résultats, sans changer le comportement global. Durée estimée : 1 à 2 jours.
 
+**Statut : terminée (novembre 2026), branche `fix/rotation-priorites` fusionnée dans `main`.** Bilan rotation (job 269 avant, job 273 après) : même nombre de plages (250) et de manques (45) ; les manques se répartissent désormais selon la priorité choisie (AE en premier) ; jours répétés de 66 à 61. La priorité des lignes de rotation est modifiable dans le formulaire.
+
 Ordre d'exécution : d'abord les vérifications de configuration (aucun code, gain immédiat), ensuite les correctifs.
 
 | # | Action | Fichiers | Effort | Remarque |
@@ -39,7 +41,7 @@ Objectif : pouvoir modifier les solveurs sans régression et expliquer chaque r�
 | 1.1 | Tests de référence des solveurs : jeux de données réels anonymisés, valeurs d'objectif et indicateurs attendus (couverture, équité) | `solver-python/tests/` | M | — |
 | 1.2 | Reproductibilité : `interleave_search = True`, `max_deterministic_time`, `num_workers` à la place de `num_search_workers` (déprécié). **Étalonner** `max_deterministic_time` sur le serveur de production (compteur de travail interne, proche de secondes mais pas égal). **Garder** `max_time_in_seconds` comme garde-fou (par exemple le double du temps habituel) ; s'il se déclenche, le résultat n'est plus reproductible : le **signaler** dans le rapport de génération | `solver_coverage.py`, `solver_fixed.py`, `solver_rotation.py` | S | 1.1 |
 | 1.3 | Retourner l'écart à l'optimum (`BestObjectiveBound`) avec chaque résultat et l'afficher | `solver_coverage.py`, contrôleurs de génération | S | — |
-| 1.4 | Sécuriser le microservice : jeton partagé vérifié par FastAPI, pas d'écoute sur `0.0.0.0` ni de `reload=True` en production | `solver-python/main.py`, services PHP appelant le solveur | S | — |
+| 1.4 | Sécuriser le microservice : jeton partagé vérifié par FastAPI, pas d'écoute sur `0.0.0.0` ni de `reload=True` en production. Cible : services Python (solveur et Prophet) sur un serveur, application et base sur un autre ; adresses des services réglables par variables d'environnement | `solver-python/main.py`, `forecast_prophet.py`, services PHP appelant Python, `config/app.php` | S | — |
 | 1.5 | Rééquilibrer les poids de la passe 1 (unités homogènes, hiérarchie explicite, éventuellement lexicographique comme la passe 2) | `solver_fixed.py` | M | 1.1, 0.6 |
 
 ---
@@ -57,6 +59,7 @@ Objectif : supprimer les corrections manuelles et permettre les ajustements sous
 | 2.4 | Niveau période pour les activités fixes : nouvel endpoint (ex. `/solve-fixed-period`), cible à une plage près, lissage hebdomadaire (écart ≤ 1 plage entre semaines), min-max de l'écart à la cible. **Coût de tension par compétence**, en critère secondaire après l'équité : coût par agent et par demi-journée selon la tension prévue sur ses offres (exemple : éviter de retirer le seul expert CESU un jour de pic CESU). Ce coût choisit **qui** prend la plage, pas **si** elle a lieu : les plages d'accueil à horaires fixes sont dues chaque jour | nouveau routeur Python, `PlanningGenerationJobsController.php`, calcul des cibles existant, courbe de besoin | L | 2.2 |
 | 2.5 | Règle de repli quand une attribution période devient impossible dans la journée (alerte + proposition d'un autre agent) | `ScheduleDayGenerationService.php`, écran qualité | M | 2.4 |
 | 2.6 | Préserver l'équité lors des re-générations : l'historique transmis inclut le déjà planifié figé | classe extraite en 2.0, `JobPeriodEquityScoresProvider` | S | 2.1 |
+| 2.7 | Lignes de rotation sur une offre mixte (ex. GRC sur TI-AE) : d'abord un avertissement dans le formulaire (le bloc ne déduit rien du besoin) ; ensuite déduire le bloc des offres membres | `templates/element/RotationRules/`, classe extraite en 2.0 | S puis M | 2.0 |
 
 Événements imprévisibles (grève, pic exceptionnel) : traités par la re-génération partielle (2.2, 2.3), pas par le niveau période, qui ne s'appuie que sur la prévision.
 
@@ -84,6 +87,7 @@ Objectif : supprimer les corrections manuelles et permettre les ajustements sous
 | 4.4 | Comparaison besoin calculé / agents réellement au téléphone / qualité de service sur quelques semaines | export ou écran d'analyse | S | — |
 | 4.5 | Groupe « COS » à 3 membres (ACCUR, AE, TI) ou groupes imbriqués, avant la bascule des profils COS | `OfferGroupsNeedService.php`, `solver_coverage.py` | M | 1.1 |
 | 4.6 | Estimer le ratio AE / TI : demander à l'équipe téléphonie si les files virtuelles derrière le VoiceBot existent encore dans Genesys | hors code | S | — |
+| 4.7 | Troisième mode de groupe d'offres, « mutualisé » : prévision par offre, besoin calculé ensemble (Erlang sur le volume cumulé), réparti au prorata. Cas visé : CESU / PAJEMPLOI, aujourd'hui surestimé en mode « members » | `OfferGroupsNeedService.php`, écran Groupes d'offres | M | 1.1 |
 
 ---
 

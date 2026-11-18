@@ -80,8 +80,8 @@ Hiérarchie réellement stricte (objectif lexicographique) :
 | Préférence pour le profil mixte | 80 |
 | Continuité et nombre d'agents utilisés | 20 |
 
-- **Bug de paramétrage.** `W_EQUITY = max(..., 120)` impose un plancher : impossible de baisser ce poids sous 120 ou de le mettre à 0. Il faut passer par `equity_offers` vide.
-- **Paramètre mort.** `weight_break_alignment` est exposé dans `data_models.py` mais ignoré (« W_BRK_ALIGN ignoré intentionnellement »). Un réglage visible qui ne fait rien : exactement le reproche fait à Genesys.
+- **Bug de paramétrage (corrigé en phase 0).** `W_EQUITY = max(..., 120)` imposait un plancher. Le plancher est supprimé ; PHP envoie 120, comportement inchangé (commit `71c5778`).
+- **Paramètres morts (supprimés en phase 0).** `weight_break_alignment` et `weight_break_dispersion` étaient exposés mais ignorés par le solveur. Ils ont été retirés (commit `da91409`).
 
 ### Solveur des rotations (`solver_rotation.py`, l.483-501) : bug de priorité
 
@@ -323,7 +323,7 @@ Le niveau période est petit : une variable oui / non par agent × jour × plage
 6. **Code déprécié :**
    - `Cake\I18n\FrozenDate` / `FrozenTime` dans **46 fichiers** : dépréciés en CakePHP 5, à remplacer par `Cake\I18n\Date` / `Cake\I18n\DateTime` ;
    - Pydantic ≥ 2 (`requirements.txt`) mais `class Config` (syntaxe v1) : passer à `model_config = ConfigDict(...)`.
-7. **Poids codés en dur et contradictoires.** Bug de priorité des rotations, plancher de 120, paramètre mort `weight_break_alignment` (section 1).
+7. **Poids codés en dur et contradictoires.** Bug de priorité des rotations, plancher de 120 et paramètres de pauses inutilisés : corrigés en phase 0. Reste ouvert : le rééquilibrage des poids de la passe 1 (plan de route, 1.5).
 8. **Une seule personne connaît le code.** Ni support, ni astreinte, ni engagement de service. Argument n° 1 des éditeurs ; il se contre par le coût et l'adéquation, pas techniquement.
 
 ---
