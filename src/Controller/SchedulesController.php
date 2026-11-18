@@ -1420,7 +1420,7 @@ class SchedulesController extends AppController
             }
             if (!empty($equityOffers)) {
                 $wfmProblem['equity_offers'] = $equityOffers;
-                $wfmProblem['weight_equity'] = 60; // renforcer l'équité AM/PM
+                $wfmProblem['weight_equity'] = 120; // renforcer l'équité AM/PM
             }
 
             $this->log('=== JSON FINAL ===', 'debug');
@@ -1663,7 +1663,7 @@ class SchedulesController extends AppController
                         $forecastableEquityOffers = array_intersect($equityOffers, $forecastableOffers);
                         if (!empty($forecastableEquityOffers)) {
                             $wfmProblemPasse2['equity_offers'] = array_values($forecastableEquityOffers);
-                            $wfmProblemPasse2['weight_equity'] = 60;
+                            $wfmProblemPasse2['weight_equity'] = 120;
                         }
                     }
 

@@ -1359,7 +1359,7 @@ class ScheduleDayGenerationService
                 // TEST (temporaire): activer en dur l'équité intra‑journée (AM/PM) sur toutes les offres forecastables.
                 // Objectif: favoriser la rotation matin/après‑midi plutôt que de laisser un agent sur la même offre toute la journée.
                 'equity_offers' => array_values($forecastableOffers),
-                'weight_equity' => 60,
+                'weight_equity' => 120,
                 // Équité période Passe 2 (minutes): activée uniquement sur les offres configurées.
                 'period_equity_offers' => $periodEquityOffers,
                 'period_equity_scores' => empty($periodEquityScores) ? (object)[] : $periodEquityScores,

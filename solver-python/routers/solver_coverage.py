@@ -1372,7 +1372,7 @@ def solve_schedule(problem: Problem):
 
     if getattr(problem, 'equity_offers', None):
         equity_set = set(problem.equity_offers or [])
-        W_EQUITY = max(int(getattr(problem, 'weight_equity', 40) or 0), 120)
+        W_EQUITY = int(getattr(problem, 'weight_equity', 40) or 0)
         if W_EQUITY > 0 and (w_morning or w_afternoon):
             equity_pen_vars: List[cp_model.IntVar] = []
             for k, off in enumerate(offers):
