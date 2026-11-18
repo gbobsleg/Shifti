@@ -93,7 +93,13 @@ Le commentaire annonce « 1. Shortfall, 2. Need Curve, 3. Préférences ». Les 
 
 La pénalité de 100 s'applique **une fois par jour travaillé**, alors que l'écart au besoin se paie **sur chaque quart d'heure** du bloc. Exemple : un bloc GRC de 3 h couvre 12 quarts d'heure. Le placer là où il manque 3 agents plutôt qu'à un endroit déjà couvert rapporte environ 12 × (3² − 2²) = 60 points, moins que les 100 de pénalité. Le solveur préfère donc éviter le jour répété. Le seuil réel se situe vers **4 à 5 agents de manque** : la rotation passe avant la couverture en dessous. C'est l'inverse du commentaire.
 
-Portée : le **nombre** de plages par GRC (cible hebdomadaire, par exemple 3) est protégé par un poids de 1 000 000 (l.392). Le bug porte sur **l'emplacement** des plages (GRC mal placés), pas sur leur nombre. La seconde fonction objectif du fichier (l.915) n'a pas été analysée.
+Portée et correctif (branche `fix/rotation-priorites`, 18/11/2026) :
+
+- Shifti utilise le chemin multi-lignes `solve_rotation_lines`, pas le chemin historique. Le poids d'une plage manquante y dépendait du rang de la ligne (`line_weight`) : 1 000 000 au rang 1, 10 000 au rang 2, 100 au rang 3, **1 au-delà**. Une ligne de rang 3 ou plus pouvait perdre des plages au profit d'un jour non répété. Toutes les lignes actuelles sont au rang 1 : pas d'impact constaté.
+- Le seuil réel du bug d'emplacement était plus bas qu'estimé : un GRC était déplacé dès 2 agents manquants.
+- Bug supplémentaire : si le besoin d'un quart d'heure dépassait le nombre de GRC envoyés plus 1, la rotation de la semaine devenait **INFEASIBLE** (aucune plage). Bornes corrigées.
+- Correctif : résolution lexicographique en 4 niveaux (plages dues → besoin → équité des lignes de couverture → confort des jours), dans les deux chemins. 4 tests de non-régression ajoutés.
+- Comparaison jobs 269 / 273 (4 semaines, mêmes données) : 250 plages dans les deux cas ; manques totaux identiques (45) mais répartis autrement (avant : 4 plages AE + 41 créneaux Livechat ; après : 21 plages AE + 24 créneaux Livechat) ; jours répétés 66 → 61. À lignes de même rang, le solveur arbitre seul entre téléphonie et Livechat : la priorité des lignes doit être fixée par l'utilisateur.
 
 ### Transparence : Shifti contre les IA du marché
 
