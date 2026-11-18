@@ -772,6 +772,19 @@ async def solve_fixed_activities(problem: FixedActivityProblem, request: Request
     all_lunches = list(start_lunch.values())
 
     # --- MINIMISATION (POIDS REAJUSTÉS) ---
+    # Somme pondérée unique (pas lexicographique). Hiérarchie obtenue par l'écart des poids.
+    # Unités hétérogènes : voir docs/diagnostic-shifti-vs-editeurs-wfm.md, section 1 (Passe 1).
+    #   10**10 / créneau  : activité obligatoire non couverte
+    #   10**7  / booléen  : conflit d'offres
+    #   10**6  / minute   : écart au quota d'équité (pool obligatoire)
+    #   10**6  / agent    : pause courte simultanée en trop sur un groupe
+    #   10**5  / booléen  : diversification de la seconde activité
+    #   -10**5 / booléen  : bonus par pause ou déjeuner placé
+    #   10**4  / créneau  : activité optionnelle non couverte
+    #   100    / minute   : écart à la cible de diversité
+    #   10     / %        : équilibrage min-max (pool optionnel)
+    #   -1     / créneau  : bonus par créneau d'activité affecté
+    # Ne pas rééquilibrer sans tests de référence (plan de route, actions 1.1 et 1.5).
     model.Minimize(
         sum(shortfall_weighted_terms) +
         sum(p2_diversification_penalties) * 10**5 +
