@@ -5,8 +5,10 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from routers import solver_fixed, solver_coverage, solver_rotation
+from service_auth import install_token_guard
 
 app = FastAPI()
+install_token_guard(app)
 
 app.include_router(solver_fixed.router, prefix="/api/v1", tags=["fixed-activities"])
 app.include_router(solver_coverage.router, prefix="/api/v1", tags=["coverage"])
@@ -30,5 +32,11 @@ def health():
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host=os.environ.get("SOLVER_HOST", "127.0.0.1"),
+        port=8000,
+        reload=os.environ.get("SOLVER_RELOAD") == "1",
+    )

@@ -42,7 +42,8 @@ class ProphetForecastHelper
 
         try {
             $response = $this->httpClient->get($this->serviceUrl . '/health', [], [
-                'timeout' => 5
+                'timeout' => 5,
+                'headers' => PythonServiceAuth::headers(),
             ]);
 
             if ($response->isOk()) {
@@ -89,7 +90,8 @@ class ProphetForecastHelper
                 json_encode($payload),
                 [
                     'type' => 'json',
-                    'timeout' => $this->timeout
+                    'timeout' => $this->timeout,
+                    'headers' => PythonServiceAuth::headers(),
                 ]
             );
 
@@ -163,7 +165,8 @@ class ProphetForecastHelper
                 json_encode($payload),
                 [
                     'type' => 'json',
-                    'timeout' => $this->timeout
+                    'timeout' => $this->timeout,
+                    'headers' => PythonServiceAuth::headers(),
                 ]
             );
 
@@ -343,7 +346,8 @@ class ProphetForecastHelper
     {
         try {
             $response = $this->httpClient->get($this->serviceUrl . '/forecast/test', [], [
-                'timeout' => 10
+                'timeout' => 10,
+                'headers' => PythonServiceAuth::headers(),
             ]);
 
             if ($response->isOk()) {
