@@ -32,9 +32,24 @@ $checkboxTemplates = [
     <?php if (!empty($line->id)): ?>
         <?= $this->Form->hidden("rotation_rule_lines.$idx.id", ['value' => $line->id]) ?>
     <?php endif; ?>
-    <?= $this->Form->hidden("rotation_rule_lines.$idx.sort_order", [
-        'value' => $line->sort_order ?? (is_numeric($idx) ? (int)$idx + 1 : 1),
-    ]) ?>
+    <div class="row g-3 mb-2">
+        <div class="col-md-4">
+            <?= $this->Form->control("rotation_rule_lines.$idx.sort_order", [
+                'type' => 'select',
+                'options' => [
+                    1 => '1 — la plus prioritaire',
+                    2 => '2',
+                    3 => '3',
+                    4 => '4',
+                    5 => '5 — la moins prioritaire',
+                ],
+                'value' => $line->sort_order ?? (is_numeric($idx) ? min(5, (int)$idx + 1) : 1),
+                'label' => 'Priorité si les agents manquent',
+                'class' => 'form-control',
+                'empty' => false,
+            ]) ?>
+        </div>
+    </div>
 
     <div class="row g-3">
         <div class="col-md-4">

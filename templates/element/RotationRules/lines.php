@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
         wrap.setAttribute('data-next-index', String(idx + 1));
         const sort = card.querySelector('[name*="[sort_order]"]');
         if (sort) {
-            sort.value = String(idx + 1);
+            sort.value = String(Math.min(5, idx + 1));
         }
         const title = card.querySelector('[data-line-title]');
         if (title) {
