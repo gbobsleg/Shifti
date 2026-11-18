@@ -442,4 +442,18 @@ return [
     'Session' => [
         'defaults' => 'php',
     ],
+
+    /*
+     * Services Python (solveur OR-Tools, prévisions Prophet).
+     * Le jeton doit être identique à SHIFTI_SERVICE_TOKEN côté Python ; vide = aucun contrôle.
+     */
+    'PythonSolver' => [
+        'url' => env('PYTHON_SOLVER_URL', 'http://127.0.0.1:8000'),
+    ],
+    'PythonForecast' => [
+        'url' => env('PYTHON_FORECAST_URL', 'http://127.0.0.1:8001'),
+    ],
+    'PythonServices' => [
+        'token' => env('SHIFTI_SERVICE_TOKEN', ''),
+    ],
 ];
