@@ -318,7 +318,7 @@ class ScheduleDayGenerationService
             $resp = $http->post(
                 $solverUrl . '/api/v1/solve-fixed-activities',
                 json_encode($fixedProblem),
-                ['type' => 'application/json'],
+                ['type' => 'application/json', 'headers' => PythonServiceAuth::headers()],
             );
 
             $fixedPass1['http_status'] = $resp->getStatusCode();
@@ -948,7 +948,7 @@ class ScheduleDayGenerationService
                     $response = $http->post(
                         $rotationSolverUrl,
                         json_encode($rotationPayload),
-                        ['type' => 'json']
+                        ['type' => 'json', 'headers' => PythonServiceAuth::headers()]
                     );
 
                     if ($debugSolvers) {
@@ -1381,7 +1381,7 @@ class ScheduleDayGenerationService
             $resp2 = $http->post(
                 $solverUrl . '/api/v1/solve-schedule',
                 json_encode($wfmProblemPasse2),
-                ['type' => 'application/json'],
+                ['type' => 'application/json', 'headers' => PythonServiceAuth::headers()],
             );
             $body2 = $resp2->getStringBody();
             $solution = json_decode($body2, true);

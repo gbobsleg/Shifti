@@ -8,6 +8,7 @@ use App\Service\OperatingCalendarService;
 use App\Service\AgentsAfterFixedActivitiesService;
 use App\Service\FixedActivitiesBuilderService;
 use App\Service\PlanningDayHistoryService;
+use App\Service\PythonServiceAuth;
 use App\Service\RangeSource;
 use App\Service\ScheduleProblemBuilderService;
 use App\Service\WfmCalculatorService;
@@ -1514,7 +1515,7 @@ class SchedulesController extends AppController
                         $responsePasse1 = $http->post(
                             rtrim($solverUrl, '/') . '/api/v1/solve-fixed-activities',
                             json_encode($fixedProblem),
-                            ['type' => 'application/json'],
+                            ['type' => 'application/json', 'headers' => PythonServiceAuth::headers()],
                         );
                     }
 
@@ -1673,7 +1674,7 @@ class SchedulesController extends AppController
                     $response = $http->post(
                         $solverUrlPasse2 . '/api/v1/solve-schedule',
                         json_encode($wfmProblemPasse2),
-                        ['type' => 'application/json'],
+                        ['type' => 'application/json', 'headers' => PythonServiceAuth::headers()],
                     );
 
                     // ✅ NOUVEAU : Afficher la réponse BRUTE du solver
