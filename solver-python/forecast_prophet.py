@@ -32,7 +32,10 @@ from prophet_series import (
     trend_relative_gap,
 )
 
+from service_auth import install_token_guard
+
 app = FastAPI(title="Prophet Forecast Service", version="1.0.0")
+install_token_guard(app)
 
 
 # ================================
@@ -618,12 +621,11 @@ if __name__ == "__main__":
     print("=" * 60)
     print("Démarrage sur http://localhost:8001")
     print("Documentation: http://localhost:8001/docs")
-    print("Mode: Auto-reload activé")
     print("=" * 60)
     uvicorn.run(
         "forecast_prophet:app",
-        host="127.0.0.1",
+        host=os.environ.get("FORECAST_HOST", "127.0.0.1"),
         port=8001,
-        reload=True,
+        reload=os.environ.get("FORECAST_RELOAD") == "1",
         log_level="info"
     )
