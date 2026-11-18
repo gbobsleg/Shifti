@@ -1209,7 +1209,6 @@ def solve_schedule(problem: Problem):
     W_SURP = problem.weight_surplus
     W_SAME = problem.weight_same_offer_windows
     W_EEND = problem.weight_early_end
-    # W_BRK_ALIGN ignoré intentionnellement (voir commentaires)
     W_PER_EQ = getattr(problem, "weight_period_equity", 0) or 0
     W_PREF_MIXED = int(getattr(problem, "weight_prefer_mixed", 80) or 0)
     obj_terms: List[cp_model.LinearExpr] = []
@@ -1372,7 +1371,7 @@ def solve_schedule(problem: Problem):
 
     if getattr(problem, 'equity_offers', None):
         equity_set = set(problem.equity_offers or [])
-        W_EQUITY = max(int(getattr(problem, 'weight_equity', 40) or 0), 120)
+        W_EQUITY = int(getattr(problem, 'weight_equity', 40) or 0)
         if W_EQUITY > 0 and (w_morning or w_afternoon):
             equity_pen_vars: List[cp_model.IntVar] = []
             for k, off in enumerate(offers):

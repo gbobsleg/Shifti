@@ -1420,7 +1420,7 @@ class SchedulesController extends AppController
             }
             if (!empty($equityOffers)) {
                 $wfmProblem['equity_offers'] = $equityOffers;
-                $wfmProblem['weight_equity'] = 60; // renforcer l'équité AM/PM
+                $wfmProblem['weight_equity'] = 120; // renforcer l'équité AM/PM
             }
 
             $this->log('=== JSON FINAL ===', 'debug');
@@ -1643,9 +1643,6 @@ class SchedulesController extends AppController
                         'break_duration_minutes' => $breakDurationMinutes,
                         'lunch_duration_minutes' => $lunchDurationMinutes,
                         'forbid_midday_singletons' => $forbidMiddaySingletons,
-                        // Dispersion des pauses: pénalité renforcée pour éviter que plusieurs agents fassent la pause au même moment
-                        // Particulièrement important pour les agents avec activités fixes (même contraintes → même créneau optimal)
-                        'weight_break_dispersion' => 12,  // Augmenté de 3 (défaut) à 12 pour forcer le décalage
                         'debug_logging' => $debugSolvers,
                     ];
                     
@@ -1663,7 +1660,7 @@ class SchedulesController extends AppController
                         $forecastableEquityOffers = array_intersect($equityOffers, $forecastableOffers);
                         if (!empty($forecastableEquityOffers)) {
                             $wfmProblemPasse2['equity_offers'] = array_values($forecastableEquityOffers);
-                            $wfmProblemPasse2['weight_equity'] = 60;
+                            $wfmProblemPasse2['weight_equity'] = 120;
                         }
                     }
 
